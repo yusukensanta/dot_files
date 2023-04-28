@@ -28,21 +28,21 @@ packer.startup(function(use)
   use "kyazdani42/nvim-web-devicons" -- File icons
   use "akinsho/bufferline.nvim"
   use "ibhagwan/fzf-lua"
-	use "nvim-lua/plenary.nvim" -- Common utilities
+  use "nvim-lua/plenary.nvim" -- Common utilities
 
-	-- cmp plugins
-	use "hrsh7th/nvim-cmp" -- The completion plugin
-	use "hrsh7th/cmp-buffer" -- buffer completions
-	use "hrsh7th/cmp-path" -- path completions
-	use "hrsh7th/cmp-cmdline" -- cmdline completions
-	use "hrsh7th/cmp-nvim-lsp"
-	use "hrsh7th/cmp-nvim-lua"
-	use "onsails/lspkind-nvim"
+-- cmp plugins
+  use "hrsh7th/nvim-cmp" -- The completion plugin
+  use "hrsh7th/cmp-buffer" -- buffer completions
+  use "hrsh7th/cmp-path" -- path completions
+  use "hrsh7th/cmp-cmdline" -- cmdline completions
+  use "hrsh7th/cmp-nvim-lsp"
+  use "hrsh7th/cmp-nvim-lua"
+  use "onsails/lspkind-nvim"
   use "mfussenegger/nvim-dap"
 
-	-- snippets
-	use "L3MON4D3/LuaSnip" --snippet engine
-	use "saadparwaiz1/cmp_luasnip" -- snippet completions
+  -- snippets
+  use "L3MON4D3/LuaSnip" --snippet engine
+  use "saadparwaiz1/cmp_luasnip" -- snippet completions
 
   -- theme
   use "folke/tokyonight.nvim"
@@ -54,21 +54,21 @@ packer.startup(function(use)
   use 'williamboman/mason-lspconfig.nvim'
   use "jose-elias-alvarez/null-ls.nvim" -- for formatters and linters
   use 'scalameta/nvim-metals'
-	-- Formatter
+  -- Formatter
   use "MunifTanjim/prettier.nvim"
-	-- Telescope
-	use "nvim-telescope/telescope.nvim"
+  -- Telescope
+  use "nvim-telescope/telescope.nvim"
 
-	-- Treesitter
-	use "nvim-treesitter/nvim-treesitter"
-	use "nvim-telescope/telescope-file-browser.nvim"
+  -- Treesitter
+  use "nvim-treesitter/nvim-treesitter"
+  use "nvim-telescope/telescope-file-browser.nvim"
 
 
-	-- Automatically set up your configuration after cloning packer.nvim
-	-- Put this at the end after all plugins
-	if PACKER_BOOTSTRAP then
-		require("packer").sync()
-	end
+  -- Automatically set up your configuration after cloning packer.nvim
+  -- Put this at the end after all plugins
+  if PACKER_BOOTSTRAP then
+    require("packer").sync()
+  end
 
 end)
 
