@@ -60,9 +60,10 @@ packer.startup(function(use)
   use "nvim-telescope/telescope.nvim"
 
   -- Treesitter
-  use "nvim-treesitter/nvim-treesitter"
+  use {"nvim-treesitter/nvim-treesitter", run = ':TSUpdate'}
   use "nvim-telescope/telescope-file-browser.nvim"
-
+  use "javiorfo/nvim-soil"
+  use 'javiorfo/nvim-nyctophilia'
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins
   if PACKER_BOOTSTRAP then
@@ -117,8 +118,7 @@ vim.keymap.set('n', '<leader>fg', builtin.live_grep, {})
 vim.keymap.set('n', '<leader>fb', builtin.buffers, {})
 vim.keymap.set('n', '<leader>fh', builtin.help_tags, {})
 
-require('nvim-treesitter.configs').setup {
-  highlight = {
+require('nvim-treesitter.configs').setup { highlight = {
     enable = true
   },
   ensure_installed = 'all'
