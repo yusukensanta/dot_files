@@ -26,7 +26,6 @@ packer.startup(function(use)
   use "nvim-lualine/lualine.nvim" -- Statusline
   use "windwp/nvim-autopairs" -- Autopairs, integrates with both cmp and treesitter
   use "kyazdani42/nvim-web-devicons" -- File icons
-  use "akinsho/bufferline.nvim"
   use "ibhagwan/fzf-lua"
   use "nvim-lua/plenary.nvim" -- Common utilities
 
@@ -64,6 +63,7 @@ packer.startup(function(use)
   use "nvim-telescope/telescope-file-browser.nvim"
   use "javiorfo/nvim-soil"
   use 'javiorfo/nvim-nyctophilia'
+
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins
   if PACKER_BOOTSTRAP then

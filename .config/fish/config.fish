@@ -5,3 +5,5 @@ end
 source ~/.config/fish/alias.fish
 source ~/.config/fish/path.fish
 source ~/.asdf/asdf.fish
+
+eval "$(zoxide init fish)"
