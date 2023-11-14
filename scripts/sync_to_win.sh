@@ -6,3 +6,5 @@ for d in ${TARGET_DIR[@]};
 do
   cp -r $PWD/.config/$d $HOME/.config/
 done
+
+cp $PWD/.tmux.conf $HOME/.tmux.conf

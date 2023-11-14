@@ -8,3 +8,4 @@ do
 done
 
 cp /mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.yml $PWD/alacritty/alacritty.yml
+cp $HOME/.tmux.conf $PWD/.tmux.conf
