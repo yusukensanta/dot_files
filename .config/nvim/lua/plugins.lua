@@ -99,19 +99,6 @@ cmp.setup({
   },
 })
 
-require('lspconfig').pyright.setup{
-  settings = {
-    python = {
-      analysis = {
-        autoSearchPath = true,
-        useLibraryCodeForTypes = true,
-        reportUnusedImport = true,
-        autoImportCompletions = true
-      }
-    }
-  }
-}
-
 local builtin = require('telescope.builtin')
 vim.keymap.set('n', '<leader>ff', builtin.find_files, {})
 vim.keymap.set('n', '<leader>fg', builtin.live_grep, {})
