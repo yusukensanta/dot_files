@@ -3,13 +3,13 @@
 set -eux
 
 sudo apt-get install -y \
-  curl\
-  git\
-  fzf\
-  neovim\
-  fd-find\
-  bat\
-  ripgrep\
+  curl \
+  unzip \
+  git \
+  fzf \
+  fd-find \
+  bat \
+  ripgrep \
   tmux
 
 # Install fish and fisher
