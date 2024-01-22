@@ -8,6 +8,19 @@ autopairs.setup({
 local g = vim.g
 
 require('mason').setup()
+require('mason-lspconfig').setup({
+  ensure_installed = {
+    "rust_analyzer",
+    "ruff-lsp",
+    "black",
+    "isort",
+    "mypy",
+    "clangd",
+    "tsserver",
+    "gopls",
+    "deno",
+  }
+})
 require('mason-lspconfig').setup_handlers({ function(server)
   local opt = {
     on_attach = function(client, bufnr)
@@ -39,6 +52,13 @@ require('mason-lspconfig').setup_handlers({ function(server)
   }
   require('lspconfig')[server].setup(opt)
 end})
+
+require('mason-nvim-dap').setup({
+  ensure_installed = {
+    "codelldb",
+    "cpptools",
+  },
+})
 
 vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
   vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = true }
