@@ -7,5 +7,5 @@ do
   cp -r $HOME/.config/$d $PWD/.config/
 done
 
-cp /mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.yml $PWD/alacritty/alacritty.yml
+cp /mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml $PWD/alacritty/alacritty.toml
 cp $HOME/.tmux.conf $PWD/.tmux.conf
