@@ -27,6 +27,7 @@ local options = {
   shiftwidth = 2,
   tabstop = 2,
   cursorline = true,
+  cursorcolumn = true,
   number = true,
   relativenumber = false,
   numberwidth = 4,
