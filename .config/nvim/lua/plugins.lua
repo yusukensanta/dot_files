@@ -13,13 +13,6 @@ vim.cmd([[
   augroup end
 ]])
 
-vim.cmd([[
-  augroup lsp
-  autocmd!
-  autocmd FileType scala,sbt lua require("metals").initialize_or_attach(metals_config)
-  augroup end
-]])
-
 -- ref: https://github.com/hisasann/neovim/blob/master/lua/plugins.lua
 packer.startup(function(use)
   use "wbthomason/packer.nvim"
@@ -54,7 +47,9 @@ packer.startup(function(use)
   use 'williamboman/mason-lspconfig.nvim'
   use 'WhoIsSethDaniel/mason-tool-installer.nvim'
   use "jose-elias-alvarez/null-ls.nvim" -- for formatters and linters
-  use 'scalameta/nvim-metals'
+  use { 'scalameta/nvim-metals',
+    requires = { 'nvim-lua/plenary.nvim' }
+  }
 
   -- formatter
   use "MunifTanjim/prettier.nvim"
