@@ -48,3 +48,16 @@ vim.opt.shortmess:append("c")
 for k, v in pairs(options) do
   vim.opt[k] = v
 end
+
+vim.g.clipboard = {
+  name = "WSL-clipboard",
+  copy = {
+    ["+"] = "xsel -bi",
+    ["*"] = "xsel -bi",
+  },
+  paste = {
+    ["+"] = "xsel -bo",
+    ["*"] = function() return vim.fn.system('xsel -bo | tr -d "\r"') end,
+  },
+  cache_enabled = 0,
+}

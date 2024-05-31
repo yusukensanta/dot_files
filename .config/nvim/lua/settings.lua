@@ -46,6 +46,7 @@ cmp.setup.cmdline(':', {
 
 local telescope = require('telescope')
 telescope.setup {
+
   defaults = {
     file_ignore_patterns = {
       ".git",
@@ -76,7 +77,6 @@ telescope.setup {
 }
 
 telescope.load_extension("file_browser")
-
 
 require('nvim-treesitter.install').compilers = { "clang" }
 require('nvim-treesitter.configs').setup({
@@ -165,16 +165,15 @@ require('lualine').setup {
   extensions = {}
 }
 
-
 local status, autopairs = pcall(require, "nvim-autopairs")
 if (not status) then return end
 
 autopairs.setup({
   disable_filetype = { "TelescopePrompt", "vim" },
+
 })
 
 local g = vim.g
-
 require('mason').setup()
 require('mason-lspconfig').setup({
   ensure_installed = {
@@ -185,6 +184,7 @@ require('mason-lspconfig').setup({
     "gopls",
     "pyright",
   }
+
 })
 
 require('mason-tool-installer').setup({
@@ -291,3 +291,30 @@ require('lspconfig').pyright.setup({
     }
   }
 })
+
+require('CopilotChat').setup({
+  debug = true,
+})
+
+function CopilotChatBuffer()
+  local input = vim.fn.input("Quick Chat: ")
+  if input ~= "" then
+    require("CopilotChat").ask(input, { selection = require("CopilotChat.select").buffer })
+  end
+end
+
+function ShowCopilotChatActionPrompt()
+  local actions = require("CopilotChat.actions")
+  require("CopilotChat.integrations.telescope").pick(actions.prompt_actions())
+end
+
+function ShowCopilotChatHelp()
+  local actions = require("CopilotChat.actions")
+  require("CopilotChat.integrations.telescope").pick(actions.help_actions())
+end
+
+vim.api.nvim_set_keymap("n", "<leader>cc", "<cmd>lua CopilotChatBuffer()<cr>", { noremap = true, silent = true })
+vim.api.nvim_set_keymap("n", "<leader>ccp", "<cmd>lua ShowCopilotChatActionPrompt()<cr>",
+  { noremap = true, silent = true })
+vim.api.nvim_set_keymap("n", "<leader>cch", "<cmd>lua ShowCopilotChatHelp()<cr>",
+  { noremap = true, silent = true })

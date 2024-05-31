@@ -19,7 +19,6 @@ packer.startup(function(use)
   use "nvim-lualine/lualine.nvim"    -- Statusline
   use "windwp/nvim-autopairs"        -- Autopairs, integrates with both cmp and treesitter
   use "kyazdani42/nvim-web-devicons" -- File icons
-  use "ibhagwan/fzf-lua"
   use "nvim-lua/plenary.nvim"        -- Common utilities
 
   -- cmp plugins
@@ -60,7 +59,6 @@ packer.startup(function(use)
     "nvim-telescope/telescope-file-browser.nvim",
     requires = { "nvim-telecope/telescope.nvim", "nvim-lua/plenary.nvim" }
   }
-
   -- Treesitter
   use { "nvim-treesitter/nvim-treesitter", run = ':TSUpdate' }
 
@@ -75,8 +73,28 @@ packer.startup(function(use)
   }
 
   -- PlantUML
-  use "javiorfo/nvim-soil"
-  use 'javiorfo/nvim-nyctophilia'
+  use { "weirongxu/plantuml-previewer.vim",
+    requires = {
+      "tyru/open-browser.vim",
+      "aklt/plantuml-syntax",
+    }
+  }
+
+  use({
+    "iamcco/markdown-preview.nvim",
+    run = function()
+      vim.fn["mkdp#util#install"]()
+    end,
+  })
+
+  -- Copilot
+  use 'github/copilot.vim'
+  use { 'CopilotC-Nvim/CopilotChat.nvim',
+    requires = {
+      'github/copilot.vim',
+      'nvim-lua/plenary.nvim',
+    }
+  }
 
   -- Put this at the end after all plugins
   if PACKER_BOOTSTRAP then

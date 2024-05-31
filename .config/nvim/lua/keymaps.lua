@@ -21,3 +21,11 @@ vim.keymap.set('n', '<space>fb', ":Telescope file_browser path=%:p:h select_buff
 vim.keymap.set('n', '<leader>t', ":Neotree toggle<CR>", {})
 vim.keymap.set('n', '<leader>tf', ":Neotree focus<CR>", {})
 vim.keymap.set('n', '<leader>gs', ":Neotree git_status<CR>", {})
+
+-- markdown preview
+vim.keymap.set('n', '<leader>md', ":MarkdownPreview<CR>", {})
+vim.keymap.set('n', '<leader>ms', ":MarkdownPreviewStop<CR>", {})
+vim.keymap.set('n', '<leader>mt', ":MarkdownPreviewToggle<CR>", {})
+
+-- plantuml
+vim.keymap.set('n', '<leader>po', ":PlantumlOpen<CR>", {})
