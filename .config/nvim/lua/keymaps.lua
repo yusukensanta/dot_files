@@ -29,3 +29,27 @@ vim.keymap.set('n', '<leader>mt', ":MarkdownPreviewToggle<CR>", {})
 
 -- plantuml
 vim.keymap.set('n', '<leader>po', ":PlantumlOpen<CR>", {})
+
+-- Copilot
+function CopilotChatBuffer()
+  local input = vim.fn.input("Quick Chat: ")
+  if input ~= "" then
+    require("CopilotChat").ask(input, { selection = require("CopilotChat.select").buffer })
+  end
+end
+
+function ShowCopilotChatActionPrompt()
+  local actions = require("CopilotChat.actions")
+  require("CopilotChat.integrations.telescope").pick(actions.prompt_actions())
+end
+
+function ShowCopilotChatHelp()
+  local actions = require("CopilotChat.actions")
+  require("CopilotChat.integrations.telescope").pick(actions.help_actions())
+end
+
+vim.keymap.set("n", "<leader>co", "<cmd>lua CopilotChatBuffer()<cr>", { noremap = true, silent = true })
+vim.keymap.set("n", "<leader>cop", "<cmd>lua ShowCopilotChatActionPrompt()<cr>",
+  { noremap = true, silent = true })
+vim.keymap.set("n", "<leader>coh", "<cmd>lua ShowCopilotChatHelp()<cr>",
+  { noremap = true, silent = true })
