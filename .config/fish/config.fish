@@ -10,10 +10,6 @@ end
 
 source ~/.config/fish/alias.fish
 source ~/.config/fish/path.fish
-source ~/.asdf/asdf.fish
-source ~/.cargo/env.fish
 
 eval "$(zoxide init fish)"
-
-# Generated for envman. Do not edit.
-test -s ~/.config/envman/load.fish; and source ~/.config/envman/load.fish
+/home/yusuken/.local/bin/mise activate fish | source
