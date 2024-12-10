@@ -45,13 +45,16 @@ packer.startup(function(use)
   use 'williamboman/mason.nvim'
   use 'williamboman/mason-lspconfig.nvim'
   use 'WhoIsSethDaniel/mason-tool-installer.nvim'
-  use "jose-elias-alvarez/null-ls.nvim" -- for formatters and linters
   use { 'scalameta/nvim-metals',
     requires = { 'nvim-lua/plenary.nvim' }
   }
 
   -- formatter
   use "MunifTanjim/prettier.nvim"
+  use "mhartington/formatter.nvim"
+
+  -- linter
+  use "mfussenegger/nvim-lint"
 
   -- fuzzy finder
   use "nvim-telescope/telescope.nvim"

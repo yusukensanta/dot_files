@@ -179,16 +179,14 @@ require('mason-lspconfig').setup({
     "lua_ls",
     "rust_analyzer",
     "clangd",
-    "tsserver",
     "gopls",
-    "pyright",
+    "ruff",
   }
 })
 
 require('mason-tool-installer').setup({
   ensure_installed = {
     "mypy",
-    "ruff-lsp",
   }
 })
 
@@ -273,23 +271,102 @@ require('neo-tree').setup({
   }
 })
 
-require('lspconfig').pyright.setup({
-  settings = {
-    pyright = {
-      disableOrganizeImports = true,
-      disableTaggedHints = true,
-    },
-    python = {
-      analysis = {
-        ignore = { '*' },
-        diagnosticSeverityOverrides = {
-          reportUndefinedVariable = "none",
-        },
+require('lspconfig').ruff.setup {
+  trace = "messages",
+  init_options = {
+    settings = {
+      configurationPreference = "filesystemFirst",
+      lineLength = 79,
+      lint = {
+        enable = true,
+        preview = true,
+        select = { "E", "W", "F" },
+        extendSelect = { "I" }
+      },
+      format = {
+        enable = true,
+        preview = true
       }
     }
+  },
+  commands = {
+    RuffLint = {
+      function()
+        vim.lsp.buf.execute_command {
+          command = "ruff.applyAutoFixe",
+          arguments = {
+            { uri = vim.uri_from_bufnr(0) },
+          }
+        }
+      end,
+      description = "Fix by ruff"
+    },
+    RuffFormat = {
+      function()
+        vim.lsp.buf.execute_command {
+          command = "ruff.applyFormat",
+          arguments = {
+            { uri = vim.uri_from_bufnr(0) },
+          }
+        }
+      end,
+      description = "Format by ruff"
+    },
+    RuffImports = {
+      function()
+        vim.lsp.buf.execute_command {
+          command = "ruff.applyOrganizeImports",
+          arguments = {
+            { uri = vim.uri_from_bufnr(0) },
+          }
+        }
+      end,
+      description = "OrganizeImports by ruff"
+    }
   }
-})
+}
 
 require('CopilotChat').setup({
   debug = true,
+})
+
+require("formatter").setup({
+  filetype = {
+    scala = {
+      function()
+        return {
+          exe = "scalafmt",
+          args = {},
+          stdin = true
+        }
+      end
+    },
+    python = {
+      require("formatter.filetypes.python").ruff,
+    },
+    go = {
+      function()
+        return {
+          exe = "gofmt",
+          args = {},
+          stdin = true
+        }
+      end
+    },
+  },
+})
+
+augroup("__formatter__", { clear = true })
+autocmd("BufWritePost", {
+  group = "__formatter__",
+  command = ":FormatWrite",
+})
+
+require("lint").linters_by_ft = {
+  python = { "mypy" },
+}
+
+autocmd('BufWritePost', {
+  pattern = '*.py',
+  command = 'lua require("lint").try_lint()'
 })
