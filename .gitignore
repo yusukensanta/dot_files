@@ -1,7 +1,9 @@
-.config/fish/completions
-.config/fish/conf.d
-.config/fish/functions
-.config/fish/fish_plugins
-.config/fish/fish_variables
-.config/nvim/pack
-.config/nvim/plugin/packer_compiled.lua
+.cache
+.rustup
+.zsh_history
+.config/mise
+.local
+.gnupg
+.npm
+.cargo
+.ssh
