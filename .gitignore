@@ -7,3 +7,5 @@
 .npm
 .cargo
 .ssh
+*.md
+!README.md

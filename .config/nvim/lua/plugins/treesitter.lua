@@ -1,0 +1,43 @@
+return {
+  {
+    "nvim-treesitter/nvim-treesitter",
+    build = ":TSUpdate",
+    config = function()
+      local configs = require("nvim-treesitter.configs")
+      configs.setup({
+        ensure_installed = {
+          "c",
+          "lua",
+          "python",
+          "rust",
+          "go",
+          "ruby",
+          "scala",
+          "toml",
+          "yaml",
+          "markdown",
+          "bash",
+        },
+        ignore_install = {},
+        modules = {},
+        auto_install = true,
+        sync_install = false,
+        async_install = true,
+        highlight = {
+          enable = true,
+          additional_vim_regex_highlighting = false,
+        },
+        indent = { enable = true },
+        incremental_selection = {
+          enable = true,
+          keymaps = {
+            init_selection = "<C-space>",
+            node_incremental = "<C-space>",
+            scope_incremental = "<C-s>",
+            node_decremental = "<M-space>",
+          },
+        },
+      })
+    end
+  },
+}
