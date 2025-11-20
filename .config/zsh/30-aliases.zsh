@@ -1,3 +1,7 @@
+#!/usr/bin/env zsh
+# ~/.config/zsh/30-aliases.zsh
+# Command aliases and abbreviations
+
 # Enhanced function to safely add abbreviations
 safe_abbr() {
     local name="$1"
@@ -9,13 +13,15 @@ safe_abbr() {
     fi
 
     if abbr list 2>/dev/null | grep -q "^${name}="; then
+        abbr erase $name
         return 0
     fi
 
-    abbr "$name=$expansion" > /dev/null 2>&1
+    abbr add --force "$name=$expansion" > /dev/null 2>&1
     return $?
 }
 
+# === GIT ABBREVIATIONS ===
 safe_abbr "g" "git"
 safe_abbr "ga" "git add"
 safe_abbr "gaa" "git add --all"
@@ -27,19 +33,32 @@ safe_abbr "gd" "git diff"
 safe_abbr "gl" "git log --oneline"
 safe_abbr "gps" "git push"
 safe_abbr "gpl" "git pull"
+
+# === DOCKER ABBREVIATIONS ===
 safe_abbr "d" "docker"
 safe_abbr "dc" "docker compose"
 safe_abbr "dps" "docker ps"
 safe_abbr "di" "docker images"
+
+# === KUBERNETES ABBREVIATIONS ===
 safe_abbr "k" "kubectl"
 safe_abbr "kg" "kubectl get"
 safe_abbr "kd" "kubectl describe"
 safe_abbr "ka" "kubectl apply -f"
-safe_abbr "ll" "eza -luUg -s created -r --time-style 'long-iso'"
+
+# === FILE OPERATIONS ===
+safe_abbr "ll" "eza -lauUg -s modified -r --time-style 'long-iso' --group-directories-first"
 safe_abbr "la" "eza -la"
 safe_abbr "lt" "eza -T"
+safe_abbr "cat" "bat"
+
+# === EDITOR ===
 safe_abbr "vi" "nvim"
+
+# === MISE ===
 safe_abbr "m" "mise"
+
+# === DIRECTORY NAVIGATION ===
 safe_abbr ".." "cd .."
 safe_abbr "..." "cd ../.."
 safe_abbr "~" "cd ~"
