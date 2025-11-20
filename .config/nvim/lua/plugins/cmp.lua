@@ -9,8 +9,11 @@ return {
         preset = "none",
         ["<C-l>"] = { 'select_prev', 'fallback' },
         ["<C-k>"] = { 'select_next', 'fallback' },
-        ["<C-y>"] = { 'select_and_accept', },
-        ['<C-e>'] = false,
+        ["<CR>"] = { 'accept', 'fallback' },
+        ["<Tab>"] = { 'snippet_forward', 'fallback' },
+        ["<S-Tab>"] = { 'snippet_backward', 'fallback' },
+        ["<C-space>"] = { 'show', 'fallback' },
+        ['<C-e>'] = { 'hide', 'fallback' },
       },
       appearance = {
         use_nvim_cmp_as_default = true,
@@ -72,5 +75,19 @@ return {
         },
       })
     end,
-  }
+  },
+  {
+    "kylechui/nvim-surround",
+    version = "^3.0.0", -- Use for stability; omit to use `main` branch for the latest features
+    event = "VeryLazy",
+    config = function()
+      require("nvim-surround").setup()
+    end,
+  },
+  {
+    "windwp/nvim-ts-autotag",
+    config = function()
+      require('nvim-ts-autotag').setup()
+    end,
+  },
 }

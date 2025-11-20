@@ -65,30 +65,9 @@ return {
       require("neogit").setup({
         -- Modern enhancements
         graph_style = "unicode", -- "ascii", "unicode"
-        git_services = {
-          ["github.com"] =
-          "https://github.com/${owner}/${repository}/compare/${branch_name}?expand=1",
-          ["bitbucket.org"] =
-          "https://bitbucket.org/${owner}/${repository}/pull-requests/new?source=${branch_name}&t=1",
-          ["gitlab.com"] =
-          "https://gitlab.com/${owner}/${repository}/-/merge_requests/new?merge_request[source_branch]=${branch_name}",
-        },
         telescope_sorter = function()
           return require("telescope").extensions.fzf.native_fzf_sorter()
         end,
-        -- Your existing config with improvements
-        disable_hint = false,
-        disable_context_highlighting = false,
-        disable_signs = false,
-        prompt_force_push = true,
-        commit_editor = {
-          kind = "vsplit",
-          show_staged_diff = true,
-          staged_diff_split_kind = "vsplit", -- "split", "vsplit"
-        },
-        auto_refresh = true,
-        sort_branches = "-committerdate",
-        kind = "tab",
         integrations = {
           telescope = true,
           diffview = true,
@@ -97,52 +76,18 @@ return {
       })
     end,
     keys = {
-      { "<leader>gg", "<cmd>Neogit<cr>",        desc = "Neogit - Open" },
-      { "<leader>gc", "<cmd>Neogit commit<cr>", desc = "Neogit - Commit" },
-      { "<leader>gp", "<cmd>Neogit push<cr>",   desc = "Neogit - Push" },
-      { "<leader>gl", "<cmd>Neogit log<cr>",    desc = "Neogit - Log" },
-      { "<leader>gb", "<cmd>Neogit branch<cr>", desc = "Neogit - Branch" },
-      { "<leader>gs", "<cmd>Neogit<cr>",        desc = "Neogit - Status" },
+      { "<leader>gg",  "<cmd>Neogit<cr>",        desc = "Neogit - Open" },
+      { "<leader>gcm", "<cmd>Neogit commit<cr>", desc = "Neogit - Commit" },
+      { "<leader>gp",  "<cmd>Neogit push<cr>",   desc = "Neogit - Push" },
+      { "<leader>gl",  "<cmd>Neogit log<cr>",    desc = "Neogit - Log" },
+      { "<leader>gbr", "<cmd>Neogit branch<cr>", desc = "Neogit - Branch" },
+      { "<leader>gs",  "<cmd>Neogit<cr>",        desc = "Neogit - Status" },
     },
   },
   {
     "lewis6991/gitsigns.nvim",
     event = { "BufReadPre", "BufNewFile" },
     opts = {
-      signs = {
-        add = { text = "▎" },
-        change = { text = "▎" },
-        delete = { text = "" },
-        topdelete = { text = "" },
-        changedelete = { text = "▎" },
-        untracked = { text = "▎" },
-      },
-      signs_staged = {
-        add = { text = "▎" },
-        change = { text = "▎" },
-        delete = { text = "" },
-        topdelete = { text = "" },
-        changedelete = { text = "▎" },
-      },
-      signs_staged_enable = true,
-      signcolumn = true,
-      watch_gitdir = {
-        follow_files = true,
-      },
-      auto_attach = true,
-      current_line_blame_opts = {
-        virt_text = true,
-        virt_text_pos = "eol",
-        delay = 300, -- Faster response
-        ignore_whitespace = false,
-      },
-      preview_config = {
-        border = "rounded",
-        style = "minimal",
-        relative = "cursor",
-        row = 0,
-        col = 1,
-      },
       -- Enhanced diff algorithm
       diff_opts = {
         algorithm = "patience",
@@ -257,19 +202,6 @@ return {
       { "<leader>gY", "<cmd>GitLink!<cr>", mode = { "n", "v" }, desc = "GitLinker - Open git link" },
     },
   },
-  {
-    "aaronhallaert/advanced-git-search.nvim",
-    cmd = { "AdvancedGitSearch" },
-    dependencies = {
-      "nvim-telescope/telescope.nvim",
-      "tpope/vim-fugitive",
-      "sindrets/diffview.nvim",
-    },
-    keys = {
-      { "<leader>gS", "<cmd>AdvancedGitSearch<cr>", desc = "Advanced Git Search" },
-    },
-  },
-
   {
     "f-person/git-blame.nvim",
     event = "BufReadPre",
