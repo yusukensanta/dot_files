@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration directories to sync
-TARGET_DIRS=(nvim zsh)
+TARGET_DIRS=(nvim zsh sheldon)
 
 # Check for dry-run flag
 DRY_RUN=false
@@ -45,7 +45,7 @@ echo ""
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-  copy_file "$HOME/.config/$dir" "$REPO_DIR/.config/$dir"
+  copy_file "$HOME/.config/$dir" "$REPO_DIR/.config"
 done
 
 # Sync individual files

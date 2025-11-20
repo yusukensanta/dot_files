@@ -45,7 +45,7 @@ echo ""
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-  copy_file "$REPO_DIR/.config/$dir" "$HOME/.config/$dir"
+  copy_file "$REPO_DIR/.config/$dir" "$HOME/.config"
 done
 
 # Sync individual files
