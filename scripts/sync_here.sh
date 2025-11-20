@@ -51,6 +51,7 @@ done
 # Sync individual files
 copy_file "$HOME/.zshrc" "$REPO_DIR/.zshrc"
 copy_file "$HOME/.tmux.conf" "$REPO_DIR/.tmux.conf"
+copy_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
 
 # Sync alacritty (Windows location)
 if [[ -f "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" ]]; then

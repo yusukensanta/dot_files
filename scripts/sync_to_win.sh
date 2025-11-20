@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration directories to sync
-TARGET_DIRS=(nvim zsh)
+TARGET_DIRS=(nvim zsh sheldon)
 
 # Check for dry-run flag
 DRY_RUN=false
@@ -51,6 +51,7 @@ done
 # Sync individual files
 copy_file "$REPO_DIR/.zshrc" "$HOME/.zshrc"
 copy_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf"
+copy_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml"
 
 # Sync alacritty (Windows location) - optional
 if [[ -d "/mnt/c/Users/yusuk/AppData/Roaming/alacritty" ]]; then
