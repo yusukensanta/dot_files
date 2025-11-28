@@ -20,8 +20,8 @@ if [[ "${1:-}" == "--dry-run" ]]; then
   echo "----------------------------------------"
 fi
 
-# Function to copy with logging
-copy_file() {
+# Function to sync with logging (removes files not in source)
+sync_file() {
   local src="$1"
   local dest="$2"
 
@@ -30,12 +30,24 @@ copy_file() {
     return 1
   fi
 
+  local rsync_opts="-a --delete"
   if $DRY_RUN; then
-    echo "Would copy: $src -> $dest"
+    rsync_opts="$rsync_opts --dry-run"
+    echo "Would sync: $src -> $dest"
   else
-    mkdir -p "$(dirname "$dest")"
-    cp -r "$src" "$dest"
-    echo "✓ Copied: $src -> $dest"
+    echo "✓ Syncing: $src -> $dest"
+  fi
+
+  # Create destination parent directory if needed
+  mkdir -p "$(dirname "$dest")"
+
+  # Use rsync with --delete to remove files not in source
+  if [[ -d "$src" ]]; then
+    # For directories, sync contents and remove extra files
+    rsync $rsync_opts -v "$src/" "$dest/"
+  else
+    # For individual files, just sync the file
+    rsync $rsync_opts -v "$src" "$dest"
   fi
 }
 
@@ -45,17 +57,17 @@ echo ""
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-  copy_file "$HOME/.config/$dir" "$REPO_DIR/.config"
+  sync_file "$HOME/.config/$dir" "$REPO_DIR/.config/$dir"
 done
 
 # Sync individual files
-copy_file "$HOME/.zshrc" "$REPO_DIR/.zshrc"
-copy_file "$HOME/.tmux.conf" "$REPO_DIR/.tmux.conf"
-copy_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
+sync_file "$HOME/.zshrc" "$REPO_DIR/.zshrc"
+sync_file "$HOME/.tmux.conf" "$REPO_DIR/.tmux.conf"
+sync_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
 
 # Sync alacritty (Windows location)
 if [[ -f "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" ]]; then
-  copy_file "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty.toml"
+  sync_file "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty.toml"
 fi
 
 echo ""

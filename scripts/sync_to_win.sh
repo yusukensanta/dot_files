@@ -2,6 +2,11 @@
 
 # Sync configuration files from dotfiles repository to $HOME
 # Usage: ./sync_to_win.sh [--dry-run]
+#
+# Features:
+# - Uses rsync with --delete to remove files/directories that don't exist in source
+# - Preserves permissions, timestamps, and symbolic links
+# - Provides detailed sync information
 
 set -euo pipefail
 
@@ -13,56 +18,119 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TARGET_DIRS=(nvim zsh sheldon)
 
 # Check for dry-run flag
-DRY_RUN=false
+DRY_RUN_FLAG=""
 if [[ "${1:-}" == "--dry-run" ]]; then
-  DRY_RUN=true
-  echo "DRY RUN MODE - No files will be copied"
-  echo "----------------------------------------"
+  DRY_RUN_FLAG="--dry-run"
+  echo "🔍 DRY RUN MODE - No files will be modified"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 fi
 
-# Function to copy with logging
-copy_file() {
+# rsync options:
+# -a (archive): preserves permissions, times, symbolic links, etc. (includes -rlptgoD)
+# -v (verbose): increase verbosity
+# --delete: delete extraneous files from destination dirs
+# --delete-excluded: also delete excluded files from destination
+# -h (human-readable): output numbers in human-readable format
+# --progress: show progress during transfer (only in non-dry-run mode)
+RSYNC_BASE_OPTS="-avh --delete"
+
+# Function to sync directory with rsync
+sync_directory() {
   local src="$1"
   local dest="$2"
+  local description="${3:-}"
 
   if [[ ! -e "$src" ]]; then
     echo "⚠️  Source not found: $src"
     return 1
   fi
 
-  if $DRY_RUN; then
-    echo "Would copy: $src -> $dest"
-  else
+  # Add trailing slash to source to sync contents, not the directory itself
+  [[ -d "$src" ]] && src="${src%/}/"
+
+  echo ""
+  echo "📁 Syncing: ${description:-$src}"
+  echo "   Source: $src"
+  echo "   Target: $dest"
+
+  # Create destination parent directory if it doesn't exist
+  if [[ -z "$DRY_RUN_FLAG" ]]; then
     mkdir -p "$(dirname "$dest")"
-    cp -r "$src" "$dest"
-    echo "✓ Copied: $src -> $dest"
+  fi
+
+  # Execute rsync with appropriate options
+  if rsync $RSYNC_BASE_OPTS $DRY_RUN_FLAG "$src" "$dest"; then
+    if [[ -n "$DRY_RUN_FLAG" ]]; then
+      echo "   ✓ Dry-run completed"
+    else
+      echo "   ✓ Synced successfully"
+    fi
+  else
+    echo "   ✗ Sync failed"
+    return 1
   fi
 }
 
-echo "Syncing configurations from repository to HOME..."
+# Function to sync individual file
+sync_file() {
+  local src="$1"
+  local dest="$2"
+  local description="${3:-}"
+
+  if [[ ! -f "$src" ]]; then
+    echo "⚠️  Source file not found: $src"
+    return 1
+  fi
+
+  echo ""
+  echo "📄 Syncing: ${description:-$(basename "$src")}"
+  echo "   Source: $src"
+  echo "   Target: $dest"
+
+  # Create destination parent directory if it doesn't exist
+  if [[ -z "$DRY_RUN_FLAG" ]]; then
+    mkdir -p "$(dirname "$dest")"
+  fi
+
+  # Execute rsync for single file
+  if rsync $RSYNC_BASE_OPTS $DRY_RUN_FLAG "$src" "$dest"; then
+    if [[ -n "$DRY_RUN_FLAG" ]]; then
+      echo "   ✓ Dry-run completed"
+    else
+      echo "   ✓ Synced successfully"
+    fi
+  else
+    echo "   ✗ Sync failed"
+    return 1
+  fi
+}
+
+echo "🔄 Syncing configurations from repository to HOME..."
 echo "Repository: $REPO_DIR"
-echo ""
+echo "Target: $HOME"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-  copy_file "$REPO_DIR/.config/$dir" "$HOME/.config"
+  sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir"
 done
 
 # Sync individual files
-copy_file "$REPO_DIR/.zshrc" "$HOME/.zshrc"
-copy_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf"
-copy_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml"
+sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
+sync_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf" ".tmux.conf"
+sync_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml" "starship.toml"
 
 # Sync alacritty (Windows location) - optional
 if [[ -d "/mnt/c/Users/yusuk/AppData/Roaming/alacritty" ]]; then
   if [[ -f "$REPO_DIR/alacritty/alacritty.toml" ]]; then
-    copy_file "$REPO_DIR/alacritty/alacritty.toml" "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml"
+    sync_file "$REPO_DIR/alacritty/alacritty.toml" "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" "alacritty.toml (Windows)"
   fi
 fi
 
 echo ""
-if $DRY_RUN; then
-  echo "Dry run complete. Run without --dry-run to apply changes."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [[ -n "$DRY_RUN_FLAG" ]]; then
+  echo "✅ Dry run complete. Run without --dry-run to apply changes."
 else
-  echo "Sync complete!"
+  echo "✅ Sync complete!"
 fi
