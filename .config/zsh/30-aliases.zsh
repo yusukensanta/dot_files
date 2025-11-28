@@ -21,6 +21,8 @@ safe_abbr() {
     return $?
 }
 
+export ABBR_SET_EXPANSION_CURSOR=1
+
 # === GIT ABBREVIATIONS ===
 safe_abbr "g" "git"
 safe_abbr "ga" "git add"
