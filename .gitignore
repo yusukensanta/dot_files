@@ -7,5 +7,11 @@
 .npm
 .cargo
 .ssh
+**.claude**
+
 *.md
 !README.md
+
+.config/zsh/.zcompdump*
+
+.config/nvim/doc
