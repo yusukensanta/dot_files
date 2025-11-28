@@ -6,20 +6,21 @@ return {
     },
     ft = { "scala", "sbt", "java" },
     opts = function()
+      local map = require("helpers.keys").map
       local metals_config = require("metals").bare_config()
 
       -- Same on_attach function as your other LSP servers
       metals_config.on_attach = function(client, bufnr)
         -- Metals-specific commands
-        vim.keymap.set("n", "<leader>mc", function()
+        map("n", "<leader>mc", function()
           require("metals").compile_cascade()
         end, { buffer = bufnr, desc = "Metals Compile Cascade" })
 
-        vim.keymap.set("n", "<leader>mt", function()
+        map("n", "<leader>mt", function()
           require("telescope").extensions.metals.commands()
         end, { buffer = bufnr, desc = "Metals Telescope Commands" })
 
-        vim.keymap.set("n", "<leader>mi", function()
+        map("n", "<leader>mi", function()
           require("metals").toggle_setting("showImplicitArguments")
         end, { buffer = bufnr, desc = "Metals Toggle Implicit Arguments" })
       end

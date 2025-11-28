@@ -1,0 +1,112 @@
+-- LSP Configuration Module
+-- Handles common LSP setup, keymaps, and server initialization
+
+local M = {}
+
+-- Helper function to setup LSP servers using modern Neovim 0.11+ API
+local function lsp_setup(server, opts)
+  if opts and not vim.tbl_isempty(opts) then
+    vim.lsp.config(server, opts)
+  end
+  vim.lsp.enable(server)
+end
+
+-- Setup common LSP keymaps and formatting on attach
+function M.setup_lsp_attach()
+  vim.api.nvim_create_autocmd("LspAttach", {
+    group = vim.api.nvim_create_augroup("NvimLspAttach", { clear = true }),
+    callback = function(args)
+      local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
+
+      -- Enable completion if formatting is supported
+      if client:supports_method("textDocument/formatting") then
+        vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
+      end
+
+      -- Auto-format on save (except for Go, which has special handling)
+      vim.api.nvim_create_autocmd("BufWritePre", {
+        group = vim.api.nvim_create_augroup("NvimLspFormat", { clear = false }),
+        buffer = args.buf,
+        callback = function()
+          if vim.bo[args.buf].filetype ~= "go" then
+            vim.lsp.buf.format({ async = false, bufnr = args.buf, id = client.id })
+          end
+        end,
+      })
+
+      -- LSP Keymaps
+      local map = require("helpers.keys").lsp_map
+
+      -- Navigation
+      map("n", "gd", vim.lsp.buf.definition, "Go to Definition")
+      map("n", "gD", vim.lsp.buf.declaration, "Go to Declaration")
+      map("n", "gi", vim.lsp.buf.implementation, "Go to Implementation")
+      map("n", "gr", vim.lsp.buf.references, "Show References")
+      map("n", "go", vim.lsp.buf.type_definition, "Go to Type Definition")
+
+      -- Information display
+      map("n", "K", vim.lsp.buf.hover, "Show Hover Information")
+      map("n", "L", vim.lsp.buf.signature_help, "Show Signature Help")
+      map("i", "<M-l>", vim.lsp.buf.signature_help, "Show Signature Help (Insert)")
+
+      -- Code actions and refactoring
+      map({ "n", "v" }, "<space>ca", vim.lsp.buf.code_action, "Code Action")
+      map("n", "rn", vim.lsp.buf.rename, "Rename Symbol")
+
+      -- Workspace management
+      map("n", "wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")
+      map("n", "wr", vim.lsp.buf.remove_workspace_folder, "Remove Workspace Folder")
+      map("n", "wl", function()
+        print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+      end, "List Workspace Folders")
+
+      -- Document symbols and formatting
+      map("n", "ds", vim.lsp.buf.document_symbol, "Document Symbols")
+      map("n", "<leader>ws", vim.lsp.buf.workspace_symbol, "Workspace Symbols")
+      map({ "n", "v" }, "<leader>gf", function()
+        vim.lsp.buf.format({ async = true })
+      end, "Format Document/Selection")
+
+      -- Diagnostics
+      map("n", "[d", vim.diagnostic.goto_prev, "Go to Previous Diagnostic")
+      map("n", "]d", vim.diagnostic.goto_next, "Go to Next Diagnostic")
+      map("n", "<leader>q", vim.diagnostic.setloclist, "Open Diagnostic List")
+
+      -- Enhanced diagnostic display
+      map("n", "<leader>dd", function()
+        vim.diagnostic.enable(not vim.diagnostic.is_enabled())
+      end, "Toggle Diagnostics")
+    end,
+  })
+end
+
+-- Load and setup all LSP servers
+function M.setup_servers()
+  -- Load server configurations
+  local python = require("plugins.lsp.servers.python")
+  local go = require("plugins.lsp.servers.go")
+  local clangd = require("plugins.lsp.servers.clangd")
+  local lua = require("plugins.lsp.servers.lua")
+
+  -- Setup Python servers (basedpyright + ruff)
+  lsp_setup("basedpyright", python.basedpyright)
+  lsp_setup("ruff", python.ruff)
+
+  -- Setup Go server (gopls)
+  lsp_setup("gopls", go.gopls)
+  go.setup_autocmds() -- Setup Go-specific formatting
+
+  -- Setup C/C++ server (clangd)
+  lsp_setup("clangd", clangd.clangd)
+
+  -- Setup Lua server (lua_ls)
+  lsp_setup("lua_ls", lua.lua_ls)
+
+  -- TypeScript placeholder (uncomment when needed)
+  -- local typescript = require("plugins.lsp.servers.typescript")
+  -- if typescript.ts_ls then
+  --   lsp_setup("ts_ls", typescript.ts_ls)
+  -- end
+end
+
+return M

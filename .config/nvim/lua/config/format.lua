@@ -100,7 +100,6 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.spell = true
     vim.opt_local.wrap = true
     vim.opt_local.linebreak = true
-    vim.opt_local.conceallevel = 2
   end,
 })
 
@@ -136,6 +135,18 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   group = coding_group,
   pattern = "*",
   callback = function()
+    local bufname = vim.fn.expand('<afile>')
+
+    -- Skip special buffers with URL schemes (oil://, http://, etc.)
+    if bufname:match("^%w+://") then
+      return
+    end
+
+    -- Skip non-file buffers (terminal, quickfix, help, etc.)
+    if vim.bo.buftype ~= "" then
+      return
+    end
+
     vim.fn.mkdir(vim.fn.expand('<afile>:p:h'), 'p')
   end,
 })

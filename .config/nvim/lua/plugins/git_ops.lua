@@ -35,18 +35,19 @@ vim.api.nvim_create_autocmd("User", {
     local gs = package.loaded.gitsigns
 
     if gs then
+      local map = require("helpers.keys").map
       -- Additional buffer-local mappings
-      vim.keymap.set("n", "<leader>gj", function()
+      map("n", "<leader>gj", function()
         if vim.wo.diff then return "]c" end
         vim.schedule(function() gs.nav_hunk("next") end)
         return "<Ignore>"
-      end, { expr = true, buffer = bufnr, desc = "Next hunk" })
+      end, "GitSigns - Next hunk")
 
-      vim.keymap.set("n", "<leader>gk", function()
+      map("n", "<leader>gk", function()
         if vim.wo.diff then return "[c" end
         vim.schedule(function() gs.nav_hunk("prev") end)
         return "<Ignore>"
-      end, { expr = true, buffer = bufnr, desc = "Previous hunk" })
+      end, "GitSigns - Previous hunk")
     end
   end,
 })
