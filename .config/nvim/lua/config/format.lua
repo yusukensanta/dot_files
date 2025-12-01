@@ -1,11 +1,11 @@
 -- General Options by Languages
 local language_group = vim.api.nvim_create_augroup("LanguageOptions", { clear = true })
 
--- Biome Formatting for TypeScript/JavaScript
+-- Biome Formatting for TypeScript/JavaScript/JSON
 local biome_group = vim.api.nvim_create_augroup("BiomeFormat", { clear = true })
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = biome_group,
-  pattern = { "*.js", "*.jsx", "*.ts", "*.tsx" },
+  pattern = { "*.js", "*.jsx", "*.ts", "*.tsx", "*.json", "*.jsonc" },
   callback = function()
     local bufnr = vim.api.nvim_get_current_buf()
     if not vim.bo[bufnr].modifiable then
