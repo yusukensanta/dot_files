@@ -68,14 +68,14 @@ return {
           ignore_case = true,
         },
       })
+
+      local map = require("helpers.keys").map
+      map("n", "<leader>bn", "<cmd>BufferNext<cr>", "Next Buffer")
+      map("n", "<leader>bp", "<cmd>BufferPrevious<cr>", "Previous Buffer")
+      map("n", "<leader>bb", "<cmd>BufferPick<cr>", "Pick Buffer")
+      map("n", "<leader>bc", "<cmd>BufferClose<cr>", "Close Buffer")
+      map("n", "<leader>bl", "<cmd>BufferLast<cr>", "Last Buffer")
+      map("n", "<leader>bs", "<cmd>BufferSelect<cr>", "Select Buffer")
     end,
-    keys = {
-      { "<leader>bn", "<cmd>BufferNext<cr>",     desc = "Next Buffer" },
-      { "<leader>bp", "<cmd>BufferPrevious<cr>", desc = "Previous Buffer" },
-      { "<leader>bb", "<cmd>BufferPick<cr>",     desc = "Pick Buffer" },
-      { "<leader>bc", "<cmd>BufferClose<cr>",    desc = "Close Buffer" },
-      { "<leader>bl", "<cmd>BufferLast<cr>",     desc = "Last Buffer" },
-      { "<leader>bs", "<cmd>BufferSelect<cr>",   desc = "Select Buffer" },
-    },
   },
 }

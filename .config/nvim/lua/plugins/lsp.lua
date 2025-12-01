@@ -44,6 +44,7 @@ return {
           "ruff",
           "gopls",
           "clangd",
+          "ts_ls",
         }
       })
 

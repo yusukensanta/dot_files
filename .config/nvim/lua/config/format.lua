@@ -1,5 +1,29 @@
 -- General Options by Languages
 local language_group = vim.api.nvim_create_augroup("LanguageOptions", { clear = true })
+
+-- Biome Formatting for TypeScript/JavaScript
+local biome_group = vim.api.nvim_create_augroup("BiomeFormat", { clear = true })
+vim.api.nvim_create_autocmd("BufWritePre", {
+  group = biome_group,
+  pattern = { "*.js", "*.jsx", "*.ts", "*.tsx" },
+  callback = function()
+    local bufnr = vim.api.nvim_get_current_buf()
+    if not vim.bo[bufnr].modifiable then
+      return
+    end
+
+    -- Run Biome format with check (format + lint + organize imports)
+    local cmd = { "biome", "check", "--write", "--unsafe", vim.fn.expand("%:p") }
+    local result = vim.system(cmd, { text = true }):wait()
+
+    -- Reload buffer if format was successful
+    if result.code == 0 then
+      vim.cmd("edit")
+    else
+      vim.notify("Biome formatting failed: " .. (result.stderr or ""), vim.log.levels.WARN)
+    end
+  end,
+})
 vim.api.nvim_create_autocmd("FileType", {
   group = language_group,
   pattern = {

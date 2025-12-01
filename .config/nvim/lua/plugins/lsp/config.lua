@@ -23,12 +23,23 @@ function M.setup_lsp_attach()
         vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
       end
 
-      -- Auto-format on save (except for Go, which has special handling)
+      -- Auto-format on save (except for Go and JS/TS, which have special handling)
+      local exclude_filetypes = {
+        "go",
+        "javascript",
+        "javascriptreact",
+        "typescript",
+        "typescriptreact",
+      }
+
       vim.api.nvim_create_autocmd("BufWritePre", {
         group = vim.api.nvim_create_augroup("NvimLspFormat", { clear = false }),
         buffer = args.buf,
         callback = function()
-          if vim.bo[args.buf].filetype ~= "go" then
+          local filetype = vim.bo[args.buf].filetype
+          local should_skip = vim.tbl_contains(exclude_filetypes, filetype)
+
+          if not should_skip then
             vim.lsp.buf.format({ async = false, bufnr = args.buf, id = client.id })
           end
         end,
@@ -87,6 +98,7 @@ function M.setup_servers()
   local go = require("plugins.lsp.servers.go")
   local clangd = require("plugins.lsp.servers.clangd")
   local lua = require("plugins.lsp.servers.lua")
+  local typescript = require("plugins.lsp.servers.typescript")
 
   -- Setup Python servers (basedpyright + ruff)
   lsp_setup("basedpyright", python.basedpyright)
@@ -102,11 +114,8 @@ function M.setup_servers()
   -- Setup Lua server (lua_ls)
   lsp_setup("lua_ls", lua.lua_ls)
 
-  -- TypeScript placeholder (uncomment when needed)
-  -- local typescript = require("plugins.lsp.servers.typescript")
-  -- if typescript.ts_ls then
-  --   lsp_setup("ts_ls", typescript.ts_ls)
-  -- end
+  -- Setup TypeScript/JavaScript server (ts_ls)
+  lsp_setup("ts_ls", typescript.ts_ls)
 end
 
 return M

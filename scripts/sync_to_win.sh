@@ -119,6 +119,7 @@ done
 sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
 sync_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf" ".tmux.conf"
 sync_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml" "starship.toml"
+sync_file "$REPO_DIR/.config/nvim/biome.json" "$HOME/.config/nvim/biome.json" "biome.json"
 
 # Sync alacritty (Windows location) - optional
 if [[ -d "/mnt/c/Users/yusuk/AppData/Roaming/alacritty" ]]; then
