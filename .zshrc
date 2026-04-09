@@ -23,3 +23,4 @@ done
 
 # === STARTUP MESSAGE ===
 echo "✨ ZSH loaded! ⚡"
+export FORTNITEAPI_APIKEY=***REMOVED***
