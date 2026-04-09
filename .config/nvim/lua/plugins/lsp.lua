@@ -26,7 +26,9 @@ return {
       })
     end,
     keys = {
-      { "<leader>ma", "<cmd>Mason<cr>", desc = "Mason - Open" },
+      { "<leader>ma", "<cmd>Mason<cr>",        desc = "Mason - Open" },
+      { "<leader>lr", "<cmd>lsp restart<cr>",  desc = "LSP: restart server" },
+      { "<leader>li", "<cmd>lsp info<cr>",     desc = "LSP: server info" },
     },
   },
   {
@@ -39,12 +41,14 @@ return {
       -- Ensure LSP servers are installed via Mason
       require("mason-lspconfig").setup({
         ensure_installed = {
-          "lua_ls",
-          "basedpyright",
-          "ruff",
-          "gopls",
-          "clangd",
-          "ts_ls",
+          "lua_ls",                   -- Lua LSP
+          "basedpyright",             -- Python type checking
+          "ruff",                     -- Python linting/formatting
+          "gopls",                    -- Go LSP (core features)
+          "golangci_lint_ls",         -- Go linting (golangci-lint)
+          "clangd",                   -- C/C++ LSP
+          "ts_ls",                    -- TypeScript/JavaScript type checking
+          "rust_analyzer",            -- Rust LSP (fallback if not installed via rustup)
         }
       })
 

@@ -6,23 +6,23 @@ return {
     },
     ft = { "scala", "sbt", "java" },
     opts = function()
-      local map = require("helpers.keys").map
+      local buffer_map = require("helpers.keys").buffer_map
       local metals_config = require("metals").bare_config()
 
       -- Same on_attach function as your other LSP servers
       metals_config.on_attach = function(client, bufnr)
         -- Metals-specific commands
-        map("n", "<leader>mc", function()
+        buffer_map("n", "<leader>mc", function()
           require("metals").compile_cascade()
-        end, { buffer = bufnr, desc = "Metals Compile Cascade" })
+        end, "Metals Compile Cascade", bufnr)
 
-        map("n", "<leader>mt", function()
-          require("telescope").extensions.metals.commands()
-        end, { buffer = bufnr, desc = "Metals Telescope Commands" })
+        buffer_map("n", "<leader>mt", function()
+          require("metals").commands()
+        end, "Metals Commands", bufnr)
 
-        map("n", "<leader>mi", function()
+        buffer_map("n", "<leader>mi", function()
           require("metals").toggle_setting("showImplicitArguments")
-        end, { buffer = bufnr, desc = "Metals Toggle Implicit Arguments" })
+        end, "Metals Toggle Implicit Arguments", bufnr)
       end
 
       -- Enable LSP completion

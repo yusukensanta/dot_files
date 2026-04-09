@@ -50,7 +50,7 @@ return {
       end
 
       -- Keymappings
-      local map = require("helpers.keys").dap_map
+      local map = require("helpers.keys").map
       map("n", "<leader>db", dap.toggle_breakpoint, "DAP - Toggle Breakpoint")
       map("n", "<leader>dc", dap.continue, "DAP - Continue")
       map("n", "<leader>ds", dap.step_over, "DAP - Step Over")

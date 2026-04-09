@@ -8,8 +8,8 @@ M.lsp_map = function(mode, lhs, rhs, desc)
   vim.keymap.set(mode, lhs, rhs, { silent = true, buffer = true, noremap = true, desc = "LSP - " .. desc })
 end
 
-M.dap_map = function(mode, lhs, rhs, desc)
-  M.map(mode, lhs, rhs, desc)
+M.buffer_map = function(mode, lhs, rhs, desc, bufnr)
+  vim.keymap.set(mode, lhs, rhs, { silent = true, buffer = bufnr or true, noremap = true, desc = desc })
 end
 
 M.set_leader = function(key)

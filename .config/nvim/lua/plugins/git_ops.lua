@@ -60,19 +60,16 @@ return {
     dependencies = {
       "nvim-lua/plenary.nvim",
       "sindrets/diffview.nvim",
-      "nvim-telescope/telescope.nvim",
+      "ibhagwan/fzf-lua",
     },
     config = function()
       require("neogit").setup({
         -- Modern enhancements
         graph_style = "unicode", -- "ascii", "unicode"
-        telescope_sorter = function()
-          return require("telescope").extensions.fzf.native_fzf_sorter()
-        end,
         integrations = {
-          telescope = true,
+          telescope = false,
           diffview = true,
-          fzf_lua = true, -- New integration
+          fzf_lua = true,
         },
       })
     end,
@@ -105,7 +102,7 @@ return {
       { "<leader>hb", ":Gitsigns blame_line<CR>",                       desc = "Gitsigns - Blame line" },
       { "<leader>ht", ":Gitsigns diffthis<CR>",                         desc = "Gitsigns - Diff this" },
       { "<leader>hD", function() require("gitsigns").diffthis("~") end, desc = "Gitsigns - Diff this ~" },
-      { "<leader>td", ":Gitsigns toggle_deleted<CR>",                   desc = "Gitsigns - Toggle deleted" },
+      { "<leader>hd", ":Gitsigns toggle_deleted<CR>",                   desc = "Gitsigns - Toggle deleted" },
       {
         "]c",
         function()

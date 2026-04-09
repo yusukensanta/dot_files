@@ -1,39 +1,29 @@
+-- Copilot integration
+-- Uses zbirenbaum/copilot.lua (pure Lua) instead of github/copilot.vim (VimScript).
+-- Inline suggestions are surfaced via blink.cmp (blink-cmp-copilot source in cmp.lua)
+-- rather than as a separate overlay, giving a unified completion UX.
 return {
   {
-    "github/copilot.vim",
-    branch = "release",
-    keys = {
-      {
-        "<C-CR>",
-        'copilot#Accept("<CR>")',
-        desc = "Copilot - Accept Suggestion",
-        mode = { "i" },
-      },
-      {
-        "<leader>ce",
-        'copilot#Dismiss()',
-        desc = "Copilot - Dismiss Suggestion",
-        mode = { "i" },
-      },
-      {
-        "<leader><C-n>",
-        'copilot#Next()',
-        desc = "Copilot - Next Suggestion",
-        mode = { "i" },
-      },
-      {
-        "<leader><C-p>",
-        'copilot#Previous()',
-        desc = "Copilot - Previous Suggestion",
-        mode = { "i" },
-      },
-    },
+    "zbirenbaum/copilot.lua",
+    cmd = "Copilot",
+    event = "InsertEnter",
+    config = function()
+      require("copilot").setup({
+        -- Disable built-in suggestion/panel overlays — blink.cmp handles display
+        suggestion = { enabled = false },
+        panel = { enabled = false },
+        filetypes = {
+          markdown = true,
+          help = false,
+        },
+      })
+    end,
   },
   {
     "CopilotC-Nvim/CopilotChat.nvim",
     dependencies = {
       "nvim-lua/plenary.nvim",
-      "nvim-telescope/telescope.nvim",
+      "ibhagwan/fzf-lua",
     },
     cmd = "CopilotChat",
     branch = "main",
@@ -43,8 +33,8 @@ return {
       user = user:sub(1, 1):upper() .. user:sub(2)
       return {
         auto_insert_mode = true,
-        question_header = "  " .. user .. " ",
-        answer_header = "  Copilot ",
+        question_header = "  " .. user .. " ",
+        answer_header = "  Copilot ",
         window = {
           width = 0.5,
         },
@@ -123,7 +113,6 @@ return {
           vim.opt_local.number = false
         end,
       })
-
       chat.setup(opts)
     end,
   }

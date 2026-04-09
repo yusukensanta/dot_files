@@ -23,9 +23,10 @@ function M.setup_lsp_attach()
         vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
       end
 
-      -- Auto-format on save (except for Go and JS/TS, which have special handling)
+      -- Auto-format on save (except for languages with special handling)
       local exclude_filetypes = {
-        "go",
+        "go",        -- Handled by go.lua (organize imports + gofumpt)
+        "python",    -- Handled by python.lua (organize imports + ruff)
         "javascript",
         "javascriptreact",
         "typescript",
@@ -103,9 +104,11 @@ function M.setup_servers()
   -- Setup Python servers (basedpyright + ruff)
   lsp_setup("basedpyright", python.basedpyright)
   lsp_setup("ruff", python.ruff)
+  python.setup_autocmds() -- Setup Python-specific formatting
 
-  -- Setup Go server (gopls)
+  -- Setup Go servers (gopls + golangci-lint-langserver)
   lsp_setup("gopls", go.gopls)
+  lsp_setup("golangci_lint_ls", go.golangci_lint_ls)
   go.setup_autocmds() -- Setup Go-specific formatting
 
   -- Setup C/C++ server (clangd)

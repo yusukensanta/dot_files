@@ -12,11 +12,6 @@ safe_abbr() {
         return 1
     fi
 
-    if abbr list 2>/dev/null | grep -q "^${name}="; then
-        abbr erase $name
-        return 0
-    fi
-
     abbr add --force "$name=$expansion" > /dev/null 2>&1
     return $?
 }

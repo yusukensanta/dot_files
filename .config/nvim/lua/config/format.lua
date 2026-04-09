@@ -12,15 +12,44 @@ vim.api.nvim_create_autocmd("BufWritePre", {
       return
     end
 
-    -- Run Biome format with check (format + lint + organize imports)
-    local cmd = { "biome", "check", "--write", "--unsafe", vim.fn.expand("%:p") }
-    local result = vim.system(cmd, { text = true }):wait()
+    -- Save cursor position and view
+    local view = vim.fn.winsaveview()
 
-    -- Reload buffer if format was successful
-    if result.code == 0 then
-      vim.cmd("edit")
-    else
-      vim.notify("Biome formatting failed: " .. (result.stderr or ""), vim.log.levels.WARN)
+    -- Get current buffer content
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local content = table.concat(lines, "\n")
+
+    -- Run Biome format via stdin/stdout (avoids file modification issues)
+    local filename = vim.fn.expand("%:p")
+    local config_path = vim.fn.expand("~/.config/nvim")
+    local cmd = { "npx", "--yes", "@biomejs/biome", "format", "--stdin-file-path", filename, "--config-path", config_path }
+
+    -- Debug: uncomment to see exact command being run
+    -- vim.notify("Biome cmd: " .. table.concat(cmd, " "), vim.log.levels.INFO)
+
+    local result = vim.system(cmd, {
+      stdin = content,
+      text = true
+    }):wait()
+
+    if result.code == 0 and result.stdout then
+      -- Replace buffer content with formatted output
+      local formatted_lines = vim.split(result.stdout, "\n")
+
+      -- Remove trailing empty line if it was added
+      if formatted_lines[#formatted_lines] == "" and lines[#lines] ~= "" then
+        table.remove(formatted_lines)
+      end
+
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, formatted_lines)
+
+      -- Restore cursor position
+      vim.fn.winrestview(view)
+    elseif result.code ~= 0 then
+      -- Only show notification for actual errors, not warnings
+      if result.stderr and result.stderr:match("error") then
+        vim.notify("Biome formatting failed:\n" .. result.stderr, vim.log.levels.ERROR)
+      end
     end
   end,
 })

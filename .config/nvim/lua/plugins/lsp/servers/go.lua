@@ -1,4 +1,6 @@
--- Go LSP Configuration (gopls)
+-- Go LSP Configuration (gopls + golangci-lint-langserver)
+-- gopls: Core LSP features (completion, navigation, refactoring)
+-- golangci-lint-langserver: Comprehensive linting via golangci-lint
 
 local M = {}
 
@@ -10,7 +12,9 @@ M.gopls = {
         shadow = true,
         fieldalignment = true,
       },
-      staticcheck = true,
+      -- Disable staticcheck in gopls since golangci-lint handles it
+      -- This avoids duplicate diagnostics
+      staticcheck = false,
       gofumpt = true,
       usePlaceholders = true,
       completeUnimported = true,
@@ -28,6 +32,21 @@ M.gopls = {
       },
     }
   }
+}
+
+-- golangci-lint-langserver configuration
+-- Provides diagnostics from golangci-lint (includes staticcheck + many more)
+M.golangci_lint_ls = {
+  cmd = { "golangci-lint-langserver" },
+  filetypes = { "go", "gomod" },
+  init_options = {
+    command = {
+      "golangci-lint",
+      "run",
+      "--output.json.path=stdout",
+      "--show-stats=false",
+    },
+  },
 }
 
 -- Go-specific formatting autocmd

@@ -19,6 +19,13 @@ M.ts_ls = {
     "jsconfig.json",
     ".git",
   },
+  -- Disable formatting - biome handles formatting and linting
+  on_attach = function(client, bufnr)
+    -- Disable ts_ls formatting capabilities
+    -- Biome is the exclusive formatter/linter for JS/TS/JSON
+    client.server_capabilities.documentFormattingProvider = false
+    client.server_capabilities.documentRangeFormattingProvider = false
+  end,
   settings = {
     typescript = {
       inlayHints = {

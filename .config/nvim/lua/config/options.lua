@@ -80,9 +80,9 @@ local options = {
   foldenable = true,   -- Enable folding
   foldlevel = 99,      -- Start with all folds open
   foldlevelstart = 99, -- Start with all folds open
-  foldmethod = "expr", -- Use indent for folding (treesitter will override)
-  foldexpr = "v:lua.vim.treesitter.foldexpr()",
-  foldtext = "",
+  -- foldmethod / foldexpr / foldtext intentionally omitted:
+  -- nvim-ufo (ufo.lua) owns fold management and resets foldmethod to "manual" internally.
+  -- Setting foldmethod = "expr" here conflicts with ufo and corrupts the fold column.
   grepformat = "%f:%l:%c:%m", -- Format for grep output
   grepprg = "rg --vimgrep", -- Use ripgrep for better search
   inccommand = "nosplit", -- Show live preview of substitutions
@@ -143,3 +143,28 @@ map("t", "<C-\\>", "<C-\\><C-n>", "Options - Exit terminal mode")
 -- Visual mode keymaps
 map("v", "<", "<gv", "Indent left and reselect")
 map("v", ">", ">gv", "Indent right and reselect")
+
+-- Auto-reload files when changed externally (makes autoread work properly)
+local autoread_group = vim.api.nvim_create_augroup("AutoRead", { clear = true })
+
+-- Trigger checktime when window focus changes or buffer is entered
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
+  group = autoread_group,
+  pattern = "*",
+  callback = function()
+    if vim.fn.mode() ~= 'c' then  -- Don't check in command-line mode
+      vim.cmd("checktime")
+    end
+  end,
+  desc = "Check if file needs to be reloaded from disk"
+})
+
+-- Notification when file is auto-reloaded
+vim.api.nvim_create_autocmd("FileChangedShellPost", {
+  group = autoread_group,
+  pattern = "*",
+  callback = function()
+    vim.notify("File reloaded: " .. vim.fn.expand("%"), vim.log.levels.WARN)
+  end,
+  desc = "Notify when file is auto-reloaded"
+})

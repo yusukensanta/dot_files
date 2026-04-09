@@ -2,7 +2,10 @@
 return {
   {
     "saghen/blink.cmp",
-    dependencies = "rafamadriz/friendly-snippets",
+    dependencies = {
+      "rafamadriz/friendly-snippets",
+      "giuxtaposition/blink-cmp-copilot",
+    },
     version = "*",
     opts = {
       keymap = {
@@ -20,7 +23,15 @@ return {
         nerd_font_variant = "mono"
       },
       sources = {
-        default = { "lsp", "path", "snippets", "buffer" },
+        default = { "lsp", "path", "snippets", "buffer", "copilot" },
+        providers = {
+          copilot = {
+            name = "Copilot",
+            module = "blink-cmp-copilot",
+            score_offset = 100,
+            async = true,
+          },
+        },
       },
       completion = {
         accept = {
@@ -60,7 +71,7 @@ return {
           javascript = { "string", "template_string" },
           java = false, -- Don't check treesitter on java
         },
-        disable_filetype = { "TelescopePrompt", "spectre_panel" },
+        disable_filetype = { "fzf", "spectre_panel" },
         disable_in_macro = false,       -- Disable when recording or executing a macro
         disable_in_visualblock = false, -- Disable when selecting via visual block mode
         fast_wrap = {
