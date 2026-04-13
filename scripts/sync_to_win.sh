@@ -39,6 +39,7 @@ sync_directory() {
   local src="$1"
   local dest="$2"
   local description="${3:-}"
+  local extra_opts="${4:-}"
 
   if [[ ! -e "$src" ]]; then
     echo "⚠️  Source not found: $src"
@@ -53,13 +54,19 @@ sync_directory() {
   echo "   Source: $src"
   echo "   Target: $dest"
 
-  # Create destination parent directory if it doesn't exist
+  # Create destination directory if it doesn't exist.
+  # Suppress permission errors on NTFS mounts (WSL cannot set Unix permissions
+  # on Windows paths, but the directory is still created successfully).
   if [[ -z "$DRY_RUN_FLAG" ]]; then
-    mkdir -p "$(dirname "$dest")"
+    mkdir -p "$dest" 2>/dev/null || true
+    if [[ ! -d "$dest" ]]; then
+      echo "   ✗ Could not create destination directory: $dest"
+      return 1
+    fi
   fi
 
   # Execute rsync with appropriate options
-  if rsync $RSYNC_BASE_OPTS $DRY_RUN_FLAG "$src" "$dest"; then
+  if rsync $RSYNC_BASE_OPTS $extra_opts $DRY_RUN_FLAG "$src" "$dest"; then
     if [[ -n "$DRY_RUN_FLAG" ]]; then
       echo "   ✓ Dry-run completed"
     else
@@ -76,6 +83,7 @@ sync_file() {
   local src="$1"
   local dest="$2"
   local description="${3:-}"
+  local extra_opts="${4:-}"
 
   if [[ ! -f "$src" ]]; then
     echo "⚠️  Source file not found: $src"
@@ -93,7 +101,7 @@ sync_file() {
   fi
 
   # Execute rsync for single file
-  if rsync $RSYNC_BASE_OPTS $DRY_RUN_FLAG "$src" "$dest"; then
+  if rsync $RSYNC_BASE_OPTS $extra_opts $DRY_RUN_FLAG "$src" "$dest"; then
     if [[ -n "$DRY_RUN_FLAG" ]]; then
       echo "   ✓ Dry-run completed"
     else
@@ -124,8 +132,14 @@ sync_file "$REPO_DIR/.config/nvim/biome.json" "$HOME/.config/nvim/biome.json" "b
 # Sync alacritty (Windows location) - optional
 if [[ -d "/mnt/c/Users/yusuk/AppData/Roaming/alacritty" ]]; then
   if [[ -f "$REPO_DIR/alacritty/alacritty.toml" ]]; then
-    sync_file "$REPO_DIR/alacritty/alacritty.toml" "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" "alacritty.toml (Windows)"
+    sync_file "$REPO_DIR/alacritty/alacritty.toml" "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" "alacritty.toml (Windows)" "--no-perms --no-owner --no-group --no-times"
   fi
+fi
+
+# Sync nvim config to Windows native Neovim location (%LOCALAPPDATA%\nvim)
+WIN_NVIM_DIR="/mnt/c/Users/yusuk/AppData/Local/nvim"
+if [[ -d "$(dirname "$WIN_NVIM_DIR")" ]]; then
+  sync_directory "$REPO_DIR/.config/nvim" "$WIN_NVIM_DIR" ".config/nvim (Windows native)" "--no-perms --no-owner --no-group --no-times"
 fi
 
 echo ""
