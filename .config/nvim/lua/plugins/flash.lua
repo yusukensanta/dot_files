@@ -14,8 +14,9 @@ return {
         rainbow = { enabled = false },
       },
       modes = {
-        -- Enhance native f/F/t/T with jump labels when there are multiple matches
-        char = { enabled = true },
+        -- char mode disabled: it hooks ; and , (repeat f/F/t/T), causing unexpected
+        -- dimming of non-target characters after a character motion
+        char = { enabled = false },
         -- fzf-lua search highlighting integration
         search = { enabled = true },
       },
@@ -23,8 +24,8 @@ return {
     keys = {
       -- s: jump to any visible position by typing chars
       { "s", mode = { "n", "x", "o" }, function() require("flash").jump() end,              desc = "Flash: jump" },
-      -- S: jump to treesitter node boundary
-      { "S", mode = { "n", "x", "o" }, function() require("flash").treesitter() end,        desc = "Flash: treesitter jump" },
+      -- S: select treesitter node — x/o only (not n, which would leave an unexpected visual selection)
+      { "S", mode = { "x", "o" }, function() require("flash").treesitter() end, desc = "Flash: treesitter select" },
       -- r (operator-pending): apply operator to a remote flash target (e.g. yr<char> to yank remote)
       { "r", mode = "o",               function() require("flash").remote() end,             desc = "Flash: remote" },
       -- R (operator-pending/visual): treesitter search across the file

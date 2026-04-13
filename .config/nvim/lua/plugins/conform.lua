@@ -33,6 +33,7 @@ return {
       -- Additional languages with standard formatters
       lua = { "stylua" },
       sh = { "shfmt" },
+      bash = { "shfmt" },
       markdown = { "prettier" },
       yaml = { "prettier" },
       toml = { "taplo" },
@@ -64,6 +65,13 @@ return {
 
     -- Formatter configurations
     formatters = {
+      shfmt = {
+        -- -i 4   : 4-space indentation (0 = tabs)
+        -- -ci    : indent switch case bodies
+        -- -bn    : binary ops (&&, ||, |) at start of next line
+        -- -sr    : redirect operators at end of line (default), or use -s for short functions
+        prepend_args = { "-i", "4", "-ci", "-bn" },
+      },
       biome = {
         command = "npx",
         args = { "--yes", "@biomejs/biome", "format", "--config-path", vim.fn.expand("~/.config/nvim"), "--write", "$FILENAME" },
