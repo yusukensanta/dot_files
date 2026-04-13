@@ -36,6 +36,8 @@ return {
         question_header = "  " .. user .. " ",
         answer_header = "  Copilot ",
         window = {
+          layout = "vertical",
+          position = "left",
           width = 0.5,
         },
         mappings = {

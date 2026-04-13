@@ -31,7 +31,7 @@ local options = {
   showmode = false, -- Don't show mode (status line handles this)
   showtabline = 2, -- Always show tab line
   sidescrolloff = 8, -- Keep 8 characters visible horizontally
-  signcolumn = "yes:2", -- Always show 2-column sign area (stable width for gitsigns + marks.nvim)
+  signcolumn = "yes:1", -- Always show 1-column sign area (stable width for gitsigns + marks.nvim)
   termguicolors = true, -- Enable 24-bit colors
   title = true, -- Set terminal title
   winblend = 0, -- Window transparency
@@ -100,18 +100,22 @@ for k, v in pairs(options) do
   vim.opt[k] = v
 end
 
-vim.g.clipboard = {
-  name = "WSL-clipboard",
-  copy = {
-    ["+"] = "xsel -bi",
-    ["*"] = "xsel -bi",
-  },
-  paste = {
-    ["+"] = "xsel -bo",
-    ["*"] = function() return vim.fn.system('xsel -bo | tr -d "\r"') end,
-  },
-  cache_enabled = 0,
-}
+-- Clipboard: WSL uses xsel to bridge to Windows clipboard.
+-- Windows native and macOS handle clipboard natively — no override needed.
+if vim.fn.has("wsl") == 1 then
+  vim.g.clipboard = {
+    name = "WSL-clipboard",
+    copy = {
+      ["+"] = "xsel -bi",
+      ["*"] = "xsel -bi",
+    },
+    paste = {
+      ["+"] = "xsel -bo",
+      ["*"] = function() return vim.fn.system('xsel -bo | tr -d "\r"') end,
+    },
+    cache_enabled = 0,
+  }
+end
 
 
 
