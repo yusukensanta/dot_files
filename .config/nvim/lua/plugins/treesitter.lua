@@ -30,6 +30,12 @@ return {
 					"yaml",
 					"markdown",
 					"bash",
+					"javascript",
+					"typescript",
+					"tsx",
+					"json",
+					"html",
+					"css",
 				}, { skip_installed = true })
 			end
 

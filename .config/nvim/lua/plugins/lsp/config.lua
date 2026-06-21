@@ -49,39 +49,35 @@ function M.setup_lsp_attach()
       -- LSP Keymaps
       local map = require("helpers.keys").lsp_map
 
-      -- Navigation
+      -- Navigation (gd/gD are custom; gi/gr/go/K/[d/]d removed — 0.12 built-in defaults)
+      -- Built-in defaults: K=hover, grn=rename, grr=references, gra=code_action,
+      --   gri=implementation, grt=type_definition, gO=document_symbol, [d/]d=diagnostics
       map("n", "gd", vim.lsp.buf.definition, "Go to Definition")
       map("n", "gD", vim.lsp.buf.declaration, "Go to Declaration")
-      map("n", "gi", vim.lsp.buf.implementation, "Go to Implementation")
-      map("n", "gr", vim.lsp.buf.references, "Show References")
-      map("n", "go", vim.lsp.buf.type_definition, "Go to Type Definition")
 
       -- Information display
-      map("n", "K", vim.lsp.buf.hover, "Show Hover Information")
       map("n", "L", vim.lsp.buf.signature_help, "Show Signature Help")
       map("i", "<M-l>", vim.lsp.buf.signature_help, "Show Signature Help (Insert)")
 
-      -- Code actions and refactoring
+      -- Code actions and refactoring (supplements built-in gra/grn)
       map({ "n", "v" }, "<space>ca", vim.lsp.buf.code_action, "Code Action")
-      map("n", "rn", vim.lsp.buf.rename, "Rename Symbol")
+      map("n", "<leader>rn", vim.lsp.buf.rename, "Rename Symbol")
 
       -- Workspace management
-      map("n", "wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")
-      map("n", "wr", vim.lsp.buf.remove_workspace_folder, "Remove Workspace Folder")
-      map("n", "wl", function()
+      map("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")
+      map("n", "<leader>wr", vim.lsp.buf.remove_workspace_folder, "Remove Workspace Folder")
+      map("n", "<leader>wl", function()
         print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
       end, "List Workspace Folders")
 
-      -- Document symbols and formatting
-      map("n", "ds", vim.lsp.buf.document_symbol, "Document Symbols")
+      -- Document symbols and formatting (supplements built-in gO)
+      map("n", "<leader>ds", vim.lsp.buf.document_symbol, "Document Symbols")
       map("n", "<leader>ws", vim.lsp.buf.workspace_symbol, "Workspace Symbols")
       map({ "n", "v" }, "<leader>gf", function()
         vim.lsp.buf.format({ async = true })
       end, "Format Document/Selection")
 
-      -- Diagnostics
-      map("n", "[d", function() vim.diagnostic.jump({ count = -1 }) end, "Go to Previous Diagnostic")
-      map("n", "]d", function() vim.diagnostic.jump({ count = 1 }) end, "Go to Next Diagnostic")
+      -- Diagnostics (supplements built-in [d/]d)
       map("n", "<leader>q", vim.diagnostic.setloclist, "Open Diagnostic List")
 
       -- Enhanced diagnostic display

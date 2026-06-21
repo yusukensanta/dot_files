@@ -22,6 +22,8 @@ if not ok then
   return
 end
 
-lazy.setup("plugins")
+lazy.setup("plugins", {
+  rocks = { enabled = false },
+})
 
 require("helpers.keys").map("n", "<leader>l", lazy.show, "Show lazy.nvim menu")

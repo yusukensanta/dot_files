@@ -25,6 +25,7 @@ local options = {
   },
   number = true, -- Show line numbers
   numberwidth = 4, -- Width of line number column
+  pumborder = "rounded", -- Popup menu border (0.12+)
   pumblend = 5, -- Popup menu transparency
   pumheight = 10, -- Maximum popup menu height
   scrolloff = 8, -- Keep 8 lines visible above/below cursor
@@ -57,7 +58,7 @@ local options = {
 
   -- Performance and behavior
   hidden = true,      -- Allow hidden buffers (NEW)
-  lazyredraw = false, -- Don't redraw during macros (can cause issues in modern nvim)
+  lazyredraw = false, -- Redraw during macros (true can cause display issues in modern nvim)
   mouse = "a",        -- Enable mouse support
   splitbelow = true,  -- Open horizontal splits below (NEW)
   splitright = true,  -- Open vertical splits to the right (NEW)
@@ -72,6 +73,7 @@ local options = {
 
   -- Clipboard
   clipboard = "unnamedplus", -- Use system clipboard
+
 
   -- New modern options for better coding experience
   breakindent = true,  -- Wrapped lines maintain indent level
@@ -96,6 +98,11 @@ local options = {
 
 vim.opt.shortmess:append("c")
 
+-- Disable unused providers (suppresses checkhealth warnings)
+vim.g.loaded_perl_provider = 0
+vim.g.loaded_ruby_provider = 0
+vim.g.loaded_node_provider = 0
+
 for k, v in pairs(options) do
   vim.opt[k] = v
 end
@@ -119,15 +126,17 @@ end
 
 
 
+-- Neovim 0.12 built-in plugins
+vim.cmd("packadd nvim.undotree")
+vim.cmd("packadd nvim.difftool")
+
 -- General Keymaps
 local map = require("helpers.keys").map
 -- Normal mode keymaps
 map("n", "<C-p>", ":tabprev<CR>", "Options - Tab previous")
 map("n", "<C-n>", ":tabnext<CR>", "Options - Tab next")
 map("n", "<C-t>", ":tabnew<CR>", "Options - Tab new")
-map("n", "<space>bp", ":bprevious<CR>", "Options - Buffer previous")
-map("n", "<space>bn", ":bnext<CR>", "Options - Buffer next")
-map("n", "<space>bd", ":bdelete<CR>", "Options - Buffer delete")
+-- Buffer navigation handled by barbar.nvim (lualine.lua)
 map("n", "<space>wh", "<C-w><C-h>", "Options - Move focus to left window")
 map("n", "<space>wl", "<C-w><C-l>", "Options - Move focus to right window")
 map("n", "<space>wj", "<C-w><C-j>", "Options - Move focus to lower window")
@@ -147,6 +156,10 @@ map("t", "<C-\\>", "<C-\\><C-n>", "Options - Exit terminal mode")
 -- Visual mode keymaps
 map("v", "<", "<gv", "Indent left and reselect")
 map("v", ">", ">gv", "Indent right and reselect")
+
+-- Built-in tools (0.12+)
+map("n", "<leader>uu", "<cmd>Undotree<CR>", "Undotree - Toggle undo history")
+map("n", "<leader>ud", "<cmd>DiffTool<CR>", "DiffTool - Compare directories")
 
 -- Auto-reload files when changed externally (makes autoread work properly)
 local autoread_group = vim.api.nvim_create_augroup("AutoRead", { clear = true })
