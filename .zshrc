@@ -23,3 +23,11 @@ done
 
 # === STARTUP MESSAGE ===
 echo "✨ ZSH loaded! ⚡"
+
+# bun completions
+[ -s "/home/yusuken/.bun/_bun" ] && source "/home/yusuken/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+export GPG_TTY=$(tty)
