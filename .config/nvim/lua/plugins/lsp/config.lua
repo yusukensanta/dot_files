@@ -80,8 +80,8 @@ function M.setup_lsp_attach()
       end, "Format Document/Selection")
 
       -- Diagnostics
-      map("n", "[d", vim.diagnostic.goto_prev, "Go to Previous Diagnostic")
-      map("n", "]d", vim.diagnostic.goto_next, "Go to Next Diagnostic")
+      map("n", "[d", function() vim.diagnostic.jump({ count = -1 }) end, "Go to Previous Diagnostic")
+      map("n", "]d", function() vim.diagnostic.jump({ count = 1 }) end, "Go to Next Diagnostic")
       map("n", "<leader>q", vim.diagnostic.setloclist, "Open Diagnostic List")
 
       -- Enhanced diagnostic display

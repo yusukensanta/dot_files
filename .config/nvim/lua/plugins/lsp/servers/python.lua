@@ -67,7 +67,9 @@ M.setup_autocmds = function()
     pattern = "*.py",
     callback = function(args)
       -- Organize imports first (via ruff)
-      local params = vim.lsp.util.make_range_params()
+      local clients = vim.lsp.get_clients({ bufnr = args.buf })
+      local encoding = clients[1] and clients[1].offset_encoding or "utf-8"
+      local params = vim.lsp.util.make_range_params(nil, encoding)
       params.context = { only = { "source.organizeImports" } }
       local result = vim.lsp.buf_request_sync(args.buf, "textDocument/codeAction", params, 3000)
 

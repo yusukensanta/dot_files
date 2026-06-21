@@ -4,12 +4,20 @@ return {
     dependencies = {
       "rcarriga/nvim-dap-ui",
       "mfussenegger/nvim-dap-python",
+      "leoluz/nvim-dap-go",
       "theHamsta/nvim-dap-virtual-text",
       "nvim-neotest/nvim-nio",
+      "jay-babu/mason-nvim-dap.nvim",
     },
     config = function()
       local dap = require("dap")
       local dapui = require("dapui")
+
+      -- Auto-install DAP adapters via Mason
+      require("mason-nvim-dap").setup({
+        ensure_installed = { "debugpy", "delve" },
+        automatic_installation = true,
+      })
 
       -- Setup DAP UI
       dapui.setup()
@@ -35,8 +43,11 @@ return {
         virt_text_pos = vim.fn.has 'nvim-0.10' == 1 and 'inline' or 'eol',
       })
 
-      -- Python DAP configuration
-      require("dap-python").setup("python")
+      -- Python DAP (uses Mason-managed debugpy)
+      require("dap-python").setup(vim.fn.stdpath("data") .. "/mason/packages/debugpy/venv/bin/python")
+
+      -- Go DAP (uses Mason-managed delve)
+      require("dap-go").setup()
 
       -- Auto open/close DAP UI
       dap.listeners.after.event_initialized["dapui_config"] = function()
