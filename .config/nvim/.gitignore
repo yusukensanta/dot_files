@@ -1,0 +1,10 @@
+# Metals LSP databases (contain project paths and source fragments)
+.metals/
+lua/config/.metals/
+
+# Lazy plugin state
+lazy-lock.json
+
+# npm artifacts (biome)
+node_modules/
+package-lock.json

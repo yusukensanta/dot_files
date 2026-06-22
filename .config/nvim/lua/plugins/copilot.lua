@@ -9,12 +9,18 @@ return {
     event = "InsertEnter",
     config = function()
       require("copilot").setup({
-        -- Disable built-in suggestion/panel overlays — blink.cmp handles display
         suggestion = { enabled = false },
         panel = { enabled = false },
         filetypes = {
           markdown = true,
           help = false,
+        },
+        copilot_node_command = "node",
+        server_opts_overrides = {
+          settings = {
+            telemetry = { telemetryLevel = "off" },
+            advanced = { telemetry = { telemetryLevel = "off" } },
+          },
         },
       })
     end,

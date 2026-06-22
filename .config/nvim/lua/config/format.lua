@@ -1,6 +1,19 @@
 -- General Options by Languages
 local language_group = vim.api.nvim_create_augroup("LanguageOptions", { clear = true })
 
+-- Resolve biome binary: project-local > global > pinned npx fallback
+-- Avoids unpinned `npx --yes` which auto-downloads latest from npm on every call.
+local function resolve_biome_cmd()
+  local project_biome = vim.fn.findfile("node_modules/.bin/biome", ".;")
+  if project_biome ~= "" then
+    return { vim.fn.fnamemodify(project_biome, ":p") }
+  end
+  if vim.fn.executable("biome") == 1 then
+    return { "biome" }
+  end
+  return { "npx", "--yes", "@biomejs/biome@2.3.8" }
+end
+
 -- Biome Formatting for TypeScript/JavaScript/JSON
 local biome_group = vim.api.nvim_create_augroup("BiomeFormat", { clear = true })
 vim.api.nvim_create_autocmd("BufWritePre", {
@@ -12,20 +25,15 @@ vim.api.nvim_create_autocmd("BufWritePre", {
       return
     end
 
-    -- Save cursor position and view
     local view = vim.fn.winsaveview()
 
-    -- Get current buffer content
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     local content = table.concat(lines, "\n")
 
-    -- Run Biome format via stdin/stdout (avoids file modification issues)
     local filename = vim.fn.expand("%:p")
     local config_path = vim.fn.expand("~/.config/nvim")
-    local cmd = { "npx", "--yes", "@biomejs/biome", "format", "--stdin-file-path", filename, "--config-path", config_path }
-
-    -- Debug: uncomment to see exact command being run
-    -- vim.notify("Biome cmd: " .. table.concat(cmd, " "), vim.log.levels.INFO)
+    local cmd = resolve_biome_cmd()
+    vim.list_extend(cmd, { "format", "--stdin-file-path", filename, "--config-path", config_path })
 
     local result = vim.system(cmd, {
       stdin = content,
@@ -33,20 +41,15 @@ vim.api.nvim_create_autocmd("BufWritePre", {
     }):wait()
 
     if result.code == 0 and result.stdout then
-      -- Replace buffer content with formatted output
       local formatted_lines = vim.split(result.stdout, "\n")
 
-      -- Remove trailing empty line if it was added
       if formatted_lines[#formatted_lines] == "" and lines[#lines] ~= "" then
         table.remove(formatted_lines)
       end
 
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, formatted_lines)
-
-      -- Restore cursor position
       vim.fn.winrestview(view)
     elseif result.code ~= 0 then
-      -- Only show notification for actual errors, not warnings
       if result.stderr and result.stderr:match("error") then
         vim.notify("Biome formatting failed:\n" .. result.stderr, vim.log.levels.ERROR)
       end

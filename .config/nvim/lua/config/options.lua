@@ -1,5 +1,6 @@
 local options = {
   autoread = true,
+  modeline = false,
   -- Backup and file handling
   backup = false,                              -- Don't create backup files
   backupskip = { "/tmp/*", "/private/tmp/*" }, -- Skip backup for these paths

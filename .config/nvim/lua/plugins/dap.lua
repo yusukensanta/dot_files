@@ -64,7 +64,7 @@ return {
       local map = require("helpers.keys").map
       map("n", "<leader>db", dap.toggle_breakpoint, "DAP - Toggle Breakpoint")
       map("n", "<leader>dc", dap.continue, "DAP - Continue")
-      map("n", "<leader>ds", dap.step_over, "DAP - Step Over")
+      map("n", "<leader>dv", dap.step_over, "DAP - Step Over")
       map("n", "<leader>di", dap.step_into, "DAP - Step Into")
       map("n", "<leader>do", dap.step_out, "DAP - Step Out")
       map("n", "<leader>dr", dap.repl.open, "DAP - Open REPL")

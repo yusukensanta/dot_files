@@ -73,8 +73,27 @@ return {
         prepend_args = { "-i", "4", "-ci", "-bn" },
       },
       biome = {
-        command = "npx",
-        args = { "--yes", "@biomejs/biome", "format", "--config-path", vim.fn.expand("~/.config/nvim"), "--write", "$FILENAME" },
+        command = function()
+          local project_biome = vim.fn.findfile("node_modules/.bin/biome", ".;")
+          if project_biome ~= "" then
+            return vim.fn.fnamemodify(project_biome, ":p")
+          end
+          if vim.fn.executable("biome") == 1 then
+            return "biome"
+          end
+          return "npx"
+        end,
+        args = function()
+          local project_biome = vim.fn.findfile("node_modules/.bin/biome", ".;")
+          local has_local = project_biome ~= "" or vim.fn.executable("biome") == 1
+          local base_args = { "format", "--config-path", vim.fn.expand("~/.config/nvim"), "--write", "$FILENAME" }
+          if has_local then
+            return base_args
+          end
+          local npx_args = { "--yes", "@biomejs/biome@2.3.8" }
+          vim.list_extend(npx_args, base_args)
+          return npx_args
+        end,
         stdin = false,
       },
       ruff_format = {
