@@ -16,12 +16,8 @@ function M.setup_lsp_attach()
   vim.api.nvim_create_autocmd("LspAttach", {
     group = vim.api.nvim_create_augroup("NvimLspAttach", { clear = true }),
     callback = function(args)
-      local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
-
-      -- Enable completion if formatting is supported
-      if client:supports_method("textDocument/formatting") then
-        vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
-      end
+      local client = vim.lsp.get_client_by_id(args.data.client_id)
+      if not client then return end
 
       -- Auto-format on save (except for languages with special handling)
       local exclude_filetypes = {
@@ -31,10 +27,12 @@ function M.setup_lsp_attach()
         "javascriptreact",
         "typescript",
         "typescriptreact",
+        "lua",       -- Handled by conform (stylua)
+        "rust",      -- Handled by rustaceanvim/conform (rustfmt)
       }
 
       vim.api.nvim_create_autocmd("BufWritePre", {
-        group = vim.api.nvim_create_augroup("NvimLspFormat", { clear = false }),
+        group = vim.api.nvim_create_augroup("NvimLspFormat_" .. args.buf, { clear = true }),
         buffer = args.buf,
         callback = function()
           local filetype = vim.bo[args.buf].filetype
@@ -73,9 +71,9 @@ function M.setup_lsp_attach()
       -- Document symbols and formatting (supplements built-in gO)
       map("n", "<leader>ds", vim.lsp.buf.document_symbol, "Document Symbols")
       map("n", "<leader>ws", vim.lsp.buf.workspace_symbol, "Workspace Symbols")
-      map({ "n", "v" }, "<leader>gf", function()
+      map({ "n", "v" }, "<leader>lf", function()
         vim.lsp.buf.format({ async = true })
-      end, "Format Document/Selection")
+      end, "Format Document/Selection (LSP)")
 
       -- Diagnostics (supplements built-in [d/]d)
       map("n", "<leader>q", vim.diagnostic.setloclist, "Open Diagnostic List")

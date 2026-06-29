@@ -72,7 +72,7 @@ return {
           java = false, -- Don't check treesitter on java
         },
         disable_filetype = { "fzf", "spectre_panel" },
-        disable_in_macro = false,       -- Disable when recording or executing a macro
+        disable_in_macro = true,        -- Disable when recording or executing a macro
         disable_in_visualblock = false, -- Disable when selecting via visual block mode
         fast_wrap = {
           map = '<M-e>',

@@ -21,11 +21,6 @@ return {
       json = { "biome" },
       jsonc = { "biome" },
 
-      -- Go: Use LSP formatting (gopls)
-      -- Note: go.lua already configures gopls formatting on save
-      -- LSP formatter is preferred, this is fallback
-      go = { "gofumpt", "goimports" },
-
       -- Rust: Use rustfmt (via rust-analyzer LSP preferred)
       -- This is fallback if LSP formatting is not available
       rust = { "rustfmt" },
@@ -59,7 +54,7 @@ return {
       -- Format other filetypes on save
       return {
         timeout_ms = 500,
-        lsp_fallback = true,
+        lsp_format = "fallback",
       }
     end,
 
@@ -109,7 +104,7 @@ return {
     {
       "<leader>cf",
       function()
-        require("conform").format({ async = true, lsp_fallback = true })
+        require("conform").format({ async = true, lsp_format = "fallback" })
       end,
       mode = { "n", "v" },
       desc = "Format buffer",

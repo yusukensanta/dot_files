@@ -37,7 +37,8 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 
     local result = vim.system(cmd, {
       stdin = content,
-      text = true
+      text = true,
+      timeout = 5000,
     }):wait()
 
     if result.code == 0 and result.stdout then
@@ -124,6 +125,7 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 
 vim.api.nvim_create_autocmd("FileType", {
+  group = language_group,
   pattern = "python",
   callback = function()
     vim.diagnostic.config({
@@ -145,7 +147,7 @@ vim.api.nvim_create_autocmd("FileType", {
           return prefix .. diagnostic.message
         end,
       },
-    }, vim.api.nvim_get_current_buf())
+    })
   end,
 })
 

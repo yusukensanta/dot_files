@@ -18,10 +18,7 @@ return {
           lualine_b = { "branch", "diff", "diagnostics" },
           lualine_c = {
             "filename",
-            {
-              function() return vim.lsp.status() end,
-              cond = function() return #vim.lsp.get_clients({ bufnr = 0 }) > 0 end,
-            },
+            { function() return vim.lsp.status() end },
           },
           lualine_x = { "encoding", "fileformat", "filetype" },
           lualine_y = { "progress" },

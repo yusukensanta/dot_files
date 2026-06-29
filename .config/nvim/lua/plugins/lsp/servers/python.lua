@@ -62,28 +62,12 @@ M.ruff = {
 -- Python-specific formatting autocmd
 -- Handles organize imports + formatting on save
 M.setup_autocmds = function()
+  local lsp_helpers = require("helpers.lsp")
   vim.api.nvim_create_autocmd("BufWritePre", {
     group = vim.api.nvim_create_augroup("PythonFormat", { clear = true }),
     pattern = "*.py",
     callback = function(args)
-      -- Organize imports first (via ruff)
-      local clients = vim.lsp.get_clients({ bufnr = args.buf })
-      local encoding = clients[1] and clients[1].offset_encoding or "utf-8"
-      local params = vim.lsp.util.make_range_params(nil, encoding)
-      params.context = { only = { "source.organizeImports" } }
-      local result = vim.lsp.buf_request_sync(args.buf, "textDocument/codeAction", params, 3000)
-
-      if result then
-        for _, res in pairs(result) do
-          for _, r in pairs(res.result or {}) do
-            if r.edit then
-              vim.lsp.util.apply_workspace_edit(r.edit, "utf-8")
-            end
-          end
-        end
-      end
-
-      -- Format the buffer (via ruff)
+      lsp_helpers.organize_imports(args.buf)
       vim.lsp.buf.format({ async = false, bufnr = args.buf })
     end,
   })

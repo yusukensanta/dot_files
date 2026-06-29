@@ -13,7 +13,8 @@ M.clangd = {
     "--fallback-style=llvm",
   },
   root_markers = {
-    ".clangd-format",
+    ".clang-format",
+    ".clangd",
     ".git",
   },
   init_options = {

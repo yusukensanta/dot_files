@@ -15,13 +15,8 @@ return {
       -- LSP configuration
       server = {
         on_attach = function(client, bufnr)
-          -- Load common LSP keymaps if available
-          local ok, lsp_config = pcall(require, "plugins.lsp.config")
-          if ok and lsp_config.on_attach then
-            lsp_config.on_attach(client, bufnr)
-          end
-
           -- Rust-specific keymaps using helpers.keys
+          -- Common LSP keymaps are set via the global LspAttach autocmd in lsp/config.lua
           local map = require("helpers.keys").buffer_map
 
           -- Hover actions

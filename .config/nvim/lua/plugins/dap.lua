@@ -15,7 +15,7 @@ return {
 
       -- Auto-install DAP adapters via Mason
       require("mason-nvim-dap").setup({
-        ensure_installed = { "debugpy", "delve" },
+        ensure_installed = { "debugpy", "delve", "codelldb" },
         automatic_installation = true,
       })
 
@@ -40,7 +40,7 @@ return {
             return variable.name .. ' = ' .. variable.value
           end
         end,
-        virt_text_pos = vim.fn.has 'nvim-0.10' == 1 and 'inline' or 'eol',
+        virt_text_pos = 'inline',
       })
 
       -- Python DAP (uses Mason-managed debugpy)

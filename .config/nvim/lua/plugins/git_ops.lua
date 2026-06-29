@@ -1,12 +1,13 @@
--- Additional key mappings for git operations
+-- Auto commands for git operations
+local git_augroup = vim.api.nvim_create_augroup("GitOpsConfig", { clear = true })
+
 vim.api.nvim_create_autocmd("User", {
+  group = git_augroup,
   pattern = "GitConflictDetected",
   callback = function()
     vim.notify("Conflict detected in " .. vim.fn.expand("<afile>"))
   end,
 })
--- Auto commands for git operations
-local git_augroup = vim.api.nvim_create_augroup("GitOpsConfig", { clear = true })
 
 -- Auto refresh gitsigns when git state changes
 local refresh_timer = nil

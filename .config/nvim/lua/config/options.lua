@@ -3,7 +3,7 @@ local options = {
   modeline = false,
   -- Backup and file handling
   backup = false,                              -- Don't create backup files
-  backupskip = { "/tmp/*", "/private/tmp/*" }, -- Skip backup for these paths
+  backupskip = { "/tmp/*" },                   -- Skip backup for these paths
   swapfile = false,                            -- Don't create swap files
   undofile = true,                             -- Enable persistent undo
   writebackup = false,                         -- Don't create backup before overwriting
@@ -40,7 +40,7 @@ local options = {
   wrap = false, -- Changed to false for code (modern preference)
 
   -- Search and completion
-  completeopt = { "menu", "menuone", "noselect", "preview" }, -- Enhanced completion
+  completeopt = { "menu", "menuone", "noselect" }, -- Enhanced completion
   hlsearch = true,                                            -- Highlight search results
   ignorecase = true,                                          -- Case insensitive search
   incsearch = true,                                           -- Show search matches as you type (NEW)
@@ -58,8 +58,6 @@ local options = {
   tabstop = 2,        -- Number of spaces for tab
 
   -- Performance and behavior
-  hidden = true,      -- Allow hidden buffers (NEW)
-  lazyredraw = false, -- Redraw during macros (true can cause display issues in modern nvim)
   mouse = "a",        -- Enable mouse support
   splitbelow = true,  -- Open horizontal splits below (NEW)
   splitright = true,  -- Open vertical splits to the right (NEW)
@@ -68,7 +66,6 @@ local options = {
   updatetime = 250,   -- Reduced from 300 for faster response
 
   -- Encoding and shell
-  encoding = "utf-8",     -- Set encoding
   fileencoding = "utf-8", -- File encoding
   shell = "zsh",          -- Set shell
 
@@ -126,6 +123,12 @@ if vim.fn.has("wsl") == 1 then
 end
 
 
+
+-- Filetype detection for types Neovim doesn't know by default
+vim.filetype.add({
+  extension = { gotmpl = "gotmpl" },
+  pattern = { [".*%.tmpl"] = "gotmpl" },
+})
 
 -- Neovim 0.12 built-in plugins
 vim.cmd("packadd nvim.undotree")
