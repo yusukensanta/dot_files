@@ -24,6 +24,7 @@ return {
         { "<leader>w",  group = "Workspace / Windows" },
         { "<leader>x",  group = "Trouble" },
         { "<leader>a",  group = "Aerial" },
+        { "<leader>s",  group = "Snacks / Dropbar" },
         { "<space>c",   group = "Code Action" },
       })
     end,

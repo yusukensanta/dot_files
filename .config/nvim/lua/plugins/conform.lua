@@ -5,6 +5,7 @@ return {
   event = { "BufWritePre" },
   cmd = { "ConformInfo" },
   opts = {
+    notify_on_error = true,
     formatters_by_ft = {
       -- Python: Use ruff for formatting
       -- Note: python.lua already configures ruff LSP formatting

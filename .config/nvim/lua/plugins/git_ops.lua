@@ -124,6 +124,7 @@ return {
         expr = true,
         desc = "Prev hunk"
       },
+      { "<leader>gbt", function() require("gitsigns").blame() end, desc = "Gitsigns: full buffer blame" },
     },
   },
   {
@@ -199,20 +200,6 @@ return {
     keys = {
       { "<leader>gy", "<cmd>GitLink<cr>",  mode = { "n", "v" }, desc = "GitLinker - Yank git link" },
       { "<leader>gY", "<cmd>GitLink!<cr>", mode = { "n", "v" }, desc = "GitLinker - Open git link" },
-    },
-  },
-  {
-    "f-person/git-blame.nvim",
-    event = "BufReadPre",
-    opts = {
-      enabled = false, -- Enable on demand
-      message_template = " <summary> • <date> • <author> • <<sha>>",
-      date_format = "%m-%d-%Y %H:%M:%S",
-      virtual_text_column = 1,
-    },
-    keys = {
-      { "<leader>gbt", "<cmd>GitBlameToggle<cr>",        desc = "Git Blame - Toggle Git Blame" },
-      { "<leader>gbo", "<cmd>GitBlameOpenCommitURL<cr>", desc = "Git Blame - Open Commit URL" },
     },
   },
 }

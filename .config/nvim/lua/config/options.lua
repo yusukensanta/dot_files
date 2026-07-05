@@ -124,6 +124,25 @@ end
 
 
 
+-- Global diagnostic display config (Python overrides virtual_text per-buffer in format.lua)
+vim.diagnostic.config({
+  virtual_text = {
+    prefix = "●",
+    source = "if_many",
+  },
+  signs = {
+    text = {
+      [vim.diagnostic.severity.ERROR] = " ",
+      [vim.diagnostic.severity.WARN] = " ",
+      [vim.diagnostic.severity.INFO] = " ",
+      [vim.diagnostic.severity.HINT] = "󰌵",
+    },
+  },
+  severity_sort = true,
+  float = { border = "rounded", source = "always" },
+  update_in_insert = false,
+})
+
 -- Filetype detection for types Neovim doesn't know by default
 vim.filetype.add({
   extension = { gotmpl = "gotmpl" },

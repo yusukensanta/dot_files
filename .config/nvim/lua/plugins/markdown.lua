@@ -1,20 +1,33 @@
+-- render-markdown.nvim — inline markdown rendering via extmarks
+-- Renders headings, code blocks, tables, checkboxes, callouts in-buffer.
+-- No browser, no build step. Replaces iamcco/markdown-preview.nvim.
 return {
   {
-    "iamcco/markdown-preview.nvim",
-    cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
-    build = "cd app && yarn install",
-    init = function()
-      vim.g.mkdp_filetypes = { "markdown" }
-    end,
+    "MeanderingProgrammer/render-markdown.nvim",
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter",
+      "nvim-tree/nvim-web-devicons",
+    },
     ft = { "markdown" },
-    config = function()
-      local map = require("helpers.keys").map
-
-      map("n",
-        "<leader>mp",
-        ":MarkdownPreviewToggle<CR>",
-        "Markdown Preview - Toggle"
-      )
-    end,
-  }
+    opts = {
+      render_modes = true,
+      code = {
+        sign = false,
+        width = "block",
+        right_pad = 1,
+      },
+      heading = {
+        width = "block",
+      },
+      checkbox = {
+        enabled = true,
+      },
+      bullet = {
+        enabled = true,
+      },
+    },
+    keys = {
+      { "<leader>mp", "<cmd>RenderMarkdown toggle<cr>", desc = "Markdown: toggle rendering" },
+    },
+  },
 }
