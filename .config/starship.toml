@@ -14,8 +14,11 @@ $golang\
 $php\
 [](fg:#212736 bg:#1d2230)\
 $time\
+$cmd_duration\
 [ ](fg:#1d2230)\
 \n$character"""
+
+right_format = """${custom.aws_session}${custom.gcloud_session}"""
 
 [directory]
 style = "fg:#e3e5e5 bg:#769ff0"
@@ -68,3 +71,22 @@ format = '[[  $time ](fg:#a0a9cb bg:#1d2230)]($style)'
 ssh_only = false
 format = "[ $hostname ](bg:#a3aed2 fg:#090c0c)"
 disabled = false
+
+[cmd_duration]
+min_time = 0
+style = "bg:#1d2230"
+format = '[[  $duration ](fg:#a0a9cb bg:#1d2230)]($style)'
+
+[custom.aws_session]
+command = 'bash "$HOME/.config/starship/aws_session.sh"'
+when = true
+shell = ["bash", "--noprofile", "--norc"]
+style = "bg:#e0af68 fg:#1d2230"
+format = '[[$output](fg:#1d2230 bg:#e0af68)]($style)'
+
+[custom.gcloud_session]
+command = 'bash "$HOME/.config/starship/gcloud_session.sh"'
+when = true
+shell = ["bash", "--noprofile", "--norc"]
+style = "bg:#9ece6a fg:#1d2230"
+format = '[[$output](fg:#1d2230 bg:#9ece6a)]($style)'
