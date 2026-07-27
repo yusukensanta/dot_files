@@ -1,7 +1,14 @@
 #!/bin/bash
 
 # Sync configuration files from dotfiles repository to $HOME
-# Usage: ./sync_to_win.sh [--dry-run]
+# Usage: ./sync_to_host.sh [--dry-run]
+#
+# Works on WSL (Windows), native Linux, and macOS:
+# - Always syncs shell/editor/multiplexer configs into $HOME
+# - On WSL, additionally mirrors Alacritty and Neovim configs out to the
+#   Windows-native locations (%APPDATA%/%LOCALAPPDATA%), since those apps
+#   run as Windows binaries even when the shell is WSL
+# - On native Linux/macOS, syncs Alacritty's config to the XDG path instead
 #
 # Features:
 # - Uses rsync with --delete to remove files/directories that don't exist in source
@@ -15,7 +22,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration directories to sync
-TARGET_DIRS=(nvim zsh sheldon)
+TARGET_DIRS=(nvim zsh sheldon starship)
+
+# === PLATFORM DETECTION ===
+OS="$(uname -s)"
+IS_WSL=false
+if [[ "$OS" == "Linux" ]] && uname -r | grep -qi microsoft; then
+    IS_WSL=true
+fi
 
 # Check for dry-run flag
 DRY_RUN_FLAG=""
@@ -113,9 +127,22 @@ sync_file() {
     fi
 }
 
+# Discover the Windows user profile dir from inside WSL, without hardcoding
+# a username — uses cmd.exe interop (always available on WSL) + wslpath.
+detect_win_userprofile() {
+    local winpath
+    if command -v wslpath &>/dev/null && command -v cmd.exe &>/dev/null; then
+        winpath="$(cmd.exe /C 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r\n')"
+        if [[ -n "$winpath" ]]; then
+            wslpath "$winpath" 2>/dev/null || true
+        fi
+    fi
+}
+
 echo "🔄 Syncing configurations from repository to HOME..."
 echo "Repository: $REPO_DIR"
 echo "Target: $HOME"
+echo "Platform: $OS$($IS_WSL && echo ' (WSL)')"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Sync .config directories
@@ -129,17 +156,29 @@ sync_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf" ".tmux.conf"
 sync_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml" "starship.toml"
 sync_file "$REPO_DIR/.config/nvim/biome.json" "$HOME/.config/nvim/biome.json" "biome.json"
 
-# Sync alacritty (Windows location) - optional
-if [[ -d "/mnt/c/Users/yusuk/AppData/Roaming/alacritty" ]]; then
-    if [[ -f "$REPO_DIR/alacritty/alacritty.toml" ]]; then
-        sync_file "$REPO_DIR/alacritty/alacritty.toml" "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" "alacritty.toml (Windows)" "--no-perms --no-owner --no-group --no-times"
-    fi
-fi
+if $IS_WSL; then
+    # Alacritty and Neovim run as Windows-native binaries even under WSL,
+    # so they read from the Windows user profile, not $HOME.
+    WIN_USERPROFILE="$(detect_win_userprofile)"
 
-# Sync nvim config to Windows native Neovim location (%LOCALAPPDATA%\nvim)
-WIN_NVIM_DIR="/mnt/c/Users/yusuk/AppData/Local/nvim"
-if [[ -d "$(dirname "$WIN_NVIM_DIR")" ]]; then
-    sync_directory "$REPO_DIR/.config/nvim" "$WIN_NVIM_DIR" ".config/nvim (Windows native)" "--no-perms --no-owner --no-group --no-times"
+    if [[ -n "$WIN_USERPROFILE" && -d "$WIN_USERPROFILE" ]]; then
+        if [[ -f "$REPO_DIR/alacritty/alacritty.toml" ]]; then
+            sync_file "$REPO_DIR/alacritty/alacritty.toml" \
+                "$WIN_USERPROFILE/AppData/Roaming/alacritty/alacritty.toml" \
+                "alacritty.toml (Windows)" "--no-perms --no-owner --no-group --no-times"
+        fi
+
+        sync_directory "$REPO_DIR/.config/nvim" \
+            "$WIN_USERPROFILE/AppData/Local/nvim" \
+            ".config/nvim (Windows native)" "--no-perms --no-owner --no-group --no-times"
+    else
+        echo ""
+        echo "⚠️  Could not detect Windows user profile (needs cmd.exe/wslpath interop)."
+        echo "   Skipping Windows-native Alacritty/Neovim sync."
+    fi
+else
+    # Native Linux/macOS: Alacritty reads its config from the XDG path.
+    sync_file "$REPO_DIR/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml" "alacritty.toml"
 fi
 
 echo ""

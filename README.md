@@ -32,16 +32,16 @@ cd ~/dot_files
 ./scripts/install_zsh_tools.sh
 
 # Copy configs from the repo into $HOME
-./scripts/sync_to_win.sh
+./scripts/sync_to_host.sh
 ```
 
-`install_libraries.sh` assumes Ubuntu/Debian (apt) and installs core CLI tools, fish + fisher, asdf with several language plugins, Docker, and a few Rust tools via cargo.
+`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing core CLI tools, fish + fisher, asdf with several language plugins, Docker, and a few Rust tools via cargo.
 
 `install_zsh_tools.sh` installs zsh-abbr, starship, and sheldon via Homebrew (falling back to curl/cargo installers where possible).
 
 ## Syncing changes
 
-- `scripts/sync_to_win.sh [--dry-run]` — copy configs **from this repo to `$HOME`** (and to the Windows-native Alacritty/Neovim locations under `/mnt/c/...` when run from WSL). Use this after pulling changes.
+- `scripts/sync_to_host.sh [--dry-run]` — copy configs **from this repo to `$HOME`**. Works on WSL, native Linux, and macOS: on WSL it additionally mirrors Alacritty/Neovim configs out to the Windows-native locations (auto-detected, no hardcoded paths); on native Linux/macOS it syncs Alacritty's config to the XDG path instead. Use this after pulling changes.
 - `scripts/sync_here.sh [--dry-run]` — copy configs **from `$HOME` back into this repo**. Use this after editing configs locally, before committing.
 
 Both scripts use `rsync -a --delete`, so run with `--dry-run` first if unsure.

@@ -10,7 +10,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration directories to sync
-TARGET_DIRS=(nvim zsh sheldon)
+TARGET_DIRS=(nvim zsh sheldon starship)
+
+# === PLATFORM DETECTION ===
+OS="$(uname -s)"
+IS_WSL=false
+if [[ "$OS" == "Linux" ]] && uname -r | grep -qi microsoft; then
+    IS_WSL=true
+fi
+
+# Discover the Windows user profile dir from inside WSL, without hardcoding
+# a username — uses cmd.exe interop (always available on WSL) + wslpath.
+detect_win_userprofile() {
+    local winpath
+    if command -v wslpath &>/dev/null && command -v cmd.exe &>/dev/null; then
+        winpath="$(cmd.exe /C 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r\n')"
+        if [[ -n "$winpath" ]]; then
+            wslpath "$winpath" 2>/dev/null || true
+        fi
+    fi
+}
 
 # Check for dry-run flag
 DRY_RUN=false
@@ -65,9 +84,17 @@ sync_file "$HOME/.zshrc" "$REPO_DIR/.zshrc"
 sync_file "$HOME/.tmux.conf" "$REPO_DIR/.tmux.conf"
 sync_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
 
-# Sync alacritty (Windows location)
-if [[ -f "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" ]]; then
-    sync_file "/mnt/c/Users/yusuk/AppData/Roaming/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty.toml"
+# Sync alacritty
+if $IS_WSL; then
+    WIN_USERPROFILE="$(detect_win_userprofile)"
+    if [[ -n "$WIN_USERPROFILE" && -f "$WIN_USERPROFILE/AppData/Roaming/alacritty/alacritty.toml" ]]; then
+        sync_file "$WIN_USERPROFILE/AppData/Roaming/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty.toml"
+    fi
+else
+    # Native Linux/macOS: Alacritty reads its config from the XDG path.
+    if [[ -f "$HOME/.config/alacritty/alacritty.toml" ]]; then
+        sync_file "$HOME/.config/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty.toml"
+    fi
 fi
 
 echo ""
