@@ -30,9 +30,9 @@ sync_file() {
         return 1
     fi
 
-    local rsync_opts="-a --delete"
+    local rsync_opts=(-a --delete)
     if $DRY_RUN; then
-        rsync_opts="$rsync_opts --dry-run"
+        rsync_opts+=(--dry-run)
         echo "Would sync: $src -> $dest"
     else
         echo "✓ Syncing: $src -> $dest"
@@ -44,10 +44,10 @@ sync_file() {
     # Use rsync with --delete to remove files not in source
     if [[ -d "$src" ]]; then
         # For directories, sync contents and remove extra files
-        rsync $rsync_opts -v "$src/" "$dest/"
+        rsync "${rsync_opts[@]}" -v "$src/" "$dest/"
     else
         # For individual files, just sync the file
-        rsync $rsync_opts -v "$src" "$dest"
+        rsync "${rsync_opts[@]}" -v "$src" "$dest"
     fi
 }
 
