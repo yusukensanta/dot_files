@@ -1,0 +1,11 @@
+# Portfolio opt-in configuration for yusukensanta.github.io
+enabled: true
+
+description: "Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — synced across WSL/Linux and Windows dev machines."
+
+tech_stack:
+  - Zsh
+  - Neovim
+  - tmux
+  - Alacritty
+  - Starship
