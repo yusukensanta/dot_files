@@ -1,5 +1,9 @@
 # dot_files
 
+<!-- portfolio-badge -->
+[![Portfolio Docs](https://img.shields.io/badge/docs-yusukensanta.github.io-blue?style=flat-square)](https://yusukensanta.github.io/projects/dot_files/)
+<!-- portfolio-badge -->
+
 Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared across WSL/Linux and Windows dev machines.
 
 ## Contents
