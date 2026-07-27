@@ -16,7 +16,13 @@ typeset -U PATH
 export PATH=$HOME/.local/bin:$PATH
 export PATH=$HOME/.cargo/bin:$PATH
 export PATH=$HOME/.google-cloud-sdk/bin:$PATH
-export PATH=/home/linuxbrew/.linuxbrew/bin:$PATH
+
+# Homebrew: check known prefixes directly (fast, no subprocess) rather than
+# hardcoding one — covers Apple Silicon, Intel macOS, and Linuxbrew.
+for brew_prefix in /opt/homebrew /usr/local /home/linuxbrew/.linuxbrew; do
+    [[ -d "$brew_prefix/bin" ]] && export PATH="$brew_prefix/bin:$PATH"
+done
+
 export PATH=$HOME/.local/share/coursier/bin:$PATH
 export PATH=$HOME/.dotnet:$PATH
 

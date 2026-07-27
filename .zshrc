@@ -25,7 +25,7 @@ done
 echo "✨ ZSH loaded! ⚡"
 
 # bun completions
-[ -s "/home/yusuken/.bun/_bun" ] && source "/home/yusuken/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"

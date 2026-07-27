@@ -3,8 +3,8 @@
 # Tool initializations (mise, zoxide, starship)
 
 # === MISE (Runtime Version Manager) ===
-if [ -f /usr/local/bin/mise ]; then
-    eval "$(/usr/local/bin/mise activate zsh)"
+if command -v mise &> /dev/null; then
+    eval "$(mise activate zsh)"
 fi
 
 # === ZOXIDE (Smart CD) ===

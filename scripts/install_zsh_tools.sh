@@ -7,16 +7,16 @@ set -e
 echo "🔧 Installing ZSH tools..."
 
 # === ZSH-ABBR ===
-if ! [ -f /home/linuxbrew/.linuxbrew/share/zsh-abbr/zsh-abbr.zsh ]; then
-    if command -v brew &> /dev/null; then
-        echo "📦 Installing zsh-abbr..."
-        brew install olets/tap/zsh-abbr@6
-    else
-        echo "❌ Homebrew not found. Cannot install zsh-abbr automatically."
-        echo "   Please install Homebrew first: https://brew.sh"
-    fi
-else
+# Works out zsh-abbr's install path via `brew --prefix`, so this covers
+# macOS (/opt/homebrew or /usr/local) and Linuxbrew (/home/linuxbrew/.linuxbrew) alike.
+if command -v brew &> /dev/null && [ -f "$(brew --prefix)/share/zsh-abbr/zsh-abbr.zsh" ]; then
     echo "✅ zsh-abbr already installed"
+elif command -v brew &> /dev/null; then
+    echo "📦 Installing zsh-abbr..."
+    brew install olets/tap/zsh-abbr@6
+else
+    echo "❌ Homebrew not found. Cannot install zsh-abbr automatically."
+    echo "   Please install Homebrew first: https://brew.sh"
 fi
 
 # === STARSHIP ===

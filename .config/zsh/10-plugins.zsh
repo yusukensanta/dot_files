@@ -3,10 +3,14 @@
 # Plugin loading via sheldon
 
 # === ZSH-ABBR ===
-# Load zsh-abbr if available
-if [ -f /home/linuxbrew/.linuxbrew/share/zsh-abbr/zsh-abbr.zsh ]; then
-    source /home/linuxbrew/.linuxbrew/share/zsh-abbr/zsh-abbr.zsh
-fi
+# Load zsh-abbr if available. Check known Homebrew prefixes directly
+# (Apple Silicon, Intel macOS, Linuxbrew) rather than hardcoding one.
+for brew_prefix in /opt/homebrew /usr/local /home/linuxbrew/.linuxbrew; do
+    if [ -f "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh" ]; then
+        source "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh"
+        break
+    fi
+done
 
 # === SHELDON PLUGIN MANAGER ===
 # Lazy load external tools for performance
