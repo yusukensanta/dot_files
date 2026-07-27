@@ -4,7 +4,7 @@
 [![Portfolio Docs](https://img.shields.io/badge/docs-yusukensanta.github.io-blue?style=flat-square)](https://yusukensanta.github.io/projects/dot_files/)
 <!-- portfolio-badge -->
 
-Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared across WSL/Linux and Windows dev machines.
+Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared across WSL, native Linux, and macOS dev machines.
 
 ## Contents
 
@@ -12,10 +12,10 @@ Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared acro
 .config/nvim/       Neovim config (lazy.nvim, LSP, DAP, treesitter, etc.)
 .config/zsh/        Modular zsh config, loaded in numeric order (00-env, 10-plugins, ...)
 .config/sheldon/     Sheldon zsh plugin manager config
-.config/starship.toml Starship prompt config (Tokyo Night preset)
+.config/starship/    Starship prompt config (Tokyo Night preset) + AWS/GCloud session segments
 .tmux.conf           tmux config
 .zshrc               zsh entrypoint, sources .config/zsh/*
-alacritty/           Alacritty terminal config (used on Windows)
+alacritty/           Alacritty terminal config (synced to the Windows-native path under WSL, ~/.config/alacritty elsewhere)
 scripts/             Install and sync helper scripts
 ```
 
@@ -49,7 +49,7 @@ Both scripts use `rsync -a --delete`, so run with `--dry-run` first if unsure.
 ## Notes
 
 - Secrets, SSH/GPG keys, shell history, and caches are excluded via `.gitignore` and never synced into the repo.
-- Windows-specific paths in the sync scripts assume a particular user profile path and may need adjusting for other machines.
+- The Windows user profile path (for WSL-only Alacritty/Neovim syncing) is auto-detected via `cmd.exe`/`wslpath`, not hardcoded.
 
 ## License
 
