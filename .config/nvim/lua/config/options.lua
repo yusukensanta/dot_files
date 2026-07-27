@@ -29,6 +29,7 @@ local options = {
   pumborder = "rounded", -- Popup menu border (0.12+)
   pumblend = 5, -- Popup menu transparency
   pumheight = 10, -- Maximum popup menu height
+  winborder = "rounded", -- Default border for floating windows (0.11+); diagnostic float and mason ui inherit this
   scrolloff = 8, -- Keep 8 lines visible above/below cursor
   showmode = false, -- Don't show mode (status line handles this)
   showtabline = 2, -- Always show tab line
@@ -124,11 +125,32 @@ end
 
 
 
--- Global diagnostic display config (Python overrides virtual_text per-buffer in format.lua)
+-- Global diagnostic display config.
+-- Python's ty/ruff/basedpyright source tagging is folded in here (scoped by
+-- diagnostic.bufnr's filetype) instead of a separate FileType python
+-- vim.diagnostic.config() call, since diagnostic.config() has no buffer
+-- scoping and would otherwise deep-merge into (and permanently mutate) this
+-- global config for every filetype once any Python file was opened.
 vim.diagnostic.config({
   virtual_text = {
     prefix = "●",
     source = "if_many",
+    format = function(diagnostic)
+      local bufnr = diagnostic.bufnr
+      if bufnr and vim.bo[bufnr].filetype == "python" then
+        local source = diagnostic.source or "[N/A]"
+        local tag = ""
+        if source == "ty" then
+          tag = "[TYPE] "
+        elseif source == "ruff" then
+          tag = "[LINT] "
+        elseif source == "basedpyright" then
+          tag = "[COMP] "
+        end
+        return tag .. diagnostic.message
+      end
+      return diagnostic.message
+    end,
   },
   signs = {
     text = {
@@ -139,7 +161,7 @@ vim.diagnostic.config({
     },
   },
   severity_sort = true,
-  float = { border = "rounded", source = "always" },
+  float = { source = "always" }, -- border inherited from 'winborder'
   update_in_insert = false,
 })
 
@@ -160,6 +182,11 @@ map("n", "<C-p>", ":tabprev<CR>", "Options - Tab previous")
 map("n", "<C-n>", ":tabnext<CR>", "Options - Tab next")
 map("n", "<C-t>", ":tabnew<CR>", "Options - Tab new")
 -- Buffer navigation handled by barbar.nvim (lualine.lua)
+-- Direct single-chord window nav (primary); <space>w* kept as fallback.
+map("n", "<C-h>", "<C-w><C-h>", "Options - Move focus to left window")
+map("n", "<C-l>", "<C-w><C-l>", "Options - Move focus to right window")
+map("n", "<C-j>", "<C-w><C-j>", "Options - Move focus to lower window")
+map("n", "<C-k>", "<C-w><C-k>", "Options - Move focus to upper window")
 map("n", "<space>wh", "<C-w><C-h>", "Options - Move focus to left window")
 map("n", "<space>wl", "<C-w><C-l>", "Options - Move focus to right window")
 map("n", "<space>wj", "<C-w><C-j>", "Options - Move focus to lower window")

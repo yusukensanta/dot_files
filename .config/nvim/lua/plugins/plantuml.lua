@@ -25,10 +25,19 @@ return {
         end
       end
       if not vim.g.plantuml_previewer_plantuml_jar_path then
-        vim.notify(
-          "plantuml.jar not found. Set g:plantuml_previewer_plantuml_jar_path to enable local rendering.",
-          vim.log.levels.WARN
-        )
+        -- Defer the notice to actually opening a plantuml buffer instead of
+        -- firing on every Neovim startup (this init() always runs at
+        -- startup regardless of the ft= lazy-load trigger).
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = "plantuml",
+          once = true,
+          callback = function()
+            vim.notify(
+              "plantuml.jar not found. Set g:plantuml_previewer_plantuml_jar_path to enable local rendering.",
+              vim.log.levels.WARN
+            )
+          end,
+        })
       end
     end,
   },

@@ -124,32 +124,8 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
-vim.api.nvim_create_autocmd("FileType", {
-  group = language_group,
-  pattern = "python",
-  callback = function()
-    vim.diagnostic.config({
-      virtual_text = {
-        source = "always",
-        format = function(diagnostic)
-          -- Show source to distinguish between ty, ruff, and basedpyright
-          local source = diagnostic.source or "[N/A]"
-          local prefix = ""
-
-          if source == "ty" then
-            prefix = "[TYPE] "
-          elseif source == "ruff" then
-            prefix = "[LINT] "
-          elseif source == "basedpyright" then
-            prefix = "[COMP] "
-          end
-
-          return prefix .. diagnostic.message
-        end,
-      },
-    })
-  end,
-})
+-- Python source tagging (ty/ruff/basedpyright) lives in the global
+-- vim.diagnostic.config() call in options.lua — see comment there for why.
 
 vim.api.nvim_create_autocmd("FileType", {
   group = language_group,

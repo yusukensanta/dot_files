@@ -16,7 +16,7 @@ return {
     config = function()
       require("mason").setup({
         ui = {
-          border = "rounded",
+          -- border inherited from 'winborder'
           icons = {
             package_installed = "✓",
             package_pending = "➜",

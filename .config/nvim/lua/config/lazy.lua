@@ -15,7 +15,7 @@ end
 
 vim.opt.rtp:prepend(lazypath)
 
-require("helpers.keys").set_leader("\\")
+require("helpers.keys").set_leader(",", "\\")
 
 local ok, lazy = pcall(require, "lazy")
 if not ok then

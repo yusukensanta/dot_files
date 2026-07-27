@@ -7,7 +7,7 @@ return {
     "Bekaboo/dropbar.nvim",
     event = "BufReadPost",
     opts = {
-      general = {
+      bar = {
         attach_events = { "BufReadPost", "BufNewFile" },
       },
     },

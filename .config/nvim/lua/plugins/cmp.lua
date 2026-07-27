@@ -4,14 +4,14 @@ return {
     "saghen/blink.cmp",
     dependencies = {
       "rafamadriz/friendly-snippets",
-      "giuxtaposition/blink-cmp-copilot",
+      "fang2hou/blink-copilot",
     },
     version = "*",
     opts = {
       keymap = {
         preset = "none",
-        ["<C-l>"] = { 'select_prev', 'fallback' },
-        ["<C-k>"] = { 'select_next', 'fallback' },
+        ["<C-p>"] = { 'select_prev', 'fallback' },
+        ["<C-n>"] = { 'select_next', 'fallback' },
         ["<CR>"] = { 'accept', 'fallback' },
         ["<Tab>"] = { 'snippet_forward', 'fallback' },
         ["<S-Tab>"] = { 'snippet_backward', 'fallback' },
@@ -26,8 +26,8 @@ return {
         default = { "lsp", "path", "snippets", "buffer", "copilot" },
         providers = {
           copilot = {
-            name = "Copilot",
-            module = "blink-cmp-copilot",
+            name = "copilot",
+            module = "blink-copilot",
             score_offset = 100,
             async = true,
           },

@@ -160,14 +160,21 @@ return {
     },
   },
   {
-    "akinsho/git-conflict.nvim",
+    -- akinsho/git-conflict.nvim is stale (main pinned at 2024-12-27, no
+    -- merged commits since). Pulling from evanpurkhiser's PR branch instead
+    -- of upstream main — https://github.com/akinsho/git-conflict.nvim/pull/126
+    -- replaces the removed vim.highlight and deprecated table-style
+    -- vim.validate{} calls with the current APIs (pure rename, no behavior
+    -- change). Revert to "akinsho/git-conflict.nvim" once #126 merges.
+    "evanpurkhiser/git-conflict.nvim",
+    branch = "evanpurkhiser/fix-deprecated-apis",
     event = "BufReadPre",
     config = function()
       require("git-conflict").setup({
         default_mappings = {
           ours = "co",
           theirs = "ct",
-          none = "c0",
+          none = "cn",
           both = "cb",
           next = "]x",
           prev = "[x",
@@ -184,10 +191,10 @@ return {
     end,
     keys = {
       { "<leader>gx",  "<cmd>GitConflictListQf<cr>",         desc = "Git Conflict - List conflicts" },
-      { "<leader>gco", "<Plug>(git-conflict-ours)",          desc = "Git Conflict - Choose ours" },
-      { "<leader>gct", "<Plug>(git-conflict-theirs)",        desc = "Git Conflict - Choose theirs" },
-      { "<leader>gcb", "<Plug>(git-conflict-both)",          desc = "Git Conflict - Choose both" },
-      { "<leader>gc0", "<Plug>(git-conflict-none)",          desc = "Git Conflict - Choose none" },
+      { "<leader>gxo", "<Plug>(git-conflict-ours)",          desc = "Git Conflict - Choose ours" },
+      { "<leader>gxt", "<Plug>(git-conflict-theirs)",        desc = "Git Conflict - Choose theirs" },
+      { "<leader>gxb", "<Plug>(git-conflict-both)",          desc = "Git Conflict - Choose both" },
+      { "<leader>gxn", "<Plug>(git-conflict-none)",          desc = "Git Conflict - Choose none" },
       { "]x",          "<Plug>(git-conflict-next-conflict)", desc = "Git Conflict - Next conflict" },
       { "[x",          "<Plug>(git-conflict-prev-conflict)", desc = "Git Conflict - Prev conflict" },
     },
