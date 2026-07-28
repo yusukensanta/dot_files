@@ -70,7 +70,6 @@ echo "   - rg:     ripgrep (brew install ripgrep)"
 echo "   - eza:    better ls (brew install eza)"
 echo "   - bat:    better cat (brew install bat)"
 echo "   - zoxide: smart cd (brew install zoxide)"
-echo "   - mise:   runtime manager (brew install mise)"
 echo ""
 
 echo "✅ ZSH tools installation complete!"

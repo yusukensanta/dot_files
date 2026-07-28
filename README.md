@@ -38,7 +38,7 @@ entirely, so it's never overwritten or deleted by a sync in either direction.
 git clone git@github.com:yusukensanta/dot_files.git ~/dot_files
 cd ~/dot_files
 
-# Install base packages, language runtimes (asdf), and tools
+# Install base packages, language runtimes (mise), and tools
 ./scripts/install_libraries.sh
 
 # Install zsh-abbr, starship, sheldon, and sheldon plugins
@@ -48,7 +48,7 @@ cd ~/dot_files
 ./scripts/sync_to_host.sh
 ```
 
-`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing core CLI tools, fish + fisher, asdf with several language plugins, Docker, and a few Rust tools via cargo.
+`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing core CLI tools, fish + fisher, mise with several language runtimes, Docker, and a few Rust tools via cargo.
 
 `install_zsh_tools.sh` installs zsh-abbr, starship, and sheldon via Homebrew (falling back to curl/cargo installers where possible).
 

@@ -44,29 +44,33 @@ for plugin in "${fish_plugins[@]}"; do
   fisher install "$plugin"
 done
 
-# Install asdf
-git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.13.1
+# Install mise (runtime version manager) — replaces asdf: single Rust
+# binary, no shim-per-invocation overhead, and its registry resolves
+# common tools (go, java, node, python, ruby, rust, terraform, sbt,
+# poetry, ...) automatically without a separate "plugin add" step.
+if ! command -v mise &>/dev/null; then
+  case "$OS" in
+    Darwin) brew install mise ;;
+    Linux) curl https://mise.run | sh ;;
+  esac
+fi
 
-echo 'source ~/.asdf/asdf.sh' >> ~/.config/fish/config.fish
-mkdir -p ~/.config/fish/completions && ln -s ~/.asdf/completions/asdf.fish ~/.config/fish/completions
+# Make mise-managed tools available for the rest of *this* script (PATH
+# from a fresh install isn't picked up automatically otherwise).
+export PATH="$HOME/.local/bin:$PATH"
+eval "$(mise activate bash)"
+
+echo 'mise activate fish | source' >> ~/.config/fish/config.fish
 
 # Parallel arrays (not `declare -A`): keeps this compatible with bash 3.2,
 # which is macOS's stock /bin/bash and doesn't support associative arrays.
-plugin_names=(golang java nodejs python ruby rust terraform sbt poetry)
-plugin_versions=(latest openjdk-11.0.2 latest latest latest latest latest latest latest)
+plugin_names=(go java node python ruby rust terraform sbt poetry)
+plugin_versions=(latest openjdk-11 latest latest latest latest latest latest latest)
 
 for i in "${!plugin_names[@]}"; do
   plugin="${plugin_names[$i]}"
   version="${plugin_versions[$i]}"
-  asdf plugin add "$plugin"
-  if [[ "$version" == "latest" ]]; then
-    latest_version=$(asdf list all "$plugin" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+$" | tail -n 1)
-    asdf install "$plugin" "$latest_version"
-    asdf global "$plugin" "$latest_version"
-  else
-    asdf install "$plugin" "$version"
-    asdf global "$plugin" "$version"
-  fi
+  mise use --global "${plugin}@${version}"
 done
 
 # Install packer.nvim
