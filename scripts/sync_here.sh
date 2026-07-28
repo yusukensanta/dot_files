@@ -43,6 +43,7 @@ fi
 sync_file() {
     local src="$1"
     local dest="$2"
+    local extra_opts="${3:-}"
 
     if [[ ! -e "$src" ]]; then
         echo "⚠️  Source not found: $src"
@@ -63,10 +64,10 @@ sync_file() {
     # Use rsync with --delete to remove files not in source
     if [[ -d "$src" ]]; then
         # For directories, sync contents and remove extra files
-        rsync "${rsync_opts[@]}" -v "$src/" "$dest/"
+        rsync "${rsync_opts[@]}" $extra_opts -v "$src/" "$dest/"
     else
         # For individual files, just sync the file
-        rsync "${rsync_opts[@]}" -v "$src" "$dest"
+        rsync "${rsync_opts[@]}" $extra_opts -v "$src" "$dest"
     fi
 }
 
@@ -76,7 +77,11 @@ echo ""
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-    sync_file "$HOME/.config/$dir" "$REPO_DIR/.config/$dir"
+    extra_opts=""
+    # local.d/ is host-specific and untracked (see .gitignore) — never let
+    # a repo <-> $HOME sync delete it just because it's absent on one side.
+    [[ "$dir" == "zsh" ]] && extra_opts="--exclude=local.d"
+    sync_file "$HOME/.config/$dir" "$REPO_DIR/.config/$dir" "$extra_opts"
 done
 
 # Sync individual files

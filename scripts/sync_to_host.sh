@@ -147,7 +147,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-    sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir"
+    extra_opts=""
+    # local.d/ is host-specific and untracked (see .gitignore) — never let
+    # a repo <-> $HOME sync delete it just because it's absent on one side.
+    [[ "$dir" == "zsh" ]] && extra_opts="--exclude=local.d"
+    sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" "$extra_opts"
 done
 
 # Sync individual files

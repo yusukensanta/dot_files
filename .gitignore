@@ -13,5 +13,8 @@
 !README.md
 
 .config/zsh/.zcompdump*
+.config/zsh/90-local.zsh
+.config/zsh/local.d/*
+!.config/zsh/local.d/.gitkeep
 
 .config/nvim/doc

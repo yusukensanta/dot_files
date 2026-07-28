@@ -12,14 +12,21 @@ export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 ZDOTDIR="${ZDOTDIR:-$XDG_CONFIG_HOME/zsh}"
 
 # === SOURCE ALL CONFIGURATION FILES IN ORDER ===
-# Load configuration files in numbered order for predictable initialization
-for config_file in "$ZDOTDIR"/{0..5}*.zsh(N); do
+# Any *.zsh file directly in ZDOTDIR is auto-loaded, sorted by filename —
+# drop in a new file and it's picked up with no edits to this loader.
+# Prefix it with a two-digit number to control load order, following the
+# existing 00-env, 10-plugins, 20-keybindings, ... convention.
+for config_file in "$ZDOTDIR"/*.zsh(N); do
     [ -r "$config_file" ] && source "$config_file"
 done
 
-# === LOCAL CUSTOMIZATIONS ===
-# Load local customizations if they exist (not tracked in git)
-[[ -f "$ZDOTDIR/90-local.zsh" ]] && source "$ZDOTDIR/90-local.zsh"
+# === LOCAL / MACHINE-SPECIFIC EXTENSIONS ===
+# Drop additional *.zsh files in ZDOTDIR/local.d/ for host-specific or
+# private config (secrets, work-only aliases, etc). Not tracked in git
+# (see .gitignore) and loaded last, after everything above.
+for local_file in "$ZDOTDIR"/local.d/*.zsh(N); do
+    [ -r "$local_file" ] && source "$local_file"
+done
 
 # === STARTUP MESSAGE ===
 echo "✨ ZSH loaded! ⚡"
