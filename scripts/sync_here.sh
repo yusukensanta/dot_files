@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # Sync configuration files from $HOME to dotfiles repository
-# Usage: ./sync_here.sh [--dry-run]
+# Usage: ./sync_here.sh [--dry-run] [--yes]
+#
+# Safety: uses rsync --delete to converge the repo onto $HOME, so it
+# prompts for confirmation first (skip with --yes) and backs up anything
+# it would delete/overwrite into a timestamped dir instead of destroying it.
 
 set -euo pipefail
 
@@ -31,12 +35,42 @@ detect_win_userprofile() {
     fi
 }
 
-# Check for dry-run flag
+# Parse flags
 DRY_RUN=false
-if [[ "${1:-}" == "--dry-run" ]]; then
-    DRY_RUN=true
+ASSUME_YES=false
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run) DRY_RUN=true ;;
+        --yes|-y) ASSUME_YES=true ;;
+    esac
+done
+
+if $DRY_RUN; then
     echo "DRY RUN MODE - No files will be copied"
     echo "----------------------------------------"
+fi
+
+# Anything --delete would remove or overwrite gets moved here instead of
+# destroyed outright — inspect or restore from it if a sync goes wrong.
+BACKUP_ROOT="$HOME/.dotfiles-sync-backup/$(date +%Y%m%d-%H%M%S)"
+BACKUP_OPTS=""
+$DRY_RUN || BACKUP_OPTS="--backup --backup-dir=$BACKUP_ROOT"
+
+if ! $DRY_RUN && ! $ASSUME_YES; then
+    echo "⚠️  This will overwrite files in the repo and delete anything there"
+    echo "   not present in \$HOME. Anything affected is backed up first to:"
+    echo "   $BACKUP_ROOT"
+    if exec 3</dev/tty 2>/dev/null; then
+        read -r -p "Continue? [y/N] " reply <&3
+        exec 3<&-
+        case "$reply" in
+            [yY]|[yY][eE][sS]) ;;
+            *) echo "Aborted. Re-run with --yes to skip this prompt, or --dry-run to preview."; exit 0 ;;
+        esac
+    else
+        echo "❌ No TTY to confirm and --yes not passed. Aborting." >&2
+        exit 1
+    fi
 fi
 
 # Function to sync with logging (removes files not in source)
@@ -64,10 +98,10 @@ sync_file() {
     # Use rsync with --delete to remove files not in source
     if [[ -d "$src" ]]; then
         # For directories, sync contents and remove extra files
-        rsync "${rsync_opts[@]}" $extra_opts -v "$src/" "$dest/"
+        rsync "${rsync_opts[@]}" $BACKUP_OPTS $extra_opts -v "$src/" "$dest/"
     else
         # For individual files, just sync the file
-        rsync "${rsync_opts[@]}" $extra_opts -v "$src" "$dest"
+        rsync "${rsync_opts[@]}" $BACKUP_OPTS $extra_opts -v "$src" "$dest"
     fi
 }
 
@@ -107,4 +141,5 @@ if $DRY_RUN; then
     echo "Dry run complete. Run without --dry-run to apply changes."
 else
     echo "Sync complete!"
+    [[ -d "$BACKUP_ROOT" ]] && echo "Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
 fi

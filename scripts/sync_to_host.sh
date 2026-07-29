@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Sync configuration files from dotfiles repository to $HOME
-# Usage: ./sync_to_host.sh [--dry-run]
+# Usage: ./sync_to_host.sh [--dry-run] [--yes]
 #
 # Works on WSL (Windows), native Linux, and macOS:
 # - Always syncs shell/editor/multiplexer configs into $HOME
@@ -10,10 +10,12 @@
 #   run as Windows binaries even when the shell is WSL
 # - On native Linux/macOS, syncs Alacritty's config to the XDG path instead
 #
-# Features:
-# - Uses rsync with --delete to remove files/directories that don't exist in source
-# - Preserves permissions, timestamps, and symbolic links
-# - Provides detailed sync information
+# Safety:
+# - Uses rsync --delete to converge $HOME onto the repo, so it prompts for
+#   confirmation before touching anything (skip with --yes for automation)
+# - Anything it would delete or overwrite is moved into a timestamped
+#   backup dir first (see BACKUP_ROOT below), never destroyed outright
+# - Preserves permissions, timestamps, and symbolic links otherwise
 
 set -euo pipefail
 
@@ -31,13 +33,26 @@ if [[ "$OS" == "Linux" ]] && uname -r | grep -qi microsoft; then
     IS_WSL=true
 fi
 
-# Check for dry-run flag
+# Parse flags
 DRY_RUN_FLAG=""
-if [[ "${1:-}" == "--dry-run" ]]; then
-    DRY_RUN_FLAG="--dry-run"
+ASSUME_YES=false
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run) DRY_RUN_FLAG="--dry-run" ;;
+        --yes|-y) ASSUME_YES=true ;;
+    esac
+done
+
+if [[ -n "$DRY_RUN_FLAG" ]]; then
     echo "🔍 DRY RUN MODE - No files will be modified"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 fi
+
+# Anything --delete would remove or overwrite gets moved here instead of
+# destroyed outright — inspect or restore from it if a sync goes wrong.
+BACKUP_ROOT="$HOME/.dotfiles-sync-backup/$(date +%Y%m%d-%H%M%S)"
+BACKUP_OPTS=""
+[[ -z "$DRY_RUN_FLAG" ]] && BACKUP_OPTS="--backup --backup-dir=$BACKUP_ROOT"
 
 # rsync options:
 # -a (archive): preserves permissions, times, symbolic links, etc. (includes -rlptgoD)
@@ -80,7 +95,7 @@ sync_directory() {
     fi
 
     # Execute rsync with appropriate options
-    if rsync $RSYNC_BASE_OPTS $extra_opts $DRY_RUN_FLAG "$src" "$dest"; then
+    if rsync $RSYNC_BASE_OPTS $BACKUP_OPTS $extra_opts $DRY_RUN_FLAG "$src" "$dest"; then
         if [[ -n "$DRY_RUN_FLAG" ]]; then
             echo "   ✓ Dry-run completed"
         else
@@ -115,7 +130,7 @@ sync_file() {
     fi
 
     # Execute rsync for single file
-    if rsync $RSYNC_BASE_OPTS $extra_opts $DRY_RUN_FLAG "$src" "$dest"; then
+    if rsync $RSYNC_BASE_OPTS $BACKUP_OPTS $extra_opts $DRY_RUN_FLAG "$src" "$dest"; then
         if [[ -n "$DRY_RUN_FLAG" ]]; then
             echo "   ✓ Dry-run completed"
         else
@@ -144,6 +159,24 @@ echo "Repository: $REPO_DIR"
 echo "Target: $HOME"
 echo "Platform: $OS$($IS_WSL && echo ' (WSL)')"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [[ -z "$DRY_RUN_FLAG" ]] && ! $ASSUME_YES; then
+    echo ""
+    echo "⚠️  This will overwrite files under \$HOME and delete anything there"
+    echo "   not present in the repo. Anything affected is backed up first to:"
+    echo "   $BACKUP_ROOT"
+    if exec 3</dev/tty 2>/dev/null; then
+        read -r -p "Continue? [y/N] " reply <&3
+        exec 3<&-
+        case "$reply" in
+            [yY]|[yY][eE][sS]) ;;
+            *) echo "Aborted. Re-run with --yes to skip this prompt, or --dry-run to preview."; exit 0 ;;
+        esac
+    else
+        echo "❌ No TTY to confirm and --yes not passed. Aborting." >&2
+        exit 1
+    fi
+fi
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
@@ -191,4 +224,5 @@ if [[ -n "$DRY_RUN_FLAG" ]]; then
     echo "✅ Dry run complete. Run without --dry-run to apply changes."
 else
     echo "✅ Sync complete!"
+    [[ -d "$BACKUP_ROOT" ]] && echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
 fi

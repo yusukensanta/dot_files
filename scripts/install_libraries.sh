@@ -107,7 +107,7 @@ case "$OS" in
       sudo apt-get install -y docker-ce
       sudo service docker start
       sudo usermod -aG docker "$USER"
-      sudo chmod 666 /var/run/docker.sock
+      echo "Added $USER to the docker group. Log out/in (or run: newgrp docker) for it to take effect."
     fi
     ;;
 esac

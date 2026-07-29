@@ -54,10 +54,16 @@ cd ~/dot_files
 
 ## Syncing changes
 
-- `scripts/sync_to_host.sh [--dry-run]` — copy configs **from this repo to `$HOME`**. Works on WSL, native Linux, and macOS: on WSL it additionally mirrors Alacritty/Neovim configs out to the Windows-native locations (auto-detected, no hardcoded paths); on native Linux/macOS it syncs Alacritty's config to the XDG path instead. Use this after pulling changes.
-- `scripts/sync_here.sh [--dry-run]` — copy configs **from `$HOME` back into this repo**. Use this after editing configs locally, before committing.
+- `scripts/sync_to_host.sh [--dry-run] [--yes]` — copy configs **from this repo to `$HOME`**. Works on WSL, native Linux, and macOS: on WSL it additionally mirrors Alacritty/Neovim configs out to the Windows-native locations (auto-detected, no hardcoded paths); on native Linux/macOS it syncs Alacritty's config to the XDG path instead. Use this after pulling changes.
+- `scripts/sync_here.sh [--dry-run] [--yes]` — copy configs **from `$HOME` back into this repo**. Use this after editing configs locally, before committing.
 
-Both scripts use `rsync -a --delete`, so run with `--dry-run` first if unsure.
+Both scripts use `rsync -a --delete`, which is destructive by nature (anything on the
+destination not present in the source gets removed). To keep that safe:
+- They prompt for confirmation before touching anything — pass `--yes` to skip the
+  prompt (e.g. for automation), or `--dry-run` to preview with no changes at all.
+- Anything they would delete or overwrite is moved into a timestamped backup dir
+  first (`$HOME/.dotfiles-sync-backup/<timestamp>/`) instead of being destroyed —
+  printed at the end of the run if anything was actually backed up.
 
 ## Notes
 
