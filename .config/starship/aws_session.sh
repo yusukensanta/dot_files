@@ -40,7 +40,15 @@ done < <(ls -t "$cache_dir"/*.json 2>/dev/null)
 
 [[ -z "$expiration" ]] && exit 0
 
-exp_epoch=$(date -d "$expiration" +%s 2>/dev/null) || exit 0
+# GNU `date -d` parses this directly. BSD/macOS `date` has no -d and needs
+# an explicit format with no trailing Z/UTC/offset or fractional seconds.
+clean="${expiration%%.*}"
+clean="${clean%Z}"
+clean="${clean%UTC}"
+clean="${clean%+00:00}"
+exp_epoch=$(date -d "$expiration" +%s 2>/dev/null) \
+  || exp_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$clean" +%s 2>/dev/null)
+[[ -z "$exp_epoch" ]] && exit 0
 now_epoch=$(date +%s)
 remaining=$((exp_epoch - now_epoch))
 

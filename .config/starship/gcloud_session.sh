@@ -26,7 +26,11 @@ expiry=$(sqlite3 "$tokens_db" \
 
 [[ -z "$expiry" ]] && exit 0
 
-exp_epoch=$(date -d "$expiry UTC" +%s 2>/dev/null) || exit 0
+# GNU `date -d` parses this directly. BSD/macOS `date` has no -d and needs
+# an explicit format with no fractional seconds.
+exp_epoch=$(date -d "$expiry UTC" +%s 2>/dev/null) \
+  || exp_epoch=$(TZ=UTC date -j -f "%Y-%m-%d %H:%M:%S" "${expiry%%.*}" +%s 2>/dev/null)
+[[ -z "$exp_epoch" ]] && exit 0
 now_epoch=$(date +%s)
 remaining=$((exp_epoch - now_epoch))
 
