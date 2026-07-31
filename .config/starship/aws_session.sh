@@ -26,8 +26,6 @@ if [[ -f "$config_file" ]]; then
   account_id=$(awk -F'=' '/sso_account_id/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' <<< "$section")
 fi
 
-[[ -z "$role" ]] && role="$profile"
-
 expiration=""
 
 # Path 1: AWS SSO cache (`aws sso login`) — matched by account id.
@@ -45,8 +43,8 @@ if [[ -n "$account_id" ]]; then
   fi
 fi
 
-# Path 2: saml2aws writes expiry straight into ~/.aws/credentials as
-# x_security_token_expires under the profile's own section.
+# Path 2: saml2aws writes expiry (and the assumed role's ARN) straight
+# into ~/.aws/credentials under the profile's own section.
 if [[ -z "$expiration" ]]; then
   creds_file="$HOME/.aws/credentials"
   if [[ -f "$creds_file" ]]; then
@@ -56,8 +54,16 @@ if [[ -z "$expiration" ]]; then
       found { print }
     ' "$creds_file")
     expiration=$(awk -F'=' '/x_security_token_expires/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' <<< "$creds_section")
+
+    if [[ -z "$role" ]]; then
+      principal_arn=$(awk -F'=' '/x_principal_arn/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' <<< "$creds_section")
+      # e.g. arn:aws:sts::123456789012:assumed-role/MyRoleName/session -> MyRoleName
+      [[ "$principal_arn" =~ assumed-role/([^/]+) ]] && role="${BASH_REMATCH[1]}"
+    fi
   fi
 fi
+
+[[ -z "$role" ]] && role="$profile"
 
 [[ -z "$expiration" ]] && exit 0
 
