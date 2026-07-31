@@ -16,9 +16,12 @@ $php\
 $time\
 $cmd_duration\
 [ ](fg:#1d2230)\
+$fill\
+${custom.aws_session}${custom.gcloud_session}\
 \n$character"""
 
-right_format = """${custom.aws_session}${custom.gcloud_session}"""
+[fill]
+symbol = " "
 
 [directory]
 style = "fg:#e3e5e5 bg:#769ff0"
