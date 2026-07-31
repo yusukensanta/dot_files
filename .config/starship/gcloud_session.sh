@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Prints "<project> <H>H <m>m" for the active gcloud auth session, or nothing
-# if no active config / no cached token / expired. Read-only, no network
-# calls (safe to run on every prompt render).
+# Prints "<project> <H>H <m>m" for the active gcloud auth session, or
+# "<project> expired" once the cached token's expiry has passed (the
+# active config / project doesn't disappear on expiry, so this still
+# shows the last login until a fresh one overwrites it). Prints nothing
+# only if there's no active config / cached token at all. Read-only, no
+# network calls (safe to run on every prompt render).
 set -uo pipefail
 
 gcloud_dir="$HOME/.config/gcloud"
@@ -34,9 +37,10 @@ exp_epoch=$(date -d "$expiry UTC" +%s 2>/dev/null) \
 now_epoch=$(date +%s)
 remaining=$((exp_epoch - now_epoch))
 
-[[ "$remaining" -le 0 ]] && exit 0
-
-hours=$((remaining / 3600))
-minutes=$(((remaining % 3600) / 60))
-
-printf ' %s %dH %dm' "$project" "$hours" "$minutes"
+if [[ "$remaining" -le 0 ]]; then
+  printf ' %s expired' "$project"
+else
+  hours=$((remaining / 3600))
+  minutes=$(((remaining % 3600) / 60))
+  printf ' %s %dH %dm' "$project" "$hours" "$minutes"
+fi

@@ -1,5 +1,6 @@
 format = """
-[░▒▓](#a3aed2)\
+${custom.aws_session}${custom.gcloud_session}\
+\n[░▒▓](#a3aed2)\
 [  ](bg:#a3aed2 fg:#090c0c)\
 $hostname\
 [](bg:#769ff0 fg:#a3aed2)\
@@ -17,8 +18,6 @@ $time\
 $cmd_duration\
 [ ](fg:#1d2230)\
 \n$character"""
-
-right_format = """${custom.aws_session}${custom.gcloud_session}"""
 
 [directory]
 style = "fg:#e3e5e5 bg:#769ff0"

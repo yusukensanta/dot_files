@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Prints "<role> <H>H <m>m" for the current AWS session — via `aws sso
-# login` (SSO cache) or `saml2aws login` (credentials file) — or nothing
-# if no profile is active / no cached credentials / expired. Read-only,
-# no network calls (safe to run on every prompt render).
+# login` (SSO cache) or `saml2aws login` (credentials file) — or "<role>
+# expired" once the cached credentials' expiry has passed (role/expiry
+# data isn't deleted on expiry, just stale, so this still shows the last
+# login until a fresh one overwrites it). Prints nothing only if there's
+# no cached login at all. Read-only, no network calls (safe to run on
+# every prompt render).
 set -uo pipefail
 
 profile="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-}}"
@@ -83,9 +86,10 @@ exp_epoch=$(date -d "$expiration" +%s 2>/dev/null) \
 now_epoch=$(date +%s)
 remaining=$((exp_epoch - now_epoch))
 
-[[ "$remaining" -le 0 ]] && exit 0
-
-hours=$((remaining / 3600))
-minutes=$(((remaining % 3600) / 60))
-
-printf ' %s %dH %dm' "$role" "$hours" "$minutes"
+if [[ "$remaining" -le 0 ]]; then
+  printf ' %s expired' "$role"
+else
+  hours=$((remaining / 3600))
+  minutes=$(((remaining % 3600) / 60))
+  printf ' %s %dH %dm' "$role" "$hours" "$minutes"
+fi
