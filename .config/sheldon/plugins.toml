@@ -31,6 +31,16 @@ apply = ["defer"]
 [plugins.zsh-completions]
 github = "zsh-users/zsh-completions"
 
+# Must load after compinit and other completion-definition plugins above,
+# but before widget-wrapping plugins (autosuggestions, syntax-highlighting)
+# below — satisfied here since those are deferred and this isn't.
+[plugins.fzf-tab]
+github = "Aloxaf/fzf-tab"
+
+[plugins.zsh-autopair]
+github = "hlissner/zsh-autopair"
+apply = ["defer"]
+
 [plugins.you-should-use]
 github = "MichaelAquilina/zsh-you-should-use"
 apply = ["defer"]
