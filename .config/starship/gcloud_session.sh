@@ -37,10 +37,13 @@ exp_epoch=$(date -d "$expiry UTC" +%s 2>/dev/null) \
 now_epoch=$(date +%s)
 remaining=$((exp_epoch - now_epoch))
 
+# Leading "│" separates this from the AWS segment when both render.
+# Baked into the output (not the starship format string) so it collapses
+# along with everything else when this script prints nothing.
 if [[ "$remaining" -le 0 ]]; then
-  printf ' %s expired' "$project"
+  printf ' │ %s expired' "$project"
 else
   hours=$((remaining / 3600))
   minutes=$(((remaining % 3600) / 60))
-  printf ' %s %dH %dm' "$project" "$hours" "$minutes"
+  printf ' │ %s %dH %dm' "$project" "$hours" "$minutes"
 fi
