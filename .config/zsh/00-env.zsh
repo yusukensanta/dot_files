@@ -25,6 +25,7 @@ done
 
 export PATH=$HOME/.local/share/coursier/bin:$PATH
 export PATH=$HOME/.dotnet:$PATH
+export AWS_PAGER=""
 
 # pnpm configuration
 export PNPM_HOME="$HOME/.local/share/pnpm"
