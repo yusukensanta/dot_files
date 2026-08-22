@@ -17,7 +17,7 @@ $time\
 $cmd_duration\
 [ ](fg:#1d2230)\
 $fill\
-${custom.aws_session}${custom.gcloud_session}\
+${custom.aws_session}${custom.aws_gcloud_separator}${custom.gcloud_session}\
 \n$character"""
 
 [fill]
@@ -86,6 +86,13 @@ when = true
 shell = ["bash", "--noprofile", "--norc"]
 style = "bg:#e0af68 fg:#1d2230"
 format = '[[$output](fg:#1d2230 bg:#e0af68)]($style)'
+
+[custom.aws_gcloud_separator]
+command = 'bash "$HOME/.config/starship/aws_gcloud_separator.sh"'
+when = true
+shell = ["bash", "--noprofile", "--norc"]
+style = "fg:#ffffff"
+format = '[ $output]($style)'
 
 [custom.gcloud_session]
 command = 'bash "$HOME/.config/starship/gcloud_session.sh"'

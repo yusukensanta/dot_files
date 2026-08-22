@@ -37,19 +37,10 @@ exp_epoch=$(date -d "$expiry UTC" +%s 2>/dev/null) \
 now_epoch=$(date +%s)
 remaining=$((exp_epoch - now_epoch))
 
-# Leading "│" separates this from the AWS segment when both render.
-# Baked into the output (not the starship format string) so it collapses
-# along with everything else when this script prints nothing.
-#
-# The bar itself is reset to no background + white, then the segment's
-# fg/bg (from custom.gcloud_session's style in starship.toml, must stay
-# in sync) is re-applied for the rest of the text.
-sep=$'\033[0m\033[97m│\033[0m\033[38;2;29;34;48m\033[48;2;158;206;106m'
-
 if [[ "$remaining" -le 0 ]]; then
-  printf ' %s %s expired' "$sep" "$project"
+  printf ' %s expired' "$project"
 else
   hours=$((remaining / 3600))
   minutes=$(((remaining % 3600) / 60))
-  printf ' %s %s %dH %dm' "$sep" "$project" "$hours" "$minutes"
+  printf ' %s %dH %dm' "$project" "$hours" "$minutes"
 fi
