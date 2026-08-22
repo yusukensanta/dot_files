@@ -2,7 +2,7 @@
 # Install ZSH tools and dependencies
 # Run this script once to set up all required tools
 
-set -e
+set -euo pipefail
 
 echo "🔧 Installing ZSH tools..."
 

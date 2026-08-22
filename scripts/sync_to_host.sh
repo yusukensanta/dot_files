@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Sync configuration files from dotfiles repository to $HOME
 # Usage: ./sync_to_host.sh [--dry-run] [--yes]

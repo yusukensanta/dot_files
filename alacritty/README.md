@@ -1,7 +1,7 @@
 # Alacritty Settings
-- alacrittyをセットアップするための諸々
+- Bits and pieces for setting up Alacritty
 
 
-# 前提
+# Prerequisites
 - [Alacritty](https://github.com/alacritty/alacritty)
 - [Fira Code](https://github.com/tonsky/FiraCode)

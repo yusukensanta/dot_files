@@ -17,7 +17,7 @@ ZDOTDIR="${ZDOTDIR:-$XDG_CONFIG_HOME/zsh}"
 # Prefix it with a two-digit number to control load order, following the
 # existing 00-env, 10-plugins, 20-keybindings, ... convention.
 for config_file in "$ZDOTDIR"/*.zsh(N); do
-    [ -r "$config_file" ] && source "$config_file"
+    [[ -r "$config_file" ]] && source "$config_file"
 done
 
 # === LOCAL / MACHINE-SPECIFIC EXTENSIONS ===
@@ -25,16 +25,16 @@ done
 # private config (secrets, work-only aliases, etc). Not tracked in git
 # (see .gitignore) and loaded last, after everything above.
 for local_file in "$ZDOTDIR"/local.d/*.zsh(N); do
-    [ -r "$local_file" ] && source "$local_file"
+    [[ -r "$local_file" ]] && source "$local_file"
 done
 
 # === STARTUP MESSAGE ===
 echo "✨ ZSH loaded! ⚡"
 
 # bun completions
-[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+[[ -s "$HOME/.bun/_bun" ]] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
-export GPG_TTY=$(tty)
+export GPG_TTY=$TTY  # zsh builtin — avoids forking `tty` on every startup

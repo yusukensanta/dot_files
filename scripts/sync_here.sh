@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Sync configuration files from $HOME to dotfiles repository
 # Usage: ./sync_here.sh [--dry-run] [--yes]
@@ -59,8 +59,8 @@ for arg in "$@"; do
 done
 
 if $DRY_RUN; then
-    echo "DRY RUN MODE - No files will be copied"
-    echo "----------------------------------------"
+    echo "🔍 DRY RUN MODE - No files will be copied"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 fi
 
 # Anything --delete would remove or overwrite gets moved here instead of
@@ -106,12 +106,16 @@ sync_file() {
         return
     fi
 
+    local icon="📄"
+    [[ -d "$src" ]] && icon="📁"
+
     local rsync_opts=(-a --delete)
+    echo ""
     if $DRY_RUN; then
         rsync_opts+=(--dry-run)
-        echo "Would sync: $src -> $dest"
+        echo "$icon Would sync: $src -> $dest"
     else
-        echo "✓ Syncing: $src -> $dest"
+        echo "$icon Syncing: $src -> $dest"
     fi
 
     # Create destination parent directory if needed (skipped in dry-run —
@@ -122,18 +126,30 @@ sync_file() {
     backup_opts=$(backup_opts_for "$(basename "$dest")")
 
     # Use rsync with --delete to remove files not in source
+    local ok=true
     if [[ -d "$src" ]]; then
         # For directories, sync contents and remove extra files
-        rsync "${rsync_opts[@]}" "${COMMON_EXCLUDES[@]}" $backup_opts $extra_opts -v "$src/" "$dest/"
+        rsync "${rsync_opts[@]}" "${COMMON_EXCLUDES[@]}" $backup_opts $extra_opts -v "$src/" "$dest/" || ok=false
     else
         # For individual files, just sync the file
-        rsync "${rsync_opts[@]}" $backup_opts $extra_opts -v "$src" "$dest"
+        rsync "${rsync_opts[@]}" $backup_opts $extra_opts -v "$src" "$dest" || ok=false
+    fi
+
+    if $ok; then
+        if $DRY_RUN; then
+            echo "   ✓ Dry-run completed"
+        else
+            echo "   ✓ Synced successfully"
+        fi
+    else
+        echo "   ✗ Sync failed"
+        FAILURES=$((FAILURES + 1))
     fi
 }
 
-echo "Syncing configurations from HOME to repository..."
+echo "🔄 Syncing configurations from HOME to repository..."
 echo "Repository: $REPO_DIR"
-echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
@@ -164,13 +180,14 @@ else
 fi
 
 echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if $DRY_RUN; then
-    echo "Dry run complete. Run without --dry-run to apply changes."
+    echo "✅ Dry run complete. Run without --dry-run to apply changes."
 elif [[ "$FAILURES" -eq 0 ]]; then
-    echo "Sync complete!"
-    [[ -d "$BACKUP_ROOT" ]] && echo "Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
+    echo "✅ Sync complete!"
+    [[ -d "$BACKUP_ROOT" ]] && echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
 else
     echo "⚠️  Sync finished with $FAILURES failed/skipped step(s) — see warnings above."
-    [[ -d "$BACKUP_ROOT" ]] && echo "Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
+    [[ -d "$BACKUP_ROOT" ]] && echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
     exit 1
 fi

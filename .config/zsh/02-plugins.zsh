@@ -9,10 +9,11 @@
 # path for that case) despite older advice to the contrary.
 
 # === ZSH-ABBR ===
-# Load zsh-abbr if available. Check known Homebrew prefixes directly
-# (Apple Silicon, Intel macOS, Linuxbrew) rather than hardcoding one.
-for brew_prefix in /opt/homebrew /usr/local /home/linuxbrew/.linuxbrew; do
-    if [ -f "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh" ]; then
+# Load zsh-abbr if available, from whichever Homebrew prefix 00-env.zsh
+# found (DOTFILES_BREW_PREFIXES) — same list, so this stays in sync with
+# the PATH setup there instead of re-declaring it.
+for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
+    if [[ -f "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh" ]]; then
         source "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh"
         break
     fi

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -eux
 
@@ -96,7 +96,7 @@ grep -qxF 'mise activate fish | source' ~/.config/fish/config.fish 2>/dev/null \
 # Parallel arrays (not `declare -A`): keeps this compatible with bash 3.2,
 # which is macOS's stock /bin/bash and doesn't support associative arrays.
 plugin_names=(go java node python ruby rust terraform sbt poetry)
-plugin_versions=(latest openjdk-11 latest latest latest latest latest latest latest)
+plugin_versions=(latest latest latest latest latest latest latest latest latest)
 
 for i in "${!plugin_names[@]}"; do
   plugin="${plugin_names[$i]}"
