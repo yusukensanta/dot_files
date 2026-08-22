@@ -11,7 +11,9 @@ bindkey '^[[B' history-substring-search-down
 bindkey '^P' history-substring-search-up
 bindkey '^N' history-substring-search-down
 
-# Enhanced history search
+# Enhanced history search. Needs XON/XOFF flow control off, otherwise the
+# TTY driver swallows Ctrl-S before zsh ever sees it.
+[[ -t 0 ]] && stty -ixon 2>/dev/null
 bindkey '^S' history-incremental-search-forward
 
 # Line editing shortcuts (standard emacs bindings)
@@ -55,12 +57,19 @@ bindkey -s '^Gp' 'git push\n'
 bindkey -s '^Gl' 'git log --oneline\n'
 
 # === DOCKER SHORTCUTS ===
-bindkey -s '^Dp' 'docker ps\n'
-bindkey -s '^Di' 'docker images\n'
-bindkey -s '^Dc' 'docker-compose '
+# Under the ^X prefix (already a multi-key prefix via ^X^E above), not ^D:
+# ^D alone is the standard "delete-char, or EOF/exit on an empty line"
+# binding, and making it a bindkey -s prefix broke both — plain ^D just
+# sat waiting out KEYTIMEOUT for a Docker letter that (usually) never came.
+bindkey -s '^Xp' 'docker ps\n'
+bindkey -s '^Xi' 'docker images\n'
+bindkey -s '^Xc' 'docker-compose '
 
 # === FILE OPERATIONS ===
-bindkey -s '^F' 'find . -name "'
+# ^F is standard emacs forward-char (move right); the find-snippet insert
+# that used to live here shadowed it. Moved under ^X alongside Docker.
+bindkey '^F' forward-char
+bindkey -s '^Xf' 'find . -name "'
 bindkey -s '^[g' 'grep -r "'
 
 # === TERMINAL OPERATIONS ===
@@ -156,55 +165,35 @@ dir-history() {
 zle -N dir-history
 bindkey '^[.' dir-history
 
+# === COMPLETION NAVIGATION ===
+bindkey '^I' complete-word
+bindkey '^[[Z' reverse-menu-complete
+
+# === FZF CONFIGURATION ===
+if command -v fd &>/dev/null; then
+    export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow --exclude .git"
+elif command -v rg &>/dev/null; then
+    export FZF_DEFAULT_COMMAND="rg --files --hidden --follow --glob '!.git'"
+else
+    export FZF_DEFAULT_COMMAND="find . -type f -not -path '*/\.git/*'"
+fi
+
 # === FZF INTEGRATION ===
+# fzf's own --zsh integration (fzf >= 0.48) defines fzf-file-widget,
+# fzf-cd-widget, and fzf-history-widget, and wires up ^T / Alt-C / ^R plus
+# ** fuzzy-completion — using FZF_DEFAULT_COMMAND above as a fallback and
+# respecting FZF_CTRL_T_COMMAND/FZF_ALT_C_COMMAND when set. Sourced after
+# the ^I binding above so it wraps that as its non-fuzzy fallback instead
+# of replacing it.
 if command -v fzf >/dev/null; then
-    fzf-file-widget() {
-        local selected=$(find . -type f 2>/dev/null | fzf --preview 'head -20 {}' --height 40%)
-        local ret=$?
-        if [[ -n $selected ]]; then
-            LBUFFER="${LBUFFER}${selected}"
-        fi
-        zle reset-prompt
-        return $ret
-    }
-    zle -N fzf-file-widget
-    bindkey '^T' fzf-file-widget
-
-    fzf-cd-widget() {
-        local selected=$(find . -type d 2>/dev/null | fzf --height 40%)
-        if [[ -n $selected ]]; then
-            LBUFFER="cd ${selected}"
-            zle accept-line
-        fi
-    }
-    zle -N fzf-cd-widget
+    source <(fzf --zsh)
+    # This config's own aliases for the widgets fzf just defined, kept
+    # alongside fzf's defaults (^T, Alt-C, ^R) below.
     bindkey '^[t' fzf-cd-widget
-
-    fzf-history-widget() {
-        local selected=$(fc -rl 1 | fzf --tac --height 40% --query="$LBUFFER" \
-            --bind 'ctrl-r:toggle-sort' \
-            --header 'Press Ctrl-R to toggle sort | ESC/Ctrl-C to cancel' \
-            --preview 'echo {}' --preview-window down:3:wrap \
-            | sed 's/^[[:space:]]*[0-9]*[[:space:]]*//')
-
-        local ret=$?
-        if [[ -n $selected ]]; then
-            LBUFFER="$selected"
-        fi
-
-        zle reset-prompt
-        return $ret
-    }
-    zle -N fzf-history-widget
-    bindkey '^R' fzf-history-widget
     bindkey '^[h' fzf-history-widget
 else
     bindkey '^R' history-incremental-search-backward
 fi
-
-# === COMPLETION NAVIGATION ===
-bindkey '^I' complete-word
-bindkey '^[[Z' reverse-menu-complete
 
 # === TERMINAL TITLE UPDATES ===
 precmd() {
@@ -226,15 +215,6 @@ preexec() {
 # === BRACKETED PASTE ===
 autoload -Uz bracketed-paste-magic
 zle -N bracketed-paste bracketed-paste-magic
-
-# === FZF CONFIGURATION ===
-if command -v fd &>/dev/null; then
-    export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow --exclude .git"
-elif command -v rg &>/dev/null; then
-    export FZF_DEFAULT_COMMAND="rg --files --hidden --follow --glob '!.git'"
-else
-    export FZF_DEFAULT_COMMAND="find . -type f -not -path '*/\.git/*'"
-fi
 
 # === MOUSE SUPPORT ===
 if [[ $TERM == *"xterm"* ]] || [[ $TERM == *"screen"* ]] || [[ $TERM == *"tmux"* ]]; then

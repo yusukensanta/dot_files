@@ -9,23 +9,48 @@ case "$OS" in
     if ! command -v brew &>/dev/null; then
       /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
-    brew install curl unzip git fzf fd bat ripgrep tmux fish
+    brew install curl unzip git zsh fzf fd bat ripgrep tmux fish jq sqlite3 eza zoxide
     ;;
   Linux)
+    sudo apt-get update
     sudo apt-get install -y \
       curl \
       unzip \
       git \
+      zsh \
       fzf \
       fd-find \
       bat \
       ripgrep \
-      tmux
+      tmux \
+      jq \
+      sqlite3 \
+      xclip \
+      software-properties-common
 
-    # Install fish and fisher
-    sudo apt-add-repository -y ppa:fish-shell/release-3
-    sudo apt update
-    sudo apt install -y fish
+    # Debian ships fish in its own repos (10+); Ubuntu needs the upstream
+    # PPA for a current version. `. /etc/os-release` is the portable way
+    # to tell them apart (both report `Linux` from `uname -s`).
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    if [[ "${ID:-}" == "ubuntu" ]]; then
+      sudo apt-add-repository -y ppa:fish-shell/release-4
+      sudo apt-get update
+    fi
+    sudo apt-get install -y fish
+
+    # Debian/Ubuntu install these under collision-avoiding names
+    # (`fdfind`/`batcat`) instead of `fd`/`bat`, so nothing that expects
+    # the upstream binary name finds them. Symlink into ~/.local/bin,
+    # already on PATH (00-env.zsh), without clobbering a real fd/bat if
+    # one's already there from elsewhere (e.g. cargo install).
+    mkdir -p "$HOME/.local/bin"
+    if [[ ! -x "$HOME/.local/bin/fd" ]] && command -v fdfind &>/dev/null; then
+      ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
+    fi
+    if [[ ! -x "$HOME/.local/bin/bat" ]] && command -v batcat &>/dev/null; then
+      ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"
+    fi
     ;;
   *)
     echo "Unsupported OS: $OS" >&2
@@ -36,7 +61,7 @@ esac
 # Fisher only understands fish syntax, so it must run inside `fish -c`,
 # not this bash script's own shell. Guarded so re-running is a no-op.
 if ! fish -c 'type -q fisher' &>/dev/null; then
-  fish -c 'curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher'
+  fish -c 'curl -fsSL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher'
 fi
 
 fish_plugins=(
@@ -55,7 +80,7 @@ done
 if ! command -v mise &>/dev/null; then
   case "$OS" in
     Darwin) brew install mise ;;
-    Linux) curl https://mise.run | sh ;;
+    Linux) curl -fsSL https://mise.run | sh ;;
   esac
 fi
 
@@ -79,9 +104,11 @@ for i in "${!plugin_names[@]}"; do
   mise use --global "${plugin}@${version}"
 done
 
-# Install packer.nvim
-PACKER_DIR="$HOME/.local/share/nvim/site/pack/packer/start/packer.nvim"
-[[ -d "$PACKER_DIR" ]] || git clone --depth 1 https://github.com/wbthomason/packer.nvim "$PACKER_DIR"
+# tmux plugin manager — .tmux.conf's `run '~/.tmux/plugins/tpm/tpm'` (at
+# the bottom of the file, initializing every @plugin declared above it)
+# is a no-op with nothing to run until this exists.
+TPM_DIR="$HOME/.tmux/plugins/tpm"
+[[ -d "$TPM_DIR" ]] || git clone --depth 1 https://github.com/tmux-plugins/tpm "$TPM_DIR"
 
 # Install docker
 case "$OS" in
@@ -112,16 +139,26 @@ case "$OS" in
     ;;
 esac
 
-# rust tools (crate name vs installed binary name differ for git-delta)
-tool_crates=(fselect git-delta)
-tool_bins=(fselect delta)
+# rust tools (crate name vs installed binary name differ for git-delta).
+# eza/zoxide land here too rather than the OS package managers above:
+# eza isn't in Ubuntu/Debian's own repos (would need yet another
+# third-party apt repo), and this keeps both on one portable, distro-
+# version-independent path instead of two.
+tool_crates=(fselect git-delta eza zoxide)
+tool_bins=(fselect delta eza zoxide)
 
 for i in "${!tool_crates[@]}"; do
   command -v "${tool_bins[$i]}" &>/dev/null || cargo install "${tool_crates[$i]}"
 done
 
-# Install neovim plugins
-nvim --headless +PackerInstall +qa
-pip install neovim
+# Install neovim's Python/Ruby/Node host providers (used by any plugin
+# with remote-plugin/provider dependencies; unrelated to the plugin
+# manager below). `pynvim`, not the old deprecated `neovim` PyPI name —
+# installed via mise's python above, so this doesn't hit PEP 668's
+# externally-managed-environment guard on distro Python.
+pip install pynvim
 gem install neovim
 npm install -g neovim
+
+# Install/sync Neovim plugins (lazy.nvim — see .config/nvim/lua/config/lazy.lua)
+nvim --headless "+Lazy! sync" +qa

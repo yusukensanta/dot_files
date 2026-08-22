@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# ~/.config/zsh/03-fzf-tab.zsh
+# ~/.config/zsh/04-fzf-tab.zsh
 # fzf-tab configuration (loaded after completion system)
 
 # === FZF-TAB CONFIGURATION ===

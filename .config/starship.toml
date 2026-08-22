@@ -92,7 +92,7 @@ command = 'bash "$HOME/.config/starship/aws_gcloud_separator.sh"'
 when = true
 shell = ["bash", "--noprofile", "--norc"]
 style = "fg:#ffffff"
-format = '[ $output]($style)'
+format = '[$output]($style)'
 
 [custom.gcloud_session]
 command = 'bash "$HOME/.config/starship/gcloud_session.sh"'

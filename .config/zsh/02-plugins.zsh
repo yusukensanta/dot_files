@@ -1,6 +1,12 @@
 #!/usr/bin/env zsh
-# ~/.config/zsh/10-plugins.zsh
+# ~/.config/zsh/02-plugins.zsh
 # Plugin loading via sheldon
+#
+# Loads before 03-completion.zsh's compinit on purpose: zsh-completions
+# only adds its functions dir to $fpath (no compinit call of its own), so
+# compinit has to run after that fpath change to actually pick them up.
+# fzf-tab tolerates loading before compinit fine (it has its own fallback
+# path for that case) despite older advice to the contrary.
 
 # === ZSH-ABBR ===
 # Load zsh-abbr if available. Check known Homebrew prefixes directly

@@ -27,6 +27,10 @@ function M.setup_lsp_attach()
         "javascriptreact",
         "typescript",
         "typescriptreact",
+        "json",      -- Handled by format.lua (biome) — kept in sync with
+        "jsonc",     -- the js/ts entries above; no LSP currently attaches
+                     -- to json here, but this stops it silently double-
+                     -- formatting the day one does.
         "lua",       -- Handled by conform (stylua)
         "rust",      -- Handled by rustaceanvim/conform (rustfmt)
       }

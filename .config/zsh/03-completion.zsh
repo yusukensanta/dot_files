@@ -1,6 +1,8 @@
 #!/usr/bin/env zsh
-# ~/.config/zsh/02-completion.zsh
+# ~/.config/zsh/03-completion.zsh
 # Completion system configuration
+#
+# Runs after 02-plugins.zsh on purpose — see the note there.
 
 # === COMPLETION INITIALIZATION ===
 autoload -Uz compinit

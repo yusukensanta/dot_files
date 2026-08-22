@@ -139,13 +139,19 @@ vim.api.nvim_create_autocmd("FileType", {
 
 local coding_group = vim.api.nvim_create_augroup("CodingExperience", { clear = true })
 
--- Auto remove trailing whitespace
+-- Auto remove trailing whitespace. Markdown excluded: a line ending in two
+-- or more trailing spaces is a hard line break there, not incidental
+-- whitespace, and this would silently destroy it on every save.
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = coding_group,
   pattern = "*",
   callback = function()
     -- Skip if buffer is not modifiable
     if not vim.bo.modifiable then
+      return
+    end
+
+    if vim.bo.filetype == "markdown" then
       return
     end
 

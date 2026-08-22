@@ -52,6 +52,7 @@ HISTORY:
 FILE & DIRECTORY:
   Ctrl+T       - FZF file finder
   Alt+t        - FZF directory finder
+  Ctrl+X f     - Find files (find . -name)
   Alt+~        - Go to home directory
   Alt+u        - Go up one directory
   Alt+l        - List files (ls -la)
@@ -65,9 +66,9 @@ GIT:
   Ctrl+G l     - git log --oneline
 
 DOCKER:
-  Ctrl+D p     - docker ps
-  Ctrl+D i     - docker images
-  Ctrl+D c     - docker-compose
+  Ctrl+X p     - docker ps
+  Ctrl+X i     - docker images
+  Ctrl+X c     - docker-compose
 
 UTILITIES:
   Alt+s        - Toggle sudo

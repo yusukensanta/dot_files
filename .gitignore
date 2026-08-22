@@ -7,7 +7,7 @@
 .npm
 .cargo
 .ssh
-**.claude**
+.claude/
 
 *.md
 !README.md

@@ -10,7 +10,7 @@ Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared acro
 
 ```
 .config/nvim/       Neovim config (lazy.nvim, LSP, DAP, treesitter, etc.)
-.config/zsh/        Modular zsh config, loaded in numeric order (00-env, 10-plugins, ...)
+.config/zsh/        Modular zsh config, loaded in numeric order (00-env, 02-plugins, ...)
 .config/zsh/local.d/ Host-specific/private zsh extensions, auto-loaded, untracked (gitignored)
 .config/sheldon/     Sheldon zsh plugin manager config
 .config/starship/    Starship prompt config (Tokyo Night preset) + AWS/GCloud session segments
@@ -24,7 +24,9 @@ scripts/             Install and sync helper scripts
 
 `.zshrc` auto-loads every `*.zsh` file directly in `.config/zsh/`, sorted by
 filename — no edits needed to pick up a new one. Prefix it with a two-digit
-number to control load order (`00-env`, `10-plugins`, `20-keybindings`, ...).
+number to control load order (`00-env`, `02-plugins`, `20-keybindings`, ...).
+Plugins load before completion (`03-completion`) on purpose — see the
+comment at the top of `02-plugins.zsh`.
 
 For host-specific or private config (secrets, work-only aliases, machine
 overrides) that shouldn't be committed, drop `*.zsh` files into

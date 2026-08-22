@@ -2,9 +2,6 @@
 .metals/
 lua/config/.metals/
 
-# Lazy plugin state
-lazy-lock.json
-
 # npm artifacts (biome)
 node_modules/
 package-lock.json

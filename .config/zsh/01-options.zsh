@@ -4,8 +4,10 @@
 
 # === HISTORY OPTIONS ===
 setopt EXTENDED_HISTORY          # Write the history file in the ":start:elapsed;command" format
-setopt HIST_EXPIRE_DUPS_FIRST    # Expire duplicate entries first when trimming history
-setopt HIST_IGNORE_DUPS          # Don't record an entry that was just recorded again
+# HIST_IGNORE_ALL_DUPS below already removes the older duplicate whenever a
+# new one is recorded, so there's never a leftover dup for
+# HIST_EXPIRE_DUPS_FIRST to expire first, and HIST_IGNORE_DUPS (dedupe
+# against only the immediately preceding entry) is a strict subset of it.
 setopt HIST_IGNORE_ALL_DUPS      # Delete old recorded entry if new entry is a duplicate
 setopt HIST_FIND_NO_DUPS         # Do not display a line previously found
 setopt HIST_IGNORE_SPACE         # Don't record an entry starting with a space
@@ -18,7 +20,6 @@ setopt SHARE_HISTORY             # Share history between all sessions
 HISTFILE=~/.zsh_history
 HISTSIZE=100000
 SAVEHIST=100000
-HISTTIMEFORMAT="%F %T "
 
 # === SHELL BEHAVIOR ===
 setopt AUTO_CD                   # Change directory without typing cd
@@ -35,3 +36,11 @@ DIRSTACKSIZE=20
 
 # === EMACS MODE ===
 bindkey -e                       # Use emacs keybindings
+
+# Cuts the wait after a bare Esc/Ctrl-G/Ctrl-D/etc. before zsh decides it
+# isn't the start of a longer escape or bindkey -s sequence, from the
+# default 40 (400ms) down to 20 (200ms). Kept well above ~5-10 rather than
+# near-zero: too low and multi-byte input (arrow keys, especially over
+# SSH/tmux) can arrive split across reads and get misread as separate
+# keys.
+KEYTIMEOUT=20

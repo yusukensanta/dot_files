@@ -6,8 +6,11 @@
 # Safety: uses rsync --delete to converge the repo onto $HOME, so it
 # prompts for confirmation first (skip with --yes) and backs up anything
 # it would delete/overwrite into a timestamped dir instead of destroying it.
+# A missing/failed individual sync is reported and skipped rather than
+# aborting the whole run; the script still exits non-zero overall if
+# anything failed (see FAILURES below).
 
-set -euo pipefail
+set -uo pipefail
 
 # Get script directory (repository root)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,6 +18,11 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration directories to sync
 TARGET_DIRS=(nvim zsh sheldon starship)
+
+# Never pull machine-local/generated cruft into the repo: compiled zsh
+# completion dumps, editor scratch/analysis notes, and metals' project-
+# path-bearing LSP databases.
+COMMON_EXCLUDES=(--exclude=.zcompdump* --exclude=.claude --exclude=.metals)
 
 # === PLATFORM DETECTION ===
 OS="$(uname -s)"
@@ -42,6 +50,11 @@ for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=true ;;
         --yes|-y) ASSUME_YES=true ;;
+        *)
+            echo "Unknown option: $arg" >&2
+            echo "Usage: $0 [--dry-run] [--yes]" >&2
+            exit 1
+            ;;
     esac
 done
 
@@ -52,9 +65,15 @@ fi
 
 # Anything --delete would remove or overwrite gets moved here instead of
 # destroyed outright — inspect or restore from it if a sync goes wrong.
+# Each call gets its own subdirectory (see backup_opts_for below) since
+# rsync's --backup-dir is relative to that call's own source root, and a
+# single shared dir would let same-named files from different synced
+# trees collide and silently clobber each other's backup.
 BACKUP_ROOT="$HOME/.dotfiles-sync-backup/$(date +%Y%m%d-%H%M%S)"
-BACKUP_OPTS=""
-$DRY_RUN || BACKUP_OPTS="--backup --backup-dir=$BACKUP_ROOT"
+backup_opts_for() {
+    $DRY_RUN && return
+    printf -- '--backup --backup-dir=%s/%s' "$BACKUP_ROOT" "$1"
+}
 
 if ! $DRY_RUN && ! $ASSUME_YES; then
     echo "⚠️  This will overwrite files in the repo and delete anything there"
@@ -73,6 +92,8 @@ if ! $DRY_RUN && ! $ASSUME_YES; then
     fi
 fi
 
+FAILURES=0
+
 # Function to sync with logging (removes files not in source)
 sync_file() {
     local src="$1"
@@ -80,8 +101,9 @@ sync_file() {
     local extra_opts="${3:-}"
 
     if [[ ! -e "$src" ]]; then
-        echo "⚠️  Source not found: $src"
-        return 1
+        echo "⚠️  Source not found: $src — skipping"
+        FAILURES=$((FAILURES + 1))
+        return
     fi
 
     local rsync_opts=(-a --delete)
@@ -92,16 +114,20 @@ sync_file() {
         echo "✓ Syncing: $src -> $dest"
     fi
 
-    # Create destination parent directory if needed
-    mkdir -p "$(dirname "$dest")"
+    # Create destination parent directory if needed (skipped in dry-run —
+    # a preview shouldn't create real directories as a side effect)
+    $DRY_RUN || mkdir -p "$(dirname "$dest")"
+
+    local backup_opts
+    backup_opts=$(backup_opts_for "$(basename "$dest")")
 
     # Use rsync with --delete to remove files not in source
     if [[ -d "$src" ]]; then
         # For directories, sync contents and remove extra files
-        rsync "${rsync_opts[@]}" $BACKUP_OPTS $extra_opts -v "$src/" "$dest/"
+        rsync "${rsync_opts[@]}" "${COMMON_EXCLUDES[@]}" $backup_opts $extra_opts -v "$src/" "$dest/"
     else
         # For individual files, just sync the file
-        rsync "${rsync_opts[@]}" $BACKUP_OPTS $extra_opts -v "$src" "$dest"
+        rsync "${rsync_opts[@]}" $backup_opts $extra_opts -v "$src" "$dest"
     fi
 }
 
@@ -125,10 +151,11 @@ sync_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
 
 # Sync alacritty
 if $IS_WSL; then
-    WIN_USERPROFILE="$(detect_win_userprofile)"
-    if [[ -n "$WIN_USERPROFILE" && -f "$WIN_USERPROFILE/AppData/Roaming/alacritty/alacritty.toml" ]]; then
-        sync_file "$WIN_USERPROFILE/AppData/Roaming/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty.toml"
-    fi
+    # Not pulled back: the Windows-native file is base + WSL shell-override
+    # concatenated together by sync_to_host.sh, and can't be split back
+    # apart automatically. Edit alacritty/alacritty.toml or
+    # alacritty/alacritty-wsl.toml in the repo directly instead.
+    :
 else
     # Native Linux/macOS: Alacritty reads its config from the XDG path.
     if [[ -f "$HOME/.config/alacritty/alacritty.toml" ]]; then
@@ -139,7 +166,11 @@ fi
 echo ""
 if $DRY_RUN; then
     echo "Dry run complete. Run without --dry-run to apply changes."
-else
+elif [[ "$FAILURES" -eq 0 ]]; then
     echo "Sync complete!"
     [[ -d "$BACKUP_ROOT" ]] && echo "Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
+else
+    echo "⚠️  Sync finished with $FAILURES failed/skipped step(s) — see warnings above."
+    [[ -d "$BACKUP_ROOT" ]] && echo "Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
+    exit 1
 fi

@@ -1,0 +1,9 @@
+# WSL-only fragment, appended onto alacritty.toml by sync_to_host.sh when
+# writing to the Windows-native Alacritty config. Kept out of the base
+# file because Alacritty runs as a native Windows binary there and needs
+# to be told to launch through `wsl`; on native Linux/macOS that same
+# `program` value would try to exec a `wsl` binary that doesn't exist,
+# breaking Alacritty entirely (this is what previously happened when the
+# base file carried this unconditionally).
+[terminal.shell]
+program = "wsl -u yusuken"

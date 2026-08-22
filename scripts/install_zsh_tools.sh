@@ -26,15 +26,20 @@ if ! command -v starship &> /dev/null; then
         brew install starship
     else
         echo "   Using curl installer..."
-        curl -sS https://starship.rs/install.sh | sh
+        curl -fsS https://starship.rs/install.sh | sh
     fi
 else
     echo "✅ starship already installed"
 fi
 
 # === STARSHIP CONFIGURATION ===
+# Only a first-run fallback for a from-scratch bootstrap: this repo tracks
+# its own customized starship.toml (AWS/GCloud segments, Tokyo Night
+# powerline), which sync_to_host.sh overwrites this with anyway. Skipped
+# once that's in place so this doesn't regenerate a vanilla preset over it.
 if ! [[ -f ~/.config/starship.toml ]]; then
-    echo "🎨 Setting up Starship with Tokyo Night preset..."
+    echo "🎨 Setting up a starter Starship config (Tokyo Night preset)..."
+    echo "   Run scripts/sync_to_host.sh afterwards to replace it with this repo's own."
     mkdir -p ~/.config
     starship preset tokyo-night -o ~/.config/starship.toml
 else
@@ -61,16 +66,6 @@ if command -v sheldon &> /dev/null; then
     echo "✅ Sheldon plugins installed"
 fi
 
-# === RECOMMENDED TOOLS ===
 echo ""
-echo "📋 Recommended additional tools:"
-echo "   - fzf:    fuzzy finder (brew install fzf)"
-echo "   - fd:     better find (brew install fd)"
-echo "   - rg:     ripgrep (brew install ripgrep)"
-echo "   - eza:    better ls (brew install eza)"
-echo "   - bat:    better cat (brew install bat)"
-echo "   - zoxide: smart cd (brew install zoxide)"
-echo ""
-
 echo "✅ ZSH tools installation complete!"
 echo "   Please restart your shell or run: exec zsh"

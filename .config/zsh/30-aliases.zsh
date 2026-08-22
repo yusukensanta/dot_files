@@ -2,60 +2,65 @@
 # ~/.config/zsh/30-aliases.zsh
 # Command aliases and abbreviations
 
-# Enhanced function to safely add abbreviations
-safe_abbr() {
-    local name="$1"
-    local expansion="$2"
-
-    # Check if abbr command is available
-    if ! command -v abbr >/dev/null 2>&1; then
-        return 1
-    fi
-
-    abbr add --force "$name=$expansion" > /dev/null 2>&1
-    return $?
-}
-
 export ABBR_SET_EXPANSION_CURSOR=1
 
-# === GIT ABBREVIATIONS ===
-safe_abbr "g" "git"
-safe_abbr "ga" "git add"
-safe_abbr "gaa" "git add --all"
-safe_abbr "gco" "git checkout"
-safe_abbr "gcm" "git commit -m \"%\""
-safe_abbr "gs" "git status"
-safe_abbr "gsw" "git switch"
-safe_abbr "gd" "git diff"
-safe_abbr "gl" "git log --oneline"
-safe_abbr "gps" "git push"
-safe_abbr "gpl" "git pull"
+if command -v abbr >/dev/null 2>&1; then
+    # Desired abbreviations, as "name=expansion". zsh-abbr persists whatever
+    # `abbr add` writes across sessions, so re-declaring all of these on
+    # every shell start was pure waste once the persisted file already
+    # matched (~600ms across 28 `abbr add --force` calls — most of total
+    # startup time). Only re-sync when this list actually changed, tracked
+    # via a checksum marker — keep editing the list below as before, the
+    # next shell start picks up the change automatically.
+    _abbrs=(
+        # git
+        'g=git'
+        'ga=git add'
+        'gaa=git add --all'
+        'gco=git checkout'
+        'gcm=git commit -m "%"'
+        'gs=git status'
+        'gsw=git switch'
+        'gd=git diff'
+        'gl=git log --oneline'
+        'gps=git push'
+        'gpl=git pull'
+        # docker
+        'd=docker'
+        'dc=docker compose'
+        'dps=docker ps'
+        'di=docker images'
+        # kubernetes
+        'k=kubectl'
+        'kg=kubectl get'
+        'kd=kubectl describe'
+        'ka=kubectl apply -f'
+        # file operations
+        "ll=eza -lauUg -s modified -r --time-style 'long-iso' --group-directories-first"
+        'la=eza -la'
+        'lt=eza -T'
+        'cat=bat'
+        # editor
+        'vi=nvim'
+        # mise
+        'm=mise'
+        # directory navigation
+        '..=cd ..'
+        '...=cd ../..'
+        '~=cd ~'
+    )
 
-# === DOCKER ABBREVIATIONS ===
-safe_abbr "d" "docker"
-safe_abbr "dc" "docker compose"
-safe_abbr "dps" "docker ps"
-safe_abbr "di" "docker images"
+    _abbr_marker="${XDG_CACHE_HOME:-$HOME/.cache}/zsh-abbr-synced"
+    _abbr_checksum=$(print -r -- "${(j:|:)_abbrs}" | cksum)
+    _abbr_previous=""
+    [[ -f "$_abbr_marker" ]] && _abbr_previous=$(<$_abbr_marker)
 
-# === KUBERNETES ABBREVIATIONS ===
-safe_abbr "k" "kubectl"
-safe_abbr "kg" "kubectl get"
-safe_abbr "kd" "kubectl describe"
-safe_abbr "ka" "kubectl apply -f"
-
-# === FILE OPERATIONS ===
-safe_abbr "ll" "eza -lauUg -s modified -r --time-style 'long-iso' --group-directories-first"
-safe_abbr "la" "eza -la"
-safe_abbr "lt" "eza -T"
-safe_abbr "cat" "bat"
-
-# === EDITOR ===
-safe_abbr "vi" "nvim"
-
-# === MISE ===
-safe_abbr "m" "mise"
-
-# === DIRECTORY NAVIGATION ===
-safe_abbr ".." "cd .."
-safe_abbr "..." "cd ../.."
-safe_abbr "~" "cd ~"
+    if [[ "$_abbr_previous" != "$_abbr_checksum" ]]; then
+        for _abbr in "${_abbrs[@]}"; do
+            abbr add --force "$_abbr" >/dev/null 2>&1
+        done
+        mkdir -p "${_abbr_marker:h}"
+        print -r -- "$_abbr_checksum" >| "$_abbr_marker"
+    fi
+    unset _abbrs _abbr_marker _abbr_checksum _abbr_previous _abbr
+fi
