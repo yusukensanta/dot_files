@@ -70,7 +70,12 @@ fi
 BACKUP_ROOT="$HOME/.dotfiles-sync-backup/$(date +%Y%m%d-%H%M%S)"
 backup_opts_for() {
     [[ -n "$DRY_RUN_FLAG" ]] && return
-    printf -- '--backup --backup-dir=%s/%s' "$BACKUP_ROOT" "$1"
+    # $1 (a description like ".config/nvim (Windows native)") becomes a
+    # path component here, and the result is later split unquoted on
+    # whitespace at the call site — sanitize so a spacey/punctuated
+    # description can't fragment into bogus extra rsync arguments.
+    local safe="${1//[^A-Za-z0-9._\/-]/_}"
+    printf -- '--backup --backup-dir=%s/%s' "$BACKUP_ROOT" "$safe"
 }
 
 # rsync options:
