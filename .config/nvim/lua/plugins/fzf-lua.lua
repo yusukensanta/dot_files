@@ -5,6 +5,35 @@ return {
     dependencies = {
       "nvim-tree/nvim-web-devicons",
     },
+    -- Also loads on VeryLazy (shortly after startup, not blocking the
+    -- first frame) rather than purely on-keypress: config() below also
+    -- calls fzf.register_ui_select(), which needs to have run before
+    -- anything (e.g. an LSP code action) calls vim.ui.select — otherwise
+    -- that falls back to the plain built-in picker until some fzf-lua
+    -- keymap happens to fire first.
+    event = "VeryLazy",
+    -- These mirror the real bindings config() registers below (lazy.nvim's
+    -- standard pattern: this copy is just a load trigger, replaced by the
+    -- real one the moment config() runs).
+    keys = {
+      { "<leader>to", function() require("fzf-lua").oldfiles() end, desc = "Fzf - Recently opened" },
+      { "<leader>tb", function() require("fzf-lua").buffers() end, desc = "Fzf - Open buffers" },
+      { "<leader>/", function() require("fzf-lua").blines() end, desc = "Fzf - Search in current buffer" },
+      { "<leader>tf", function() require("fzf-lua").files() end, desc = "Fzf - Files" },
+      { "<leader>th", function() require("fzf-lua").help_tags() end, desc = "Fzf - Help" },
+      { "<leader>tw", function() require("fzf-lua").grep_cword() end, desc = "Fzf - Current word" },
+      { "<leader>tg", function() require("fzf-lua").live_grep() end, desc = "Fzf - Grep" },
+      { "<leader>td", function() require("fzf-lua").diagnostics_workspace() end, desc = "Fzf - Diagnostics" },
+      { "<leader>tk", function() require("fzf-lua").keymaps() end, desc = "Fzf - Search keymaps" },
+      { "<leader>ts", function() require("fzf-lua").files({ cwd = vim.fn.expand("%:p:h") }) end, desc = "Fzf - Files in buffer directory" },
+      { "<leader>tF", function() require("fzf-lua").git_files() end, desc = "Fzf - Git files" },
+      { "<leader>tC", function() require("fzf-lua").git_commits() end, desc = "Fzf - Git commits" },
+      { "<leader>tS", function() require("fzf-lua").git_status() end, desc = "Fzf - Git status" },
+      { "<leader>tB", function() require("fzf-lua").git_branches() end, desc = "Fzf - Git branches" },
+      { "<leader>tr", function() require("fzf-lua").resume() end, desc = "Fzf - Resume last search" },
+      { "<leader>tW", function() require("fzf-lua").grep_cWORD() end, desc = "Fzf - Current WORD" },
+      { "<leader>tv", function() require("fzf-lua").grep_visual() end, mode = "v", desc = "Fzf - Grep visual selection" },
+    },
     config = function()
       local fzf = require("fzf-lua")
 

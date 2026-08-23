@@ -19,7 +19,7 @@ require("helpers.keys").set_leader(",", "\\")
 
 local ok, lazy = pcall(require, "lazy")
 if not ok then
-  vim.api.nvim_err_writeln("Failed to load lazy.nvim: " .. tostring(lazy))
+  vim.api.nvim_echo({ { "Failed to load lazy.nvim: " .. tostring(lazy), "ErrorMsg" } }, true, { err = true })
   return
 end
 

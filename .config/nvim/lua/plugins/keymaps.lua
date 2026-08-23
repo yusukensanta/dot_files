@@ -14,10 +14,15 @@ return {
         { "<leader>d",  group = "DAP" },
         { "<leader>g",  group = "Git" },
         { "<leader>gc", group = "Git Commit" },
-        { "<leader>gx", group = "Git Conflict" },
+        -- No group entry for <leader>l, <leader>ma, <leader>gx: each of
+        -- those keys is ALSO bound directly (lazy.show, :Mason,
+        -- :GitConflictListQf respectively), not just a prefix for the
+        -- longer bindings under it (<leader>lf/lr/li,
+        -- <leader>gxo/t/b/n) — labeling it a "group" implied it only
+        -- led to sub-choices, which isn't true. which-key still shows
+        -- those sub-mappings when the prefix is held, just without a
+        -- misleading top-level category name.
         { "<leader>h",  group = "Gitsigns Hunks" },
-        { "<leader>l",  group = "Lazy" },
-        { "<leader>ma", group = "Mason" },
         { "<leader>n",  group = "Neotest" },
         { "<leader>r",  group = "Rename / Rust" },
         { "<leader>t",  group = "Fuzzy Find" },

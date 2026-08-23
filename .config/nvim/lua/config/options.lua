@@ -106,18 +106,22 @@ for k, v in pairs(options) do
   vim.opt[k] = v
 end
 
--- Clipboard: WSL uses xsel to bridge to Windows clipboard.
+-- Clipboard: WSL uses win32yank.exe to bridge to Windows clipboard — not
+-- xsel/xclip, which need an X server WSL doesn't have. Matches .tmux.conf,
+-- which already uses win32yank.exe for the same reason (see its comment).
+-- --crlf/--lf handle the Windows-clipboard CRLF <-> buffer LF conversion
+-- natively instead of a separate `tr -d '\r'` pipeline.
 -- Windows native and macOS handle clipboard natively — no override needed.
 if vim.fn.has("wsl") == 1 then
   vim.g.clipboard = {
     name = "WSL-clipboard",
     copy = {
-      ["+"] = "xsel -bi",
-      ["*"] = "xsel -bi",
+      ["+"] = "win32yank.exe -i --crlf",
+      ["*"] = "win32yank.exe -i --crlf",
     },
     paste = {
-      ["+"] = "xsel -bo",
-      ["*"] = function() return vim.fn.system('xsel -bo | tr -d "\r"') end,
+      ["+"] = "win32yank.exe -o --lf",
+      ["*"] = "win32yank.exe -o --lf",
     },
     cache_enabled = 0,
   }
@@ -161,7 +165,7 @@ vim.diagnostic.config({
     },
   },
   severity_sort = true,
-  float = { source = "always" }, -- border inherited from 'winborder'
+  float = { source = true }, -- border inherited from 'winborder'; "always" is a pre-0.10 leftover, type is now boolean|'if_many'
   update_in_insert = false,
 })
 

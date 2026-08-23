@@ -6,12 +6,33 @@
 # string, because starship still renders a format string's static text
 # even when $output is empty — a static space there would show up (and
 # eat a column of $fill's width) on every render, gcloud or not.
-# Reruns both scripts' detection, but they cache their own output for a
-# second, so this doesn't double the real work per render.
+#
+# Reads aws_session.sh's and gcloud_session.sh's own cache files instead
+# of re-running them: starship evaluates custom modules in PARALLEL, not
+# sequentially, so an in-process cache in those scripts can't dedupe
+# against a concurrent invocation from here — both would start in the
+# same instant and both miss it. Reading the cache trades that for a
+# harmless one-render lag (the bar can take one extra prompt render to
+# appear/disappear right as a session starts/expires).
 set -uo pipefail
 
-aws_out=$(bash "$HOME/.config/starship/aws_session.sh")
-gcloud_out=$(bash "$HOME/.config/starship/gcloud_session.sh")
+cache_dir="${TMPDIR:-/tmp}"
+
+profile="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-}}"
+aws_out=""
+if [[ -n "$profile" ]]; then
+  safe_profile="${profile//[^A-Za-z0-9_.-]/_}"
+  aws_cache="$cache_dir/starship-aws-session-${UID}-${safe_profile}.cache"
+  if [[ -f "$aws_cache" ]] && find "$aws_cache" -newermt '-3 second' -print -quit 2>/dev/null | grep -q .; then
+    aws_out=$(<"$aws_cache")
+  fi
+fi
+
+gcloud_cache="$cache_dir/starship-gcloud-session-${UID}.cache"
+gcloud_out=""
+if [[ -f "$gcloud_cache" ]] && find "$gcloud_cache" -newermt '-3 second' -print -quit 2>/dev/null | grep -q .; then
+  gcloud_out=$(<"$gcloud_cache")
+fi
 
 [[ -n "$aws_out" && -n "$gcloud_out" ]] && printf ' │'
 exit 0

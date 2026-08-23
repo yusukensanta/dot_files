@@ -2,6 +2,13 @@ return {
   {
     "stevearc/oil.nvim",
     dependencies = { "nvim-tree/nvim-web-devicons" },
+    -- On-demand: only its own <space>o keymap opens it. Mirrors the real
+    -- binding config() registers below (lazy.nvim's standard pattern:
+    -- this copy is just the load trigger, replaced by the real one the
+    -- moment config() runs).
+    keys = {
+      { "<space>o", "<cmd>Oil<CR>", desc = "Oil - Open file manager" },
+    },
     config = function()
       require("oil").setup({
         columns = {

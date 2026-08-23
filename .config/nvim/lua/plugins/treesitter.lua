@@ -8,6 +8,10 @@ return {
     "nvim-treesitter/nvim-treesitter",
     branch = "main",
     build = ":TSUpdate",
+    -- Not eager: still loads on essentially every real editing session
+    -- (any buffer read/created), just skips it for e.g. a bare `nvim`
+    -- with no file (dashboard-only) startup.
+    event = { "BufReadPost", "BufNewFile" },
     config = function()
       -- main branch setup() only accepts { install_dir = "..." }
       -- ensure_installed / auto_install are NOT valid options on main branch (silently ignored)

@@ -15,7 +15,7 @@ ZDOTDIR="${ZDOTDIR:-$XDG_CONFIG_HOME/zsh}"
 # Any *.zsh file directly in ZDOTDIR is auto-loaded, sorted by filename —
 # drop in a new file and it's picked up with no edits to this loader.
 # Prefix it with a two-digit number to control load order, following the
-# existing 00-env, 10-plugins, 20-keybindings, ... convention.
+# existing 00-env, 02-plugins, 20-keybindings, ... convention.
 for config_file in "$ZDOTDIR"/*.zsh(N); do
     [[ -r "$config_file" ]] && source "$config_file"
 done

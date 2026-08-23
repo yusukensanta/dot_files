@@ -102,7 +102,7 @@ cd-git-root() {
     local ret=$?
 
     if [[ $ret -eq 0 && -n $root ]]; then
-        LBUFFER="cd '$root'"
+        LBUFFER="cd ${(q)root}"
         zle accept-line
     else
         echo "Not in a git repository"
@@ -154,19 +154,28 @@ copy-command() {
 zle -N copy-command
 bindkey '^[c' copy-command
 
-# Widget to switch directories
+# Widget to switch to the previous directory on the dir stack.
+# Bound under ^X, not Alt-. — that's the default emacs binding for
+# insert-last-word (insert the previous command's last argument), a much
+# more commonly used binding than this one.
 dir-history() {
-    local dirs=($(dirs -p | head -10))
-    if [[ ${#dirs[@]} -gt 1 ]]; then
-        LBUFFER="cd ${dirs[2]}"
+    local -a stack_dirs
+    stack_dirs=("${(@f)$(dirs -p)}")
+    if [[ ${#stack_dirs[@]} -gt 1 ]]; then
+        LBUFFER="cd ${(q)stack_dirs[2]}"
         zle accept-line
     fi
 }
 zle -N dir-history
-bindkey '^[.' dir-history
+bindkey '^Xd' dir-history
 
 # === COMPLETION NAVIGATION ===
-bindkey '^I' complete-word
+# ^I is deliberately NOT rebound here: fzf-tab (loaded via sheldon in
+# 02-plugins.zsh) already bound it to fzf-tab-complete, and overwriting
+# that with complete-word broke fzf-tab's own apply step — the picker UI
+# still ran, but the selection never got inserted. `source <(fzf --zsh)`
+# below captures whatever ^I currently is as its non-fuzzy fallback, so
+# leaving it alone here is what makes that fallback correct.
 bindkey '^[[Z' reverse-menu-complete
 
 # === FZF CONFIGURATION ===
@@ -183,8 +192,8 @@ fi
 # fzf-cd-widget, and fzf-history-widget, and wires up ^T / Alt-C / ^R plus
 # ** fuzzy-completion — using FZF_DEFAULT_COMMAND above as a fallback and
 # respecting FZF_CTRL_T_COMMAND/FZF_ALT_C_COMMAND when set. Sourced after
-# the ^I binding above so it wraps that as its non-fuzzy fallback instead
-# of replacing it.
+# fzf-tab (02-plugins.zsh) so it captures ^I = fzf-tab-complete as its
+# non-fuzzy fallback instead of overwriting fzf-tab's own binding.
 if command -v fzf >/dev/null; then
     source <(fzf --zsh)
     # This config's own aliases for the widgets fzf just defined, kept
@@ -196,23 +205,47 @@ else
 fi
 
 # === TERMINAL TITLE UPDATES ===
-precmd() {
+# add-zsh-hook (not bare precmd()/preexec() functions) so this can't get
+# silently clobbered by another plugin or a local.d/ file defining its own.
+autoload -Uz add-zsh-hook
+
+_dotfiles_title_precmd() {
     case $TERM in
         xterm*|rxvt*|screen*|tmux*)
             print -Pn '\e]0;%n@%m: %~\a'
             ;;
     esac
 }
+add-zsh-hook precmd _dotfiles_title_precmd
 
-preexec() {
+_dotfiles_title_preexec() {
     case $TERM in
         xterm*|rxvt*|screen*|tmux*)
-            print -Pn "\e]0;%n@%m: $1\a"
+            # print -P below applies prompt expansion to its whole argument,
+            # so %-sequences from the command line itself (e.g. `git log
+            # --format=%h`, `date +%F`) must not reach it raw — %F{...}
+            # would inject live ANSI color codes into the title escape.
+            # Strip control chars, then treat the command as plain text.
+            print -Pn '\e]0;%n@%m: '
+            print -rn -- "${1//[[:cntrl:]]/}"
+            print -n '\a'
             ;;
     esac
 }
+add-zsh-hook preexec _dotfiles_title_preexec
 
 # === BRACKETED PASTE ===
+# active-widgets left unset on purpose: bracketed-paste-magic's default
+# ('self-*') reprocesses the ENTIRE pasted text one character at a time
+# through self-insert so widgets like that can hook in — which also means
+# fast-syntax-highlighting and zsh-autosuggestions (both wrap self-insert)
+# redo their analysis on every single character of every paste. Neither
+# is used here, so there's no reprocessing to enable, and pasting
+# anything more than a few lines noticeably stalls the shell without this
+# (empirically: a ~10KB paste made the shell unresponsive well past a
+# minute with the default). An explicit empty value (not just "unset")
+# is required — see the style's own doc comment in the shipped function.
+zstyle ':bracketed-paste-magic' active-widgets
 autoload -Uz bracketed-paste-magic
 zle -N bracketed-paste bracketed-paste-magic
 

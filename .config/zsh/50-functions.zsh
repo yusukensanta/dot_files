@@ -57,6 +57,7 @@ FILE & DIRECTORY:
   Alt+u        - Go up one directory
   Alt+l        - List files (ls -la)
   Alt+r        - CD to git root
+  Ctrl+X d     - Switch to previous directory
 
 GIT:
   Ctrl+G s     - git status
@@ -74,7 +75,6 @@ UTILITIES:
   Alt+s        - Toggle sudo
   Alt+c        - Copy command to clipboard
   Alt+o        - Open file manager
-  Alt+.        - Switch to previous directory
   Ctrl+L       - Clear screen
 ============================================================================
 EOFKEYS

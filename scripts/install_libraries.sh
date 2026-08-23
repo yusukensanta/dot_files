@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 
-set -eux
+set -euo pipefail
 
 OS="$(uname -s)"
+IS_WSL=false
+if [[ "$OS" == "Linux" ]] && uname -r | grep -qi microsoft; then
+  IS_WSL=true
+fi
 
 case "$OS" in
   Darwin)
     if ! command -v brew &>/dev/null; then
       /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
-    brew install curl unzip git zsh fzf fd bat ripgrep tmux fish jq sqlite3 eza zoxide
+    brew install curl unzip git zsh fzf fd bat ripgrep tmux fish jq sqlite3 eza zoxide neovim
     ;;
   Linux)
     sudo apt-get update
@@ -26,11 +30,13 @@ case "$OS" in
       jq \
       sqlite3 \
       xclip \
+      neovim \
       software-properties-common
 
     # Debian ships fish in its own repos (10+); Ubuntu needs the upstream
     # PPA for a current version. `. /etc/os-release` is the portable way
-    # to tell them apart (both report `Linux` from `uname -s`).
+    # to tell them apart (both report `Linux` from `uname -s`) — $ID from
+    # it is reused later for the Docker apt repo too.
     # shellcheck disable=SC1091
     . /etc/os-release
     if [[ "${ID:-}" == "ubuntu" ]]; then
@@ -50,6 +56,23 @@ case "$OS" in
     fi
     if [[ ! -x "$HOME/.local/bin/bat" ]] && command -v batcat &>/dev/null; then
       ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"
+    fi
+
+    # WSL clipboard: win32yank.exe, not xclip/xsel — those need an X
+    # server WSL doesn't have; win32yank works headless. .tmux.conf
+    # already uses it; Neovim's WSL clipboard provider (options.lua) does
+    # too. xclip above stays installed regardless — 20-keybindings.zsh's
+    # copy-command widget still uses it on non-WSL Linux with X11.
+    if $IS_WSL && ! command -v win32yank.exe &>/dev/null; then
+      win32yank_zip="$(mktemp -u).zip"
+      if curl -fsSL -o "$win32yank_zip" \
+          https://github.com/equalsraf/win32yank/releases/latest/download/win32yank-x64.zip; then
+        unzip -p "$win32yank_zip" win32yank.exe > "$HOME/.local/bin/win32yank.exe"
+        chmod +x "$HOME/.local/bin/win32yank.exe"
+      else
+        echo "warning: could not download win32yank.exe — WSL clipboard integration will not work" >&2
+      fi
+      rm -f "$win32yank_zip"
     fi
     ;;
   *)
@@ -120,14 +143,17 @@ case "$OS" in
     ;;
   Linux)
     if ! command -v docker &>/dev/null; then
-      # Ubuntu 22.04. Only runs when docker isn't already installed —
-      # `apt-get remove containerd runc` would otherwise cascade into
-      # removing an already-installed docker-ce on a re-run.
+      # Only runs when docker isn't already installed — `apt-get remove
+      # containerd runc` would otherwise cascade into removing an
+      # already-installed docker-ce on a re-run.
       sudo apt-get remove -y docker docker-engine docker.io containerd runc
       sudo apt-get update
       sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+      # $ID (ubuntu/debian) from /etc/os-release, sourced earlier — Docker
+      # publishes separate apt repos per distro, not just per codename.
+      docker_repo_os="${ID:-ubuntu}"
+      curl -fsSL "https://download.docker.com/linux/${docker_repo_os}/gpg" | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/${docker_repo_os} $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
       sudo apt-get update
       apt-cache policy docker-ce
 
@@ -151,14 +177,14 @@ for i in "${!tool_crates[@]}"; do
   command -v "${tool_bins[$i]}" &>/dev/null || cargo install "${tool_crates[$i]}"
 done
 
-# Install neovim's Python/Ruby/Node host providers (used by any plugin
-# with remote-plugin/provider dependencies; unrelated to the plugin
-# manager below). `pynvim`, not the old deprecated `neovim` PyPI name —
-# installed via mise's python above, so this doesn't hit PEP 668's
-# externally-managed-environment guard on distro Python.
+# Install Neovim's Python host provider (used by any plugin with a
+# remote-plugin dependency). `pynvim`, not the old deprecated `neovim`
+# PyPI name — installed via mise's python above, so this doesn't hit PEP
+# 668's externally-managed-environment guard on distro Python. The
+# Ruby/Node providers are NOT installed here on purpose: options.lua sets
+# loaded_ruby_provider/loaded_node_provider = 0, so `gem`/`npm install -g
+# neovim` would just be dead weight (and the slowest step in this script).
 pip install pynvim
-gem install neovim
-npm install -g neovim
 
 # Install/sync Neovim plugins (lazy.nvim — see .config/nvim/lua/config/lazy.lua)
 nvim --headless "+Lazy! sync" +qa

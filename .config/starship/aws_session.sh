@@ -114,5 +114,11 @@ compute() {
 
 output="$(compute)"
 mkdir -p "$(dirname "$cache_file")" 2>/dev/null
-printf '%s' "$output" > "$cache_file" 2>/dev/null
+# Write-then-rename instead of a direct `>` truncate: the separator script
+# reads this file directly (not through this script), so a reader landing
+# mid-truncate must never see a half-written/empty file.
+tmp_cache="${cache_file}.$$"
+if printf '%s' "$output" > "$tmp_cache" 2>/dev/null; then
+  mv -f "$tmp_cache" "$cache_file" 2>/dev/null
+fi
 printf '%s' "$output"

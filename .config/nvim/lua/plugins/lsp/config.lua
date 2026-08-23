@@ -11,7 +11,20 @@ local function lsp_setup(server, opts)
   vim.lsp.enable(server)
 end
 
--- Setup common LSP keymaps and formatting on attach
+-- Setup common LSP keymaps on attach.
+--
+-- Format-on-save is NOT set up here. It used to be a per-buffer BufWritePre
+-- autocmd in this file, gated by its own exclude_filetypes list — but that
+-- list and conform.lua's disable_filetypes/biome_filetypes lists were two
+-- independently-maintained skip-lists that didn't cover the same set, and
+-- any filetype in neither (c/cpp via clangd, concretely) got formatted
+-- twice on every save: once here, once by conform's own format_on_save
+-- fallback. conform.nvim (event = "BufWritePre", lsp_format = "fallback"
+-- for anything without its own formatter) is the single format-on-save
+-- owner now for everything except go/python (go.lua/python.lua run their
+-- own organize-imports-then-format flow) and the js/ts/json family
+-- (format.lua's biome integration) — both already excluded in
+-- conform.lua's disable_filetypes/biome_filetypes.
 function M.setup_lsp_attach()
   vim.api.nvim_create_autocmd("LspAttach", {
     group = vim.api.nvim_create_augroup("NvimLspAttach", { clear = true }),
@@ -19,37 +32,12 @@ function M.setup_lsp_attach()
       local client = vim.lsp.get_client_by_id(args.data.client_id)
       if not client then return end
 
-      -- Auto-format on save (except for languages with special handling)
-      local exclude_filetypes = {
-        "go",        -- Handled by go.lua (organize imports + gofumpt)
-        "python",    -- Handled by python.lua (organize imports + ruff)
-        "javascript",
-        "javascriptreact",
-        "typescript",
-        "typescriptreact",
-        "json",      -- Handled by format.lua (biome) — kept in sync with
-        "jsonc",     -- the js/ts entries above; no LSP currently attaches
-                     -- to json here, but this stops it silently double-
-                     -- formatting the day one does.
-        "lua",       -- Handled by conform (stylua)
-        "rust",      -- Handled by rustaceanvim/conform (rustfmt)
-      }
-
-      vim.api.nvim_create_autocmd("BufWritePre", {
-        group = vim.api.nvim_create_augroup("NvimLspFormat_" .. args.buf, { clear = true }),
-        buffer = args.buf,
-        callback = function()
-          local filetype = vim.bo[args.buf].filetype
-          local should_skip = vim.tbl_contains(exclude_filetypes, filetype)
-
-          if not should_skip then
-            vim.lsp.buf.format({ async = false, bufnr = args.buf, id = client.id })
-          end
-        end,
-      })
-
-      -- LSP Keymaps
-      local map = require("helpers.keys").lsp_map
+      -- LSP Keymaps. bufnr passed explicitly (not the buffer=true default)
+      -- since LspAttach fires for whichever buffer just finished
+      -- attaching, which isn't guaranteed to be the current buffer.
+      local function map(mode, lhs, rhs, desc)
+        require("helpers.keys").lsp_map(mode, lhs, rhs, desc, args.buf)
+      end
 
       -- Navigation (gd/gD are custom; gi/gr/go/K/[d/]d removed — 0.12 built-in defaults)
       -- Built-in defaults: K=hover, grn=rename, grr=references, gra=code_action,

@@ -41,7 +41,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
       timeout = 5000,
     }):wait()
 
-    if result.code == 0 and result.stdout then
+    if result.code == 0 and result.stdout and result.stdout ~= "" then
       local formatted_lines = vim.split(result.stdout, "\n")
 
       if formatted_lines[#formatted_lines] == "" and lines[#lines] ~= "" then
@@ -51,9 +51,14 @@ vim.api.nvim_create_autocmd("BufWritePre", {
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, formatted_lines)
       vim.fn.winrestview(view)
     elseif result.code ~= 0 then
-      if result.stderr and result.stderr:match("error") then
-        vim.notify("Biome formatting failed:\n" .. result.stderr, vim.log.levels.ERROR)
-      end
+      -- Notify on any failure, not just ones whose stderr happens to
+      -- contain the literal substring "error" — a timeout (5000ms above)
+      -- or an npx download failure, for instance, wouldn't necessarily
+      -- match that and would otherwise save the buffer unformatted with
+      -- no indication why.
+      local msg = (result.stderr and result.stderr ~= "") and result.stderr
+        or ("biome exited with code " .. tostring(result.code))
+      vim.notify("Biome formatting failed:\n" .. msg, vim.log.levels.ERROR)
     end
   end,
 })

@@ -70,20 +70,20 @@ fi
 # single shared dir would let same-named files from different synced
 # trees collide and silently clobber each other's backup.
 BACKUP_ROOT="$HOME/.dotfiles-sync-backup/$(date +%Y%m%d-%H%M%S)"
+# Sets the global array BACKUP_OPTS — see the matching comment in
+# sync_to_host.sh for why this is an array and not a returned string.
 backup_opts_for() {
+    BACKUP_OPTS=()
     $DRY_RUN && return
-    # $1 becomes a path component here, and the result is later split
-    # unquoted on whitespace at the call site — sanitize so a spacey/
-    # punctuated name can't fragment into bogus extra rsync arguments.
     local safe="${1//[^A-Za-z0-9._\/-]/_}"
-    printf -- '--backup --backup-dir=%s/%s' "$BACKUP_ROOT" "$safe"
+    BACKUP_OPTS=(--backup "--backup-dir=$BACKUP_ROOT/$safe")
 }
 
 if ! $DRY_RUN && ! $ASSUME_YES; then
     echo "⚠️  This will overwrite files in the repo and delete anything there"
     echo "   not present in \$HOME. Anything affected is backed up first to:"
     echo "   $BACKUP_ROOT"
-    if exec 3</dev/tty 2>/dev/null; then
+    if { exec 3</dev/tty; } 2>/dev/null; then
         read -r -p "Continue? [y/N] " reply <&3
         exec 3<&-
         case "$reply" in
@@ -98,11 +98,13 @@ fi
 
 FAILURES=0
 
-# Function to sync with logging (removes files not in source)
+# Function to sync with logging (removes files not in source). Extra
+# rsync flags, if any, are passed as trailing arguments (not a single
+# string) so nothing needs to be word-split back apart.
 sync_file() {
-    local src="$1"
-    local dest="$2"
-    local extra_opts="${3:-}"
+    local src="$1" dest="$2"
+    shift 2
+    local -a extra_opts=("$@")
 
     if [[ ! -e "$src" ]]; then
         echo "⚠️  Source not found: $src — skipping"
@@ -126,17 +128,17 @@ sync_file() {
     # a preview shouldn't create real directories as a side effect)
     $DRY_RUN || mkdir -p "$(dirname "$dest")"
 
-    local backup_opts
-    backup_opts=$(backup_opts_for "$(basename "$dest")")
+    local -a BACKUP_OPTS
+    backup_opts_for "$(basename "$dest")"
 
     # Use rsync with --delete to remove files not in source
     local ok=true
     if [[ -d "$src" ]]; then
         # For directories, sync contents and remove extra files
-        rsync "${rsync_opts[@]}" "${COMMON_EXCLUDES[@]}" $backup_opts $extra_opts -v "$src/" "$dest/" || ok=false
+        rsync "${rsync_opts[@]}" "${COMMON_EXCLUDES[@]}" "${BACKUP_OPTS[@]}" "${extra_opts[@]}" -v "$src/" "$dest/" || ok=false
     else
         # For individual files, just sync the file
-        rsync "${rsync_opts[@]}" $backup_opts $extra_opts -v "$src" "$dest" || ok=false
+        rsync "${rsync_opts[@]}" "${BACKUP_OPTS[@]}" "${extra_opts[@]}" -v "$src" "$dest" || ok=false
     fi
 
     if $ok; then
@@ -157,11 +159,13 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-    extra_opts=""
     # local.d/ is host-specific and untracked (see .gitignore) — never let
     # a repo <-> $HOME sync delete it just because it's absent on one side.
-    [[ "$dir" == "zsh" ]] && extra_opts="--exclude=local.d"
-    sync_file "$HOME/.config/$dir" "$REPO_DIR/.config/$dir" "$extra_opts"
+    if [[ "$dir" == "zsh" ]]; then
+        sync_file "$HOME/.config/$dir" "$REPO_DIR/.config/$dir" --exclude=local.d
+    else
+        sync_file "$HOME/.config/$dir" "$REPO_DIR/.config/$dir"
+    fi
 done
 
 # Sync individual files

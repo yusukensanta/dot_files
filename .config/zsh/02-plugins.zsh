@@ -26,8 +26,9 @@ if command -v sheldon &> /dev/null; then
 fi
 
 # === AUTOSUGGESTIONS CONFIGURATION ===
-# Configure after sheldon loads plugins
+# Configure after sheldon loads plugins. ZSH_AUTOSUGGEST_USE_ASYNC is set
+# in sheldon/plugins.toml's hooks.pre instead (needs to exist before the
+# plugin sources itself, unlike these) — not repeated here.
 export ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 export ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
-export ZSH_AUTOSUGGEST_USE_ASYNC=1
 export ZSH_AUTOSUGGEST_MANUAL_REBIND=1

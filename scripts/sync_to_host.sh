@@ -68,14 +68,16 @@ fi
 # single shared dir would let same-named files from different synced
 # trees collide and silently clobber each other's backup.
 BACKUP_ROOT="$HOME/.dotfiles-sync-backup/$(date +%Y%m%d-%H%M%S)"
+# Sets the global array BACKUP_OPTS. A function return value (string) would
+# have to be word-split back apart at the call site, and BACKUP_ROOT itself
+# embeds $HOME — spaces there (real on macOS) would fragment it into bogus
+# extra rsync arguments the same way an unsanitized description once did.
+# An array sidesteps that entirely: each element is used exactly as-is.
 backup_opts_for() {
+    BACKUP_OPTS=()
     [[ -n "$DRY_RUN_FLAG" ]] && return
-    # $1 (a description like ".config/nvim (Windows native)") becomes a
-    # path component here, and the result is later split unquoted on
-    # whitespace at the call site — sanitize so a spacey/punctuated
-    # description can't fragment into bogus extra rsync arguments.
     local safe="${1//[^A-Za-z0-9._\/-]/_}"
-    printf -- '--backup --backup-dir=%s/%s' "$BACKUP_ROOT" "$safe"
+    BACKUP_OPTS=(--backup "--backup-dir=$BACKUP_ROOT/$safe")
 }
 
 # rsync options:
@@ -83,16 +85,17 @@ backup_opts_for() {
 # -v (verbose): increase verbosity
 # --delete: delete extraneous files from destination dirs
 # -h (human-readable): output numbers in human-readable format
-RSYNC_BASE_OPTS="-avh --delete"
+RSYNC_BASE_OPTS=(-avh --delete)
 
 FAILURES=0
 
-# Function to sync directory with rsync
+# Function to sync directory with rsync. Extra rsync flags, if any, are
+# passed as trailing arguments (not a single string) so nothing needs to
+# be word-split back apart.
 sync_directory() {
-    local src="$1"
-    local dest="$2"
-    local description="${3:-}"
-    local extra_opts="${4:-}"
+    local src="$1" dest="$2" description="${3:-}"
+    shift 3
+    local -a extra_opts=("$@")
 
     if [[ ! -e "$src" ]]; then
         echo "⚠️  Source not found: $src — skipping"
@@ -120,11 +123,11 @@ sync_directory() {
         fi
     fi
 
-    local backup_opts
-    backup_opts=$(backup_opts_for "${description:-$(basename "$dest")}")
+    local -a BACKUP_OPTS
+    backup_opts_for "${description:-$(basename "$dest")}"
 
     # Execute rsync with appropriate options
-    if rsync $RSYNC_BASE_OPTS "${COMMON_EXCLUDES[@]}" $backup_opts $extra_opts $DRY_RUN_FLAG "$src" "$dest"; then
+    if rsync "${RSYNC_BASE_OPTS[@]}" "${COMMON_EXCLUDES[@]}" "${BACKUP_OPTS[@]}" "${extra_opts[@]}" $DRY_RUN_FLAG "$src" "$dest"; then
         if [[ -n "$DRY_RUN_FLAG" ]]; then
             echo "   ✓ Dry-run completed"
         else
@@ -136,12 +139,12 @@ sync_directory() {
     fi
 }
 
-# Function to sync individual file
+# Function to sync individual file. Same trailing-args convention as
+# sync_directory above.
 sync_file() {
-    local src="$1"
-    local dest="$2"
-    local description="${3:-}"
-    local extra_opts="${4:-}"
+    local src="$1" dest="$2" description="${3:-}"
+    shift 3
+    local -a extra_opts=("$@")
 
     if [[ ! -f "$src" ]]; then
         echo "⚠️  Source file not found: $src — skipping"
@@ -159,11 +162,11 @@ sync_file() {
         mkdir -p "$(dirname "$dest")"
     fi
 
-    local backup_opts
-    backup_opts=$(backup_opts_for "${description:-$(basename "$dest")}")
+    local -a BACKUP_OPTS
+    backup_opts_for "${description:-$(basename "$dest")}"
 
     # Execute rsync for single file
-    if rsync $RSYNC_BASE_OPTS $backup_opts $extra_opts $DRY_RUN_FLAG "$src" "$dest"; then
+    if rsync "${RSYNC_BASE_OPTS[@]}" "${BACKUP_OPTS[@]}" "${extra_opts[@]}" $DRY_RUN_FLAG "$src" "$dest"; then
         if [[ -n "$DRY_RUN_FLAG" ]]; then
             echo "   ✓ Dry-run completed"
         else
@@ -198,7 +201,7 @@ if [[ -z "$DRY_RUN_FLAG" ]] && ! $ASSUME_YES; then
     echo "⚠️  This will overwrite files under \$HOME and delete anything there"
     echo "   not present in the repo. Anything affected is backed up first to:"
     echo "   $BACKUP_ROOT"
-    if exec 3</dev/tty 2>/dev/null; then
+    if { exec 3</dev/tty; } 2>/dev/null; then
         read -r -p "Continue? [y/N] " reply <&3
         exec 3<&-
         case "$reply" in
@@ -213,18 +216,22 @@ fi
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-    extra_opts=""
     # local.d/ is host-specific and untracked (see .gitignore) — never let
     # a repo <-> $HOME sync delete it just because it's absent on one side.
-    [[ "$dir" == "zsh" ]] && extra_opts="--exclude=local.d"
-    sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" "$extra_opts"
+    if [[ "$dir" == "zsh" ]]; then
+        sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" --exclude=local.d
+    else
+        sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir"
+    fi
 done
 
-# Sync individual files
+# Sync individual files. biome.json is NOT synced separately here — it
+# already lives inside .config/nvim, which the loop above just synced
+# wholesale; a second pass was pure redundant work (and a second,
+# pointless backup-dir entry).
 sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
 sync_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf" ".tmux.conf"
 sync_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml" "starship.toml"
-sync_file "$REPO_DIR/.config/nvim/biome.json" "$HOME/.config/nvim/biome.json" "biome.json"
 
 if $IS_WSL; then
     # Alacritty and Neovim run as Windows-native binaries even under WSL,
@@ -232,33 +239,49 @@ if $IS_WSL; then
     WIN_USERPROFILE="$(detect_win_userprofile)"
 
     if [[ -n "$WIN_USERPROFILE" && -d "$WIN_USERPROFILE" ]]; then
-        if [[ -f "$REPO_DIR/alacritty/alacritty.toml" ]]; then
-            # Windows-native Alacritty needs the WSL-only shell override
-            # (alacritty-wsl.toml) that the base file deliberately omits —
-            # see the comment in that file for why. Concatenated by hand
-            # instead of via rsync since this is the one destination that
-            # needs base + fragment merged into a single file.
+        # Windows-native Alacritty needs the WSL-only shell override
+        # (alacritty-wsl.toml) that the base file deliberately omits — see
+        # the comment in that file for why. Concatenated by hand instead of
+        # via rsync since this is the one destination that needs base +
+        # fragment merged into a single file. Both inputs are checked (a
+        # missing fragment must NOT silently produce a base-only config —
+        # that's exactly the breakage alacritty-wsl.toml exists to
+        # prevent), the write goes to a temp file first so an interrupted
+        # run can't leave a half-written config, and the existing dest is
+        # backed up first like every other write in this script.
+        if [[ -f "$REPO_DIR/alacritty/alacritty.toml" && -f "$REPO_DIR/alacritty/alacritty-wsl.toml" ]]; then
             dest_dir="$WIN_USERPROFILE/AppData/Roaming/alacritty"
+            dest_file="$dest_dir/alacritty.toml"
             echo ""
             echo "📄 Syncing: alacritty.toml (Windows, base + WSL shell override)"
-            echo "   Target: $dest_dir/alacritty.toml"
+            echo "   Target: $dest_file"
             if [[ -z "$DRY_RUN_FLAG" ]]; then
                 mkdir -p "$dest_dir" 2>/dev/null || true
-                if cat "$REPO_DIR/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty-wsl.toml" \
-                        > "$dest_dir/alacritty.toml" 2>/dev/null; then
+                if [[ -f "$dest_file" ]]; then
+                    mkdir -p "$BACKUP_ROOT/alacritty_windows" 2>/dev/null || true
+                    cp -p "$dest_file" "$BACKUP_ROOT/alacritty_windows/alacritty.toml" 2>/dev/null || true
+                fi
+                tmp_file="$dest_file.tmp.$$"
+                if cat "$REPO_DIR/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty-wsl.toml" > "$tmp_file" 2>/dev/null \
+                        && mv -f "$tmp_file" "$dest_file" 2>/dev/null; then
                     echo "   ✓ Synced successfully"
                 else
                     echo "   ✗ Sync failed"
+                    rm -f "$tmp_file" 2>/dev/null
                     FAILURES=$((FAILURES + 1))
                 fi
             else
                 echo "   ✓ Dry-run completed"
             fi
+        else
+            echo ""
+            echo "⚠️  alacritty.toml and/or alacritty-wsl.toml missing in the repo — skipping Windows-native Alacritty sync."
+            FAILURES=$((FAILURES + 1))
         fi
 
         sync_directory "$REPO_DIR/.config/nvim" \
             "$WIN_USERPROFILE/AppData/Local/nvim" \
-            ".config/nvim (Windows native)" "--no-perms --no-owner --no-group --no-times"
+            ".config/nvim (Windows native)" --no-perms --no-owner --no-group --no-times
     else
         echo ""
         echo "⚠️  Could not detect Windows user profile (needs cmd.exe/wslpath interop)."
