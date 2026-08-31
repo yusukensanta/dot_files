@@ -41,6 +41,17 @@ if [[ "$OS" == "Linux" ]] && uname -r | grep -qi microsoft; then
     IS_WSL=true
 fi
 
+# macOS ships openrsync (BSD), not GNU rsync, under the name `rsync`. When
+# given --backup and --backup-dir together, openrsync silently does neither
+# the delete nor the backup for the affected files — it just leaves stale
+# destination files in place with no error. GNU rsync handles the same
+# combination correctly. Detect it once so the rest of the script can back
+# files up itself instead of relying on the broken combo.
+RSYNC_IS_OPENRSYNC=false
+if rsync --version 2>&1 | grep -qi '^openrsync'; then
+    RSYNC_IS_OPENRSYNC=true
+fi
+
 # Parse flags
 DRY_RUN_FLAG=""
 ASSUME_YES=false
@@ -76,8 +87,28 @@ BACKUP_ROOT="$HOME/.dotfiles-sync-backup/$(date +%Y%m%d-%H%M%S)"
 backup_opts_for() {
     BACKUP_OPTS=()
     [[ -n "$DRY_RUN_FLAG" ]] && return
+    # On openrsync, --backup + --backup-dir together silently disable
+    # --delete (see RSYNC_IS_OPENRSYNC above) — never pass that combo there.
+    # manual_backup_if_openrsync() below takes over the backup responsibility
+    # instead, so --delete keeps working.
+    $RSYNC_IS_OPENRSYNC && return
     local safe="${1//[^A-Za-z0-9._\/-]/_}"
     BACKUP_OPTS=(--backup "--backup-dir=$BACKUP_ROOT/$safe")
+}
+
+# Stands in for rsync's own --backup on openrsync, where that combo breaks
+# --delete (see RSYNC_IS_OPENRSYNC above). Copies the pre-sync destination
+# into BACKUP_ROOT before rsync touches it, so anything rsync deletes or
+# overwrites is still recoverable.
+manual_backup_if_openrsync() {
+    local dest="$1" description="$2"
+    $RSYNC_IS_OPENRSYNC || return
+    [[ -n "$DRY_RUN_FLAG" ]] && return
+    [[ -e "$dest" ]] || return
+    local safe="${description//[^A-Za-z0-9._\/-]/_}"
+    local target="$BACKUP_ROOT/$safe"
+    mkdir -p "$(dirname "$target")" 2>/dev/null || true
+    cp -a "$dest" "$target" 2>/dev/null || true
 }
 
 # rsync options:
@@ -125,9 +156,14 @@ sync_directory() {
 
     local -a BACKUP_OPTS
     backup_opts_for "${description:-$(basename "$dest")}"
+    manual_backup_if_openrsync "$dest" "${description:-$(basename "$dest")}"
 
-    # Execute rsync with appropriate options
-    if rsync "${RSYNC_BASE_OPTS[@]}" "${COMMON_EXCLUDES[@]}" "${BACKUP_OPTS[@]}" "${extra_opts[@]}" $DRY_RUN_FLAG "$src" "$dest"; then
+    # Execute rsync with appropriate options. BACKUP_OPTS/extra_opts use the
+    # ${arr[@]+"${arr[@]}"} guard, not a plain "${arr[@]}", because bash 3.2
+    # (macOS's default /bin/bash) treats an empty array's [@] expansion as an
+    # unbound variable under `set -u` — this array is legitimately empty
+    # whenever RSYNC_IS_OPENRSYNC is true or this call passed no extra flags.
+    if rsync "${RSYNC_BASE_OPTS[@]}" "${COMMON_EXCLUDES[@]}" ${BACKUP_OPTS[@]+"${BACKUP_OPTS[@]}"} ${extra_opts[@]+"${extra_opts[@]}"} $DRY_RUN_FLAG "$src" "$dest"; then
         if [[ -n "$DRY_RUN_FLAG" ]]; then
             echo "   ✓ Dry-run completed"
         else
@@ -164,9 +200,11 @@ sync_file() {
 
     local -a BACKUP_OPTS
     backup_opts_for "${description:-$(basename "$dest")}"
+    manual_backup_if_openrsync "$dest" "${description:-$(basename "$dest")}"
 
-    # Execute rsync for single file
-    if rsync "${RSYNC_BASE_OPTS[@]}" "${BACKUP_OPTS[@]}" "${extra_opts[@]}" $DRY_RUN_FLAG "$src" "$dest"; then
+    # Execute rsync for single file. See the matching comment in
+    # sync_directory() for why BACKUP_OPTS/extra_opts use this guarded form.
+    if rsync "${RSYNC_BASE_OPTS[@]}" ${BACKUP_OPTS[@]+"${BACKUP_OPTS[@]}"} ${extra_opts[@]+"${extra_opts[@]}"} $DRY_RUN_FLAG "$src" "$dest"; then
         if [[ -n "$DRY_RUN_FLAG" ]]; then
             echo "   ✓ Dry-run completed"
         else
@@ -189,6 +227,13 @@ detect_win_userprofile() {
         fi
     fi
 }
+
+# Everything below actually performs the sync, wrapped in main() so this
+# file can also be sourced (e.g. by scripts/tests/) to reuse the functions
+# above — backup_opts_for, manual_backup_if_openrsync, sync_directory,
+# sync_file, detect_win_userprofile — without triggering a real sync as a
+# side effect of sourcing it.
+main() {
 
 echo "🔄 Syncing configurations from repository to HOME..."
 echo "Repository: $REPO_DIR"
@@ -220,6 +265,8 @@ for dir in "${TARGET_DIRS[@]}"; do
     # a repo <-> $HOME sync delete it just because it's absent on one side.
     if [[ "$dir" == "zsh" ]]; then
         sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" --exclude=local.d
+    elif [[ "$dir" == "nvim" ]]; then
+        sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" --exclude=lua/local
     else
         sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir"
     fi
@@ -281,7 +328,7 @@ if $IS_WSL; then
 
         sync_directory "$REPO_DIR/.config/nvim" \
             "$WIN_USERPROFILE/AppData/Local/nvim" \
-            ".config/nvim (Windows native)" --no-perms --no-owner --no-group --no-times
+            ".config/nvim (Windows native)" --no-perms --no-owner --no-group --no-times --exclude=lua/local
     else
         echo ""
         echo "⚠️  Could not detect Windows user profile (needs cmd.exe/wslpath interop)."
@@ -306,4 +353,11 @@ else
     echo "⚠️  Sync finished with $FAILURES failed/skipped step(s) — see warnings above."
     [[ -d "$BACKUP_ROOT" ]] && echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
     exit 1
+fi
+
+}
+
+# Only run main() when executed directly, not when sourced for tests.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
 fi
