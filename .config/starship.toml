@@ -1,3 +1,10 @@
+# custom.aws_session/gcloud_session run in ~50ms normally but can overshoot
+# the 500ms default under transient load; on timeout starship drops the
+# segment silently rather than erroring, so a valid session looks identical
+# to no session. 1000ms gives headroom without letting a stuck command hang
+# the prompt indefinitely (that's what ignore_timeout would do — avoid it).
+command_timeout = 1000
+
 format = """
 [░▒▓](#a3aed2)\
 [  ](bg:#a3aed2 fg:#090c0c)\

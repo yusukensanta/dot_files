@@ -18,3 +18,6 @@
 !.config/zsh/local.d/.gitkeep
 
 .config/nvim/doc
+
+.config/nvim/lua/local/*
+!.config/nvim/lua/local/.gitkeep
