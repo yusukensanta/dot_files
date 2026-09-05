@@ -16,20 +16,30 @@ shell = "zsh"
 defer = "{{ hooks?.pre | nl }}{% for file in files %}zsh-defer source \"{{ file }}\"{% endfor %}{{ hooks?.post | nl }}"
 
 [plugins]
+# Every plugin below is pinned to a specific commit (`rev`), not left to
+# track its default branch. Sheldon otherwise re-resolves to whatever HEAD
+# is at install/lock time — meaning a compromised or unreviewed upstream
+# push gets pulled onto this machine automatically. Bumping a pin is a
+# deliberate `git ls-remote <repo> HEAD` + edit, reviewed like any other
+# dependency update.
 [plugins.zsh-defer]
 github = "romkatv/zsh-defer"
+rev = "53a26e287fbbe2dcebb3aa1801546c6de32416fa"
 
 [plugins.zsh-autosuggestions]
 github = "zsh-users/zsh-autosuggestions"
+rev = "85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5"
 apply = ["defer"]
 hooks.pre = "ZSH_AUTOSUGGEST_USE_ASYNC=1"
 
 [plugins.fast-syntax-highlighting]
 github = "zdharma-continuum/fast-syntax-highlighting"
+rev = "4672ad5dd9ad68a7effc1476d65afb7c584ce2b3"
 apply = ["defer"]
 
 [plugins.zsh-completions]
 github = "zsh-users/zsh-completions"
+rev = "8cd3bd78e8b1f17271cfdd8269074e5557d8d7b8"
 
 # fzf-tab tolerates loading before or after compinit (it has its own
 # fallback for the former). Must load before widget-wrapping plugins
@@ -37,18 +47,23 @@ github = "zsh-users/zsh-completions"
 # those are deferred and this isn't.
 [plugins.fzf-tab]
 github = "Aloxaf/fzf-tab"
+rev = "24105b15714bfec37989ed5c5b6e60f572253019"
 
 [plugins.zsh-autopair]
 github = "hlissner/zsh-autopair"
+rev = "449a7c3d095bc8f3d78cf37b9549f8bb4c383f3d"
 apply = ["defer"]
 
 [plugins.you-should-use]
 github = "MichaelAquilina/zsh-you-should-use"
+rev = "5f3d129864ee4505043d88c3486224f1d75b692e"
 apply = ["defer"]
 
 [plugins.git-flow-completion]
 github = "bobthecow/git-flow-completion"
+rev = "cba3ad7b5b51af7de26bb82cb6a1011b86084cad"
 
 [plugins.zsh-history-substring-search]
 github = "zsh-users/zsh-history-substring-search"
+rev = "14c8d2e0ffaee98f2df9850b19944f32546fdea5"
 apply = ["defer"]

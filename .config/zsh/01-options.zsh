@@ -21,6 +21,12 @@ HISTFILE=~/.zsh_history
 HISTSIZE=100000
 SAVEHIST=100000
 
+# Shell history can carry secrets typed on the command line (tokens passed
+# as args, etc.) — tighten to owner-only, since the global umask (022,
+# 00-env.zsh) would otherwise leave a freshly created HISTFILE 644 and
+# readable by every other local user on a shared/multi-user host.
+[[ -f "$HISTFILE" ]] && chmod 600 "$HISTFILE" 2>/dev/null
+
 # === SHELL BEHAVIOR ===
 setopt AUTO_CD                   # Change directory without typing cd
 setopt AUTO_PUSHD                # Push directories onto stack automatically

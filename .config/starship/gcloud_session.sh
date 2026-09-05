@@ -68,8 +68,12 @@ mkdir -p "$(dirname "$cache_file")" 2>/dev/null
 # Write-then-rename instead of a direct `>` truncate: the separator script
 # reads this file directly (not through this script), so a reader landing
 # mid-truncate must never see a half-written/empty file.
+# umask 077 before creating the temp file (not a post-hoc chmod): $TMPDIR
+# is shared and world-writable, and this cache holds GCP project/account
+# names — the global umask (022) would otherwise leave it 644, readable by
+# every other local user on a shared/multi-user host.
 tmp_cache="${cache_file}.$$"
-if printf '%s' "$output" > "$tmp_cache" 2>/dev/null; then
+if ( umask 077 && printf '%s' "$output" > "$tmp_cache" ) 2>/dev/null; then
   mv -f "$tmp_cache" "$cache_file" 2>/dev/null
 fi
 printf '%s' "$output"

@@ -9,6 +9,21 @@
 .ssh
 .claude/
 
+# Defense-in-depth: sync_to_host.sh/sync_here.sh only ever touch the
+# whitelisted TARGET_DIRS (nvim, zsh, sheldon, starship) plus a few named
+# files, so none of these are ever written by those scripts. Listed anyway
+# so a manual `git add`/`git add -A` in this repo can't accidentally commit
+# real credentials sitting alongside them in $HOME.
+.aws
+.config/gcloud
+.docker
+.kube
+.netrc
+.npmrc
+.pgpass
+.env
+.env.*
+
 *.md
 !README.md
 

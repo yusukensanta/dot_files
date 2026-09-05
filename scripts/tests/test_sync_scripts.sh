@@ -243,6 +243,67 @@ test_starship_command_timeout() {
     fi
 }
 
+test_brew_prefix_checks_binary_not_dir() {
+    local desc="00-env.zsh's brew-prefix loop checks for the brew binary, not just the bin dir"
+    local f="$SCRIPTS_DIR/../.config/zsh/00-env.zsh"
+    # The old bug used `-d "$brew_prefix/bin"` — true for plain /usr/local on
+    # stock Linux/WSL (no Homebrew there), which broke the loop before it
+    # ever reached /home/linuxbrew/.linuxbrew.
+    if grep -q -- '-x "\$brew_prefix/bin/brew"' "$f" && ! grep -q -- '-d "\$brew_prefix/bin"' "$f"; then
+        ok "$desc"
+    else
+        fail "$desc"
+    fi
+}
+
+test_sheldon_plugins_pinned() {
+    local desc="every sheldon plugin is pinned to a commit (rev), not tracking a branch"
+    local toml="$SCRIPTS_DIR/../.config/sheldon/plugins.toml"
+    local github_count rev_count
+    github_count=$(grep -c '^github = ' "$toml")
+    rev_count=$(grep -c '^rev = ' "$toml")
+    if [[ "$github_count" -gt 0 && "$github_count" == "$rev_count" ]]; then
+        ok "$desc ($rev_count/$github_count pinned)"
+    else
+        fail "$desc ($rev_count/$github_count pinned)"
+    fi
+}
+
+test_gitignore_blocks_credential_paths() {
+    local desc=".gitignore defense-in-depth covers common credential paths"
+    local gi="$SCRIPTS_DIR/../.gitignore"
+    local pattern missing=()
+    for pattern in '.aws' '.config/gcloud' '.docker' '.kube' '.netrc' '.npmrc' '.pgpass' '.env'; do
+        grep -qxF "$pattern" "$gi" || missing+=("$pattern")
+    done
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        ok "$desc"
+    else
+        fail "$desc (missing: ${missing[*]})"
+    fi
+}
+
+test_zsh_history_permissions_hardened() {
+    local desc="01-options.zsh chmods HISTFILE to 600 (global umask 022 would leave it 644)"
+    local f="$SCRIPTS_DIR/../.config/zsh/01-options.zsh"
+    if grep -q 'chmod 600 "\$HISTFILE"' "$f"; then
+        ok "$desc"
+    else
+        fail "$desc"
+    fi
+}
+
+test_starship_cache_files_created_private() {
+    local desc="aws_session.sh and gcloud_session.sh create their \$TMPDIR cache files under umask 077"
+    local aws="$SCRIPTS_DIR/../.config/starship/aws_session.sh"
+    local gcloud="$SCRIPTS_DIR/../.config/starship/gcloud_session.sh"
+    if grep -q 'umask 077' "$aws" && grep -q 'umask 077' "$gcloud"; then
+        ok "$desc"
+    else
+        fail "$desc"
+    fi
+}
+
 echo "== sync_to_host.sh / sync_here.sh / nvim / starship fixes =="
 test_openrsync_detection_and_delete_still_works
 test_manual_backup_runs_under_openrsync
@@ -255,6 +316,14 @@ test_nvim_local_hook_exists
 test_nvim_local_dir_gitignored
 test_sync_scripts_exclude_nvim_local
 test_starship_command_timeout
+
+echo ""
+echo "== security hardening fixes =="
+test_brew_prefix_checks_binary_not_dir
+test_sheldon_plugins_pinned
+test_gitignore_blocks_credential_paths
+test_zsh_history_permissions_hardened
+test_starship_cache_files_created_private
 
 echo ""
 echo "$PASS passed, $FAIL failed"
