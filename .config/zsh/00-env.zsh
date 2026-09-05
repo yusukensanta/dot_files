@@ -24,9 +24,12 @@ export PATH=$HOME/.google-cloud-sdk/bin:$PATH
 # Homebrew: check known prefixes directly (fast, no subprocess) rather than
 # hardcoding one — covers Apple Silicon, Intel macOS, and Linuxbrew. Shared
 # with 02-plugins.zsh's zsh-abbr lookup, which reuses this same array.
+# Check for the `brew` binary itself, not just the bin dir: /usr/local/bin
+# exists on stock Linux (Debian/Ubuntu, WSL) without Homebrew installed,
+# so a dir-only check stops at /usr/local and never reaches Linuxbrew.
 typeset -ga DOTFILES_BREW_PREFIXES=(/opt/homebrew /usr/local /home/linuxbrew/.linuxbrew)
 for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
-    if [[ -d "$brew_prefix/bin" ]]; then
+    if [[ -x "$brew_prefix/bin/brew" ]]; then
         export PATH="$brew_prefix/bin:$PATH"
         break
     fi
