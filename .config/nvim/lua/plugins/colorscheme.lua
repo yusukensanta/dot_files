@@ -17,9 +17,6 @@ return {
         -- Add these modern features:
         cache = true,
         compile_path = vim.fn.stdpath("cache") .. "/tokyonight",
-        on_highlights = function(hl, c)
-          -- Custom highlight adjustments
-        end,
       })
       vim.cmd.colorscheme("tokyonight-moon")
     end,

@@ -2,7 +2,9 @@
 -- Press s → type 2-3 chars → jump to any matching position with a single label keystroke.
 -- S → treesitter-aware jump (selects whole nodes).
 -- Enhances f/F/t/T to show jump labels for multi-occurrence characters.
--- s and S are unused in your config (verified against full keymap inventory).
+-- s is unused elsewhere. S collided with nvim-surround's default visual-mode
+-- surround key (also "S") — nvim-surround's is remapped to "gs" (see cmp.lua)
+-- so both keep working.
 return {
   {
     "folke/flash.nvim",

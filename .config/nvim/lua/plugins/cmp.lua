@@ -92,7 +92,13 @@ return {
     version = "^3.0.0", -- Use for stability; omit to use `main` branch for the latest features
     event = "VeryLazy",
     config = function()
-      require("nvim-surround").setup()
+      -- Default visual-mode surround key is "S", which collides with
+      -- flash.nvim's treesitter-select "S" (flash.lua, modes x/o) — whichever
+      -- plugin's vim.keymap.set("x", "S", ...) runs last silently wins in
+      -- Visual mode. Moved to "gs" to keep both features working.
+      require("nvim-surround").setup({
+        keymaps = { visual = "gs" },
+      })
     end,
   },
   {

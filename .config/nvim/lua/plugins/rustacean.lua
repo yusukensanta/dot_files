@@ -1,5 +1,14 @@
 -- rustaceanvim - Modern Rust development with rust-analyzer
 -- Replaces rust-tools.nvim with better LSP integration
+--
+-- Missing guard, inherent to rust-analyzer itself (not specific to this
+-- config): cargo.buildScripts.enable + procMacro.enable below mean opening
+-- or saving any .rs file compiles and runs that crate's build.rs and
+-- proc-macros automatically — i.e. arbitrary code execution from project
+-- content, with no trust prompt. checkOnSave.command = "clippy" (below)
+-- likewise runs on every save. Left enabled because disabling either breaks
+-- normal Rust editing (macro-heavy code needs proc-macro expansion to
+-- resolve correctly) — worth knowing before opening an unfamiliar Rust repo.
 return {
   "mrcjkb/rustaceanvim",
   version = "^6", -- Recommended to use a version tag

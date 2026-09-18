@@ -25,6 +25,11 @@ return {
           ["<space>ot"] = { "actions.select", opts = { tab = true }, desc = "Open the entry in new tab" },
           ["<C-p>"] = "actions.preview",
           ["<C-c>"] = "actions.close",
+          -- Deliberately shadows the global <C-l> "move focus to right
+          -- window" (options.lua) inside Oil buffers only: a listing is
+          -- normally the sole focus of its window, so refresh is more
+          -- useful here than window nav. <space>wl still works as the
+          -- fallback window-nav binding if you do need it from Oil.
           ["<C-l>"] = "actions.refresh",
           ["-"] = "actions.parent",
           ["_"] = "actions.open_cwd",

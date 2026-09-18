@@ -27,32 +27,12 @@ vim.api.nvim_create_autocmd({ "BufWritePost", "BufEnter", "FocusGained", "ShellC
   end,
 })
 
--- Setup integration between plugins
-vim.api.nvim_create_autocmd("User", {
-  pattern = "GitSignsAttach",
-  callback = function(args)
-    -- Setup buffer-local keymaps when gitsigns attaches to a buffer
-    local bufnr = args.buf
-    local gs = package.loaded.gitsigns
-
-    if gs then
-      local map = require("helpers.keys").map
-      -- Additional buffer-local mappings
-      map("n", "<leader>gj", function()
-        if vim.wo.diff then return "]c" end
-        vim.schedule(function() gs.nav_hunk("next") end)
-        return "<Ignore>"
-      end, "GitSigns - Next hunk")
-
-      map("n", "<leader>gk", function()
-        if vim.wo.diff then return "[c" end
-        vim.schedule(function() gs.nav_hunk("prev") end)
-        return "<Ignore>"
-      end, "GitSigns - Previous hunk")
-    end
-  end,
-})
-
+-- Next/prev hunk navigation with diff-mode fallback lives on `]c`/`[c` in the
+-- gitsigns plugin spec below (its `keys` table sets expr = true, which this
+-- module's plain helpers.keys.map can't do) — removed a duplicate, broken
+-- <leader>gj/gk pair that used to live here: without expr = true, returning
+-- "]c"/"[c" from the callback was silently discarded, so those bindings did
+-- nothing while vim.wo.diff was true.
 
 return {
   {

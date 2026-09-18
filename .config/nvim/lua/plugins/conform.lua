@@ -90,25 +90,18 @@ return {
           -- -sr    : redirect operators at end of line (default), or use -s for short functions
           prepend_args = { "-i", "4", "-ci", "-bn" },
         },
+        -- Resolution shared with config/format.lua's biome BufWritePre
+        -- pipeline via helpers/biome.lua (also documents the missing-guard
+        -- tradeoff of running a project-local binary unprompted).
         biome = {
-          command = function()
-            local project_biome = vim.fn.findfile("node_modules/.bin/biome", ".;")
-            if project_biome ~= "" then
-              return vim.fn.fnamemodify(project_biome, ":p")
-            end
-            if vim.fn.executable("biome") == 1 then
-              return "biome"
-            end
-            return "npx"
-          end,
+          command = require("helpers.biome").resolve_command,
           args = function()
-            local project_biome = vim.fn.findfile("node_modules/.bin/biome", ".;")
-            local has_local = project_biome ~= "" or vim.fn.executable("biome") == 1
+            local biome_helper = require("helpers.biome")
             local base_args = { "format", "--config-path", vim.fn.expand("~/.config/nvim"), "--write", "$FILENAME" }
-            if has_local then
+            if biome_helper.has_local() then
               return base_args
             end
-            local npx_args = { "--yes", "@biomejs/biome@2.3.8" }
+            local npx_args = biome_helper.npx_bootstrap_args()
             vim.list_extend(npx_args, base_args)
             return npx_args
           end,

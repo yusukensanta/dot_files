@@ -1,17 +1,16 @@
 -- General Options by Languages
 local language_group = vim.api.nvim_create_augroup("LanguageOptions", { clear = true })
 
--- Resolve biome binary: project-local > global > pinned npx fallback
--- Avoids unpinned `npx --yes` which auto-downloads latest from npm on every call.
+-- Resolve biome binary: project-local > global > pinned npx fallback.
+-- See helpers/biome.lua for the shared logic (also used by conform.lua) and
+-- the missing-guard note about executing a project-local binary unprompted.
+local biome_helper = require("helpers.biome")
 local function resolve_biome_cmd()
-  local project_biome = vim.fn.findfile("node_modules/.bin/biome", ".;")
-  if project_biome ~= "" then
-    return { vim.fn.fnamemodify(project_biome, ":p") }
+  local cmd = { biome_helper.resolve_command() }
+  if not biome_helper.has_local() then
+    vim.list_extend(cmd, biome_helper.npx_bootstrap_args())
   end
-  if vim.fn.executable("biome") == 1 then
-    return { "biome" }
-  end
-  return { "npx", "--yes", "@biomejs/biome@2.3.8" }
+  return cmd
 end
 
 -- Biome Formatting for TypeScript/JavaScript/JSON

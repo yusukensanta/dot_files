@@ -32,7 +32,19 @@
 .config/zsh/local.d/*
 !.config/zsh/local.d/.gitkeep
 
-.config/nvim/doc
+# doc/ holds hand-written, evergreen reference docs (allowlisted below) plus
+# dated analysis/brainstorm write-ups (enhancement-recommendations.md,
+# plugin-ideas-problems.md, plugin-implementations.md) that stay covered by
+# the blanket *.md rule above since they're point-in-time notes, not
+# maintained reference material.
+!.config/nvim/doc/KEYMAP.md
+!.config/nvim/doc/README.md
+!.config/nvim/doc/lua-basics.md
+!.config/nvim/doc/lua-recipes.md
+!.config/nvim/doc/module-organization.md
+!.config/nvim/doc/neovim-lua-api.md
+!.config/nvim/doc/plugin-development.md
+!.config/nvim/doc/plugin-templates.md
 
 .config/nvim/lua/local/*
 !.config/nvim/lua/local/.gitkeep
