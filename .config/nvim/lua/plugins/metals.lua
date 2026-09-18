@@ -33,7 +33,11 @@ return {
 
       return metals_config
     end,
-    config = function(self, metals_config)
+    -- lazy.nvim calls config(plugin, opts) — "plugin" is the full spec
+    -- table (used below for plugin.ft), "metals_config" is this spec's own
+    -- opts() return value from above. Previously named "self", which reads
+    -- as an OOP method receiver; it isn't one.
+    config = function(plugin, metals_config)
       local dap = require("dap")
 
       -- Scala DAP launch configurations
@@ -60,7 +64,7 @@ return {
 
       local nvim_metals_group = vim.api.nvim_create_augroup("nvim-metals", { clear = true })
       vim.api.nvim_create_autocmd("FileType", {
-        pattern = self.ft,
+        pattern = plugin.ft,
         callback = function()
           require("metals").initialize_or_attach(metals_config)
         end,

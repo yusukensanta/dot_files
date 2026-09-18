@@ -87,16 +87,19 @@ Based on your config:
 ├── init.lua                      # ✓ Main entry
 ├── lua/
 │   ├── config/
-│   │   ├── lazy.lua              # ✓ Plugin manager
-│   │   ├── options.lua           # ✓ Options + keymaps
-│   │   └── format.lua            # ✓ Filetype configs
+│   │   ├── lazy.lua              # ✓ Plugin manager (sets mapleader — loads before keymaps.lua)
+│   │   ├── options.lua           # ✓ Vim options only
+│   │   ├── keymaps.lua           # ✓ Global keymaps
+│   │   └── autocmds.lua          # ✓ Filetype/format/coding-experience autocmds
 │   ├── plugins/                  # ✓ Plugin specs
-│   │   ├── lsp.lua
+│   │   ├── lsp/                  # LSP + mason (init.lua, config.lua, servers/)
 │   │   ├── treesitter.lua
-│   │   ├── telescope.lua
+│   │   ├── fzf-lua.lua           # fuzzy finder (replaced telescope)
 │   │   └── ...
 │   └── helpers/
-│       └── keys.lua              # ✓ Keymap helper
+│       ├── keys.lua              # ✓ Keymap helper
+│       ├── lsp.lua               # LSP utilities
+│       └── biome.lua             # shared biome binary resolution
 └── doc/                          # ✓ Documentation
 ```
 
@@ -314,11 +317,12 @@ return {
 **Structure:**
 ```
 lua/plugins/
-├── lsp.lua              # LSP + mason
+├── lsp/                 # LSP + mason (init.lua entry, config.lua, servers/)
 ├── treesitter.lua       # Treesitter
-├── telescope.lua        # Telescope
-├── cmp.lua              # Completion
-├── git_ops.lua          # Git plugins
+├── fzf-lua.lua          # Fuzzy finder (replaced telescope)
+├── completion.lua       # blink.cmp
+├── editing.lua          # autopairs, surround, autotag
+├── git-ops.lua          # Git plugins
 └── ...
 ```
 

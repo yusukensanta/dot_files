@@ -1,4 +1,9 @@
--- General Options by Languages
+-- General autocmds: per-filetype indent settings, biome format-on-save, and
+-- general coding-experience/file-handling behavior (trailing whitespace,
+-- yank highlight, auto-mkdir on save, cursor restore, autoread). Renamed
+-- from format.lua, whose name fit only the BiomeFormat group below — not
+-- LanguageOptions, CodingExperience, or AutoRead (moved here from
+-- options.lua, which had the same mismatch: "options" holding autocmds).
 local language_group = vim.api.nvim_create_augroup("LanguageOptions", { clear = true })
 
 -- Resolve biome binary: project-local > global > pinned npx fallback.
@@ -204,4 +209,30 @@ vim.api.nvim_create_autocmd("BufReadPost", {
       vim.cmd('normal! g`"')
     end
   end,
+})
+
+-- Auto-reload files when changed externally (makes autoread work properly).
+-- Moved here from options.lua (this is an autocmd group, not an option).
+local autoread_group = vim.api.nvim_create_augroup("AutoRead", { clear = true })
+
+-- Trigger checktime when window focus changes or buffer is entered
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
+  group = autoread_group,
+  pattern = "*",
+  callback = function()
+    if vim.fn.mode() ~= 'c' then  -- Don't check in command-line mode
+      vim.cmd("checktime")
+    end
+  end,
+  desc = "Check if file needs to be reloaded from disk"
+})
+
+-- Notification when file is auto-reloaded
+vim.api.nvim_create_autocmd("FileChangedShellPost", {
+  group = autoread_group,
+  pattern = "*",
+  callback = function()
+    vim.notify("File reloaded: " .. vim.fn.expand("%"), vim.log.levels.WARN)
+  end,
+  desc = "Notify when file is auto-reloaded"
 })

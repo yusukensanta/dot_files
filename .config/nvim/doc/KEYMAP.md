@@ -40,27 +40,29 @@ These keymaps are provided by Neovim — no config needed.
 
 | Key | Mode | Action | Source |
 |-----|------|--------|--------|
-| `<C-p>` | n | Tab previous | options.lua |
-| `<C-n>` | n | Tab next | options.lua |
-| `<C-t>` | n | Tab new | options.lua |
-| `<C-Up>` | n | Increase window height | options.lua |
-| `<C-Down>` | n | Decrease window height | options.lua |
-| `<C-Left>` | n | Decrease window width | options.lua |
-| `<C-Right>` | n | Increase window width | options.lua |
-| `<C-h>` | n | Move focus to left window (primary) | options.lua |
-| `<C-l>` | n | Move focus to right window (primary) | options.lua |
-| `<C-j>` | n | Move focus to lower window (primary) | options.lua |
-| `<C-k>` | n | Move focus to upper window (primary) | options.lua |
-| `<space>wh` | n | Move focus to left window (fallback) | options.lua |
-| `<space>wl` | n | Move focus to right window (fallback) | options.lua |
-| `<space>wj` | n | Move focus to lower window (fallback) | options.lua |
-| `<space>wk` | n | Move focus to upper window (fallback) | options.lua |
-| `<space>e` | n | Show diagnostic float | options.lua |
-| `jj` | i | Exit insert mode | options.lua |
-| `<C-\>` | t | Exit terminal mode | options.lua |
-| `<` | v | Indent left and reselect | options.lua |
-| `>` | v | Indent right and reselect | options.lua |
+| `<C-p>` | n | Tab previous | keymaps.lua |
+| `<C-n>` | n | Tab next | keymaps.lua |
+| `<C-t>` | n | Tab new | keymaps.lua |
+| `<C-Up>` | n | Increase window height | keymaps.lua |
+| `<C-Down>` | n | Decrease window height | keymaps.lua |
+| `<C-Left>` | n | Decrease window width | keymaps.lua |
+| `<C-Right>` | n | Increase window width | keymaps.lua |
+| `<C-h>` | n | Move focus to left window (primary) | keymaps.lua |
+| `<C-l>` | n | Move focus to right window (primary) | keymaps.lua |
+| `<C-j>` | n | Move focus to lower window (primary) | keymaps.lua |
+| `<C-k>` | n | Move focus to upper window (primary) | keymaps.lua |
+| `<space>wh` | n | Move focus to left window (fallback) | keymaps.lua |
+| `<space>wl` | n | Move focus to right window (fallback) | keymaps.lua |
+| `<space>wj` | n | Move focus to lower window (fallback) | keymaps.lua |
+| `<space>wk` | n | Move focus to upper window (fallback) | keymaps.lua |
+| `<space>e` | n | Show diagnostic float | keymaps.lua |
+| `jj` | i | Exit insert mode | keymaps.lua |
+| `<C-\>` | t | Exit terminal mode | keymaps.lua |
+| `<` | v | Indent left and reselect | keymaps.lua |
+| `>` | v | Indent right and reselect | keymaps.lua |
 | `,l` | n | Show lazy.nvim menu | lazy.lua |
+
+> All of the above are in `lua/config/keymaps.lua`, loaded *after* `config.lazy` sets `mapleader` — this ordering matters: a `<leader>uu`-style mapping registered before `mapleader` is set silently binds to `\uu` instead (Vim expands `<leader>` at registration time, not at keypress time). This bit the config for real before the keymaps.lua split — see `,uu`/`,ud` below.
 
 ---
 
@@ -68,8 +70,8 @@ These keymaps are provided by Neovim — no config needed.
 
 | Key | Mode | Action | Source |
 |-----|------|--------|--------|
-| `,uu` | n | Undotree — toggle undo history | options.lua |
-| `,ud` | n | DiffTool — compare directories | options.lua |
+| `,uu` | n | Undotree — toggle undo history | keymaps.lua |
+| `,ud` | n | DiffTool — compare directories | keymaps.lua |
 
 ---
 
