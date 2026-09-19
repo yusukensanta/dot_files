@@ -54,11 +54,13 @@ github = "hlissner/zsh-autopair"
 rev = "449a7c3d095bc8f3d78cf37b9549f8bb4c383f3d"
 apply = ["defer"]
 
-[plugins.you-should-use]
-github = "MichaelAquilina/zsh-you-should-use"
-rev = "5f3d129864ee4505043d88c3486224f1d75b692e"
-apply = ["defer"]
-
+# zsh-you-should-use removed: it only nags about `alias`/`alias -g`/git
+# `[alias]` entries, and this config has none of those — it uses zsh-abbr
+# exclusively (see 30-abbreviations.zsh), whose whole point is that the
+# shortcut is visible as you type it, so there's no "you forgot this
+# exists" moment for it to catch in the first place. The plugin was dead
+# weight: 3 preexec hooks + 1 precmd hook running on every command for the
+# life of every shell session, scanning empty tables.
 [plugins.git-flow-completion]
 github = "bobthecow/git-flow-completion"
 rev = "cba3ad7b5b51af7de26bb82cb6a1011b86084cad"

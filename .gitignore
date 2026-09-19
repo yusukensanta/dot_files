@@ -48,3 +48,11 @@
 
 .config/nvim/lua/local/*
 !.config/nvim/lua/local/.gitkeep
+
+# Same allowlist pattern as doc/ above: ZLE-WIDGETS-REFERENCE.md is a
+# maintained reference doc. REFACTORING.md / REFACTORING-COMPLETED.md
+# describe a past, now-finished migration and still name files that no
+# longer exist (keybindings.zsh, aliases.zsh, options.zsh) — point-in-time
+# notes, not maintained reference material, so they stay covered by the
+# blanket *.md rule above.
+!.config/zsh/ZLE-WIDGETS-REFERENCE.md

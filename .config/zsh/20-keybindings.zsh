@@ -1,6 +1,8 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/20-keybindings.zsh
-# Enhanced keybindings for emacs mode
+# Enhanced keybindings for emacs mode. Terminal title/mouse setup lives in
+# 10-terminal.zsh, and FZF tool activation in 40-tools.zsh — neither is a
+# keybinding, so neither belongs here even though they used to live here.
 
 # === CORE EDITING (Emacs mode) ===
 # Note: bindkey -e is set in 01-options.zsh
@@ -44,33 +46,37 @@ bindkey '^X^E' edit-command-line
 bindkey '^_' undo
 bindkey '^[_' redo
 
-# === DIRECTORY NAVIGATION ===
-bindkey -s '^[~' 'cd ~\n'
-bindkey -s '^[u' 'cd ..\n'
-bindkey -s '^[l' 'ls -la\n'
-
-# === GIT SHORTCUTS ===
-bindkey -s '^Gs' 'git status\n'
-bindkey -s '^Ga' 'git add .\n'
-bindkey -s '^Gc' 'git commit -m "'
-bindkey -s '^Gp' 'git push\n'
-bindkey -s '^Gl' 'git log --oneline\n'
-
-# === DOCKER SHORTCUTS ===
-# Under the ^X prefix (already a multi-key prefix via ^X^E above), not ^D:
-# ^D alone is the standard "delete-char, or EOF/exit on an empty line"
-# binding, and making it a bindkey -s prefix broke both — plain ^D just
-# sat waiting out KEYTIMEOUT for a Docker letter that (usually) never came.
-bindkey -s '^Xp' 'docker ps\n'
-bindkey -s '^Xi' 'docker images\n'
-bindkey -s '^Xc' 'docker-compose '
+# === DIRECTORY / GIT / DOCKER SNIPPET SHORTCUTS ===
+# Simple literal-text snippets (`cd ~`, `git status`, `docker ps`, ...)
+# used to live here as bindkey -s chords (Alt+~, Ctrl+G s, Ctrl+X p, ...).
+# Removed: zsh-abbr (30-abbreviations.zsh) already covers this same ground
+# strictly better — `~`, `..`, `gs`, `gps`, `gl`, `dps`, `di`, `dc` expand
+# the same text, but visibly, as you type, with no separate chord
+# vocabulary to remember on top of the abbreviation itself. `gcm` (commit)
+# is a concrete improvement over the old `^Gc`: zsh-abbr's `%` cursor
+# marker (ABBR_SET_EXPANSION_CURSOR=1) lands the cursor *inside* the
+# already-closed quotes, where the old chord left an open quote you had to
+# remember to close yourself. `^Xc` used the deprecated `docker-compose`
+# (v1) form; `dc` correctly expands to `docker compose` (v2).
+# `dir-history` below (Ctrl+X d) still covers directory-*stack* navigation
+# — that's a distinct feature abbreviations don't replace.
 
 # === FILE OPERATIONS ===
 # ^F is standard emacs forward-char (move right); the find-snippet insert
 # that used to live here shadowed it. Moved under ^X alongside Docker.
 bindkey '^F' forward-char
-bindkey -s '^Xf' 'find . -name "'
-bindkey -s '^[g' 'grep -r "'
+# fd/rg preferred when available — faster, and consistent with the same
+# fallback pattern used for FZF_DEFAULT_COMMAND in 40-tools.zsh.
+if command -v fd &>/dev/null; then
+    bindkey -s '^Xf' 'fd "'
+else
+    bindkey -s '^Xf' 'find . -name "'
+fi
+if command -v rg &>/dev/null; then
+    bindkey -s '^[g' 'rg "'
+else
+    bindkey -s '^[g' 'grep -r "'
+fi
 
 # === TERMINAL OPERATIONS ===
 bindkey '^L' clear-screen
@@ -173,83 +179,7 @@ bindkey '^Xd' dir-history
 # ^I is deliberately NOT rebound here: fzf-tab (loaded via sheldon in
 # 02-plugins.zsh) already bound it to fzf-tab-complete, and overwriting
 # that with complete-word broke fzf-tab's own apply step — the picker UI
-# still ran, but the selection never got inserted. `source <(fzf --zsh)`
-# below captures whatever ^I currently is as its non-fuzzy fallback, so
-# leaving it alone here is what makes that fallback correct.
+# still ran, but the selection never got inserted. 40-tools.zsh's
+# `source <(fzf --zsh)` captures whatever ^I currently is as its non-fuzzy
+# fallback, so leaving it alone here is what makes that fallback correct.
 bindkey '^[[Z' reverse-menu-complete
-
-# === FZF CONFIGURATION ===
-if command -v fd &>/dev/null; then
-    export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow --exclude .git"
-elif command -v rg &>/dev/null; then
-    export FZF_DEFAULT_COMMAND="rg --files --hidden --follow --glob '!.git'"
-else
-    export FZF_DEFAULT_COMMAND="find . -type f -not -path '*/\.git/*'"
-fi
-
-# === FZF INTEGRATION ===
-# fzf's own --zsh integration (fzf >= 0.48) defines fzf-file-widget,
-# fzf-cd-widget, and fzf-history-widget, and wires up ^T / Alt-C / ^R plus
-# ** fuzzy-completion — using FZF_DEFAULT_COMMAND above as a fallback and
-# respecting FZF_CTRL_T_COMMAND/FZF_ALT_C_COMMAND when set. Sourced after
-# fzf-tab (02-plugins.zsh) so it captures ^I = fzf-tab-complete as its
-# non-fuzzy fallback instead of overwriting fzf-tab's own binding.
-if command -v fzf >/dev/null; then
-    source <(fzf --zsh)
-    # This config's own aliases for the widgets fzf just defined, kept
-    # alongside fzf's defaults (^T, Alt-C, ^R) below.
-    bindkey '^[t' fzf-cd-widget
-    bindkey '^[h' fzf-history-widget
-else
-    bindkey '^R' history-incremental-search-backward
-fi
-
-# === TERMINAL TITLE UPDATES ===
-# add-zsh-hook (not bare precmd()/preexec() functions) so this can't get
-# silently clobbered by another plugin or a local.d/ file defining its own.
-autoload -Uz add-zsh-hook
-
-_dotfiles_title_precmd() {
-    case $TERM in
-        xterm*|rxvt*|screen*|tmux*)
-            print -Pn '\e]0;%n@%m: %~\a'
-            ;;
-    esac
-}
-add-zsh-hook precmd _dotfiles_title_precmd
-
-_dotfiles_title_preexec() {
-    case $TERM in
-        xterm*|rxvt*|screen*|tmux*)
-            # print -P below applies prompt expansion to its whole argument,
-            # so %-sequences from the command line itself (e.g. `git log
-            # --format=%h`, `date +%F`) must not reach it raw — %F{...}
-            # would inject live ANSI color codes into the title escape.
-            # Strip control chars, then treat the command as plain text.
-            print -Pn '\e]0;%n@%m: '
-            print -rn -- "${1//[[:cntrl:]]/}"
-            print -n '\a'
-            ;;
-    esac
-}
-add-zsh-hook preexec _dotfiles_title_preexec
-
-# === BRACKETED PASTE ===
-# active-widgets left unset on purpose: bracketed-paste-magic's default
-# ('self-*') reprocesses the ENTIRE pasted text one character at a time
-# through self-insert so widgets like that can hook in — which also means
-# fast-syntax-highlighting and zsh-autosuggestions (both wrap self-insert)
-# redo their analysis on every single character of every paste. Neither
-# is used here, so there's no reprocessing to enable, and pasting
-# anything more than a few lines noticeably stalls the shell without this
-# (empirically: a ~10KB paste made the shell unresponsive well past a
-# minute with the default). An explicit empty value (not just "unset")
-# is required — see the style's own doc comment in the shipped function.
-zstyle ':bracketed-paste-magic' active-widgets
-autoload -Uz bracketed-paste-magic
-zle -N bracketed-paste bracketed-paste-magic
-
-# === MOUSE SUPPORT ===
-if [[ $TERM == *"xterm"* ]] || [[ $TERM == *"screen"* ]] || [[ $TERM == *"tmux"* ]]; then
-    export LESS="-R --mouse"
-fi

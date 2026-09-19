@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/40-tools.zsh
-# Tool initializations (mise, zoxide, starship)
+# Tool initializations (mise, zoxide, starship, fzf)
 
 # === MISE (Runtime Version Manager) ===
 # Deferred via zsh-defer (sheldon-loaded, see 02-plugins.zsh): `mise
@@ -53,4 +53,35 @@ fi
 if ! command -v starship &> /dev/null; then
     autoload -U colors && colors
     PROMPT='%{$fg[cyan]%}%n@%m%{$reset_color%}:%{$fg[blue]%}%~%{$reset_color%}$ '
+fi
+
+# === FZF ===
+# Moved from 20-keybindings.zsh (a tool activation, not a keybinding).
+# Load-order note that made this safe to move: fzf-tab (the completion
+# widget fzf's own integration below needs to capture as its non-fuzzy
+# ^I fallback) is sourced by sheldon in 02-plugins.zsh, well before this
+# file regardless of whether this block lives at 20 or 40 — moving it
+# doesn't change that ordering.
+if command -v fd &>/dev/null; then
+    export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow --exclude .git"
+elif command -v rg &>/dev/null; then
+    export FZF_DEFAULT_COMMAND="rg --files --hidden --follow --glob '!.git'"
+else
+    export FZF_DEFAULT_COMMAND="find . -type f -not -path '*/\.git/*'"
+fi
+
+# fzf's own --zsh integration (fzf >= 0.48) defines fzf-file-widget,
+# fzf-cd-widget, and fzf-history-widget, and wires up ^T / Alt-C / ^R plus
+# ** fuzzy-completion — using FZF_DEFAULT_COMMAND above as a fallback and
+# respecting FZF_CTRL_T_COMMAND/FZF_ALT_C_COMMAND when set. Captures
+# whatever ^I currently is (fzf-tab's binding, per the note above) as its
+# non-fuzzy fallback.
+if command -v fzf >/dev/null; then
+    source <(fzf --zsh)
+    # This config's own aliases for the widgets fzf just defined, kept
+    # alongside fzf's defaults (^T, Alt-C, ^R) above.
+    bindkey '^[t' fzf-cd-widget
+    bindkey '^[h' fzf-history-widget
+else
+    bindkey '^R' history-incremental-search-backward
 fi

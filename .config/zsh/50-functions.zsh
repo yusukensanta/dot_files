@@ -52,24 +52,14 @@ HISTORY:
 FILE & DIRECTORY:
   Ctrl+T       - FZF file finder
   Alt+t        - FZF directory finder
-  Ctrl+X f     - Find files (find . -name)
-  Alt+~        - Go to home directory
-  Alt+u        - Go up one directory
-  Alt+l        - List files (ls -la)
+  Ctrl+X f     - Find files (fd if available, else find . -name)
+  Alt+g        - Grep recursively (rg if available, else grep -r)
   Alt+r        - CD to git root
-  Ctrl+X d     - Switch to previous directory
+  Ctrl+X d     - Switch to previous directory (dir stack)
 
-GIT:
-  Ctrl+G s     - git status
-  Ctrl+G a     - git add .
-  Ctrl+G c     - git commit -m
-  Ctrl+G p     - git push
-  Ctrl+G l     - git log --oneline
-
-DOCKER:
-  Ctrl+X p     - docker ps
-  Ctrl+X i     - docker images
-  Ctrl+X c     - docker-compose
+  cd/git/docker one-liners (cd ~, cd .., git status, docker ps, ...) are
+  zsh-abbr abbreviations now, not keybindings — type e.g. "gs", "dps",
+  "~" and press space to expand. Run `abbr list` to see all of them.
 
 UTILITIES:
   Alt+s        - Toggle sudo
