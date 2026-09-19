@@ -1,6 +1,10 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/50-functions.zsh
 # Utility functions
+#
+# No load-order dependency — tested moved to the first position in
+# .zshrc's sourcing loop with no change in behavior. Its `50` position is
+# a category label (see README.md's table), not a constraint.
 
 # === PERFORMANCE UTILITIES ===
 # Zsh performance monitoring

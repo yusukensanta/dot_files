@@ -3,6 +3,10 @@
 # Terminal chrome: title bar and mouse support. Split out of
 # 20-keybindings.zsh, which had absorbed these over time despite neither
 # being a keybinding.
+#
+# No load-order dependency — tested moved to both the first and last
+# position in .zshrc's sourcing loop with no change in behavior. Its `10`
+# position is a category label (see README.md's table), not a constraint.
 
 # === TERMINAL TITLE UPDATES ===
 # add-zsh-hook (not bare precmd()/preexec() functions) so this can't get
