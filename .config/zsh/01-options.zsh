@@ -1,6 +1,7 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/01-options.zsh
 # Shell options and behavior
+# No load-order dependency — tested (see README.md's table).
 
 # === HISTORY OPTIONS ===
 setopt EXTENDED_HISTORY          # Write the history file in the ":start:elapsed;command" format

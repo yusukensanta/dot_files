@@ -1,6 +1,12 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/40-tools.zsh
 # Tool initializations (mise, zoxide, starship, fzf)
+#
+# Should follow 02-plugins.zsh: without zsh-defer, mise activation below
+# degrades to synchronous instead of erroring (the elif branch exists for
+# exactly this); without fzf-tab having loaded yet, fzf's ^I-fallback
+# capture further down is weaker than stated but not proven broken by
+# testing — see README.md's table for what was and wasn't confirmed here.
 
 # === MISE (Runtime Version Manager) ===
 # Deferred via zsh-defer (sheldon-loaded, see 02-plugins.zsh): `mise

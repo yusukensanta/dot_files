@@ -7,6 +7,11 @@
 # compinit has to run after that fpath change to actually pick them up.
 # fzf-tab tolerates loading before compinit fine (it has its own fallback
 # path for that case) despite older advice to the contrary.
+#
+# Also must precede 30-abbreviations.zsh (needs the `abbr` command from
+# zsh-abbr) and must follow 00-env.zsh (reads DOTFILES_BREW_PREFIXES,
+# defined there). All three constraints tested with a fresh $HOME, not
+# just asserted — see README.md's table for what broke and how.
 
 # === ZSH-ABBR ===
 # Load zsh-abbr if available, from whichever Homebrew prefix 00-env.zsh

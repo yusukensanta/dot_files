@@ -1,6 +1,8 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/04-fzf-tab.zsh
-# fzf-tab configuration (loaded after completion system)
+# fzf-tab configuration. No load-order dependency — tested moved to the
+# absolute first position with no change in behavior (these are all
+# zstyle settings, consulted lazily at first use, not at definition time).
 
 # === FZF-TAB CONFIGURATION ===
 # Note: fzf-tab is loaded via sheldon plugins

@@ -1,6 +1,11 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/30-abbreviations.zsh
 # zsh-abbr abbreviations
+#
+# Must follow 02-plugins.zsh (needs the `abbr` command from zsh-abbr) —
+# tested with a fresh $HOME, where there's no persisted abbr store to mask
+# the effect: reversed, `command -v abbr` below fails and this whole block
+# is skipped, silently, for that session. See README.md's table.
 
 export ABBR_SET_EXPANSION_CURSOR=1
 

@@ -3,6 +3,11 @@
 # Enhanced keybindings for emacs mode. Terminal title/mouse setup lives in
 # 10-terminal.zsh, and FZF tool activation in 40-tools.zsh — neither is a
 # keybinding, so neither belongs here even though they used to live here.
+#
+# No load-order dependency — tested moved to the absolute first position.
+# This file used to depend on 02-plugins.zsh (fzf-tab, for the old ^I
+# fallback capture) before that logic moved to 40-tools.zsh above; the
+# constraint moved with it.
 
 # === CORE EDITING (Emacs mode) ===
 # Note: bindkey -e is set in 01-options.zsh
