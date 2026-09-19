@@ -11,6 +11,7 @@
 - `<C-h/j/k/l>` do direct window-focus switching (1 chord) as the primary bind; `<space>w{h,j,k,l}` kept as a fallback alias.
 - blink.cmp completion nav uses `<C-p>`/`<C-n>` (vim's own native insert-completion convention: p=prev, n=next) — not `<C-l>`/`<C-k>`, which had directions backwards relative to vim's j/k up/down sense.
 - Git conflict-resolution keys live under `,gx*` (alongside the existing `,gx` conflict list), separate from `,gc*` which is commit-only — avoids one prefix meaning two unrelated things.
+- `<C-b>` is never bound to anything (e.g. an alternate-buffer toggle) — it's the prefix key for tmux and other terminal multiplexers, so it never reaches Neovim when running inside one. Buffer next/prev use `,bn`/`,bp` instead (see Buffer Management below), which don't touch Ctrl+anything and work identically everywhere.
 
 ---
 
