@@ -1,8 +1,18 @@
-# custom.aws_session/gcloud_session run in ~50ms normally but can overshoot
-# the 500ms default under transient load; on timeout starship drops the
-# segment silently rather than erroring, so a valid session looks identical
-# to no session. 1000ms gives headroom without letting a stuck command hang
-# the prompt indefinitely (that's what ignore_timeout would do — avoid it).
+# custom.aws_session/gcloud_session (and the separator between them) are
+# stale-while-revalidate: they serve a cached value immediately and refresh
+# it in the background, so in normal use they return in low single-digit
+# ms and essentially never approach this. The one case that can still take
+# real time is the very first render ever for a given AWS profile (no
+# cache yet) — bounded now (SSO cache files grep-prefiltered before jq ever
+# touches them, sqlite3 given a 200ms busy_timeout) but not instant. 1000ms
+# covers that
+# plus headroom for the rest of the prompt (git status on a large repo,
+# language version detectors, etc.) without letting a genuinely stuck
+# command hang the prompt indefinitely (that's what ignore_timeout would
+# do — avoid it). On timeout starship drops the module silently rather
+# than erroring, so a valid session would look identical to no session —
+# see aws_session.sh/gcloud_session.sh for why that should no longer
+# actually happen in practice.
 command_timeout = 1000
 
 format = """
