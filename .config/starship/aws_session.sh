@@ -3,9 +3,12 @@
 # login` (SSO cache) or `saml2aws login` (credentials file) — or "<role>
 # expired" once the cached credentials' expiry has passed (role/expiry
 # data isn't deleted on expiry, just stale, so this still shows the last
-# login until a fresh one overwrites it). Prints nothing only if there's
-# no cached login at all. Read-only, no network calls (safe to run on
-# every prompt render).
+# login until a fresh one overwrites it). Prints "no profile" or "<profile>:
+# no session" rather than nothing when there's no AWS_PROFILE set or no
+# cached login: this module used to go fully invisible in both cases,
+# which made it indistinguishable from being broken — showing *something*
+# always means silence itself is never the failure mode to debug. Read-only,
+# no network calls (safe to run on every prompt render).
 #
 # Requires: awk, grep, date (all standard). jq only if using SSO login
 # (`~/.aws/cli/cache`) — the saml2aws path (`~/.aws/credentials`) doesn't
@@ -26,7 +29,10 @@
 set -uo pipefail
 
 profile="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-}}"
-[[ -z "$profile" ]] && exit 0
+if [[ -z "$profile" ]]; then
+  printf ' no profile'
+  exit 0
+fi
 
 safe_profile="${profile//[^A-Za-z0-9_.-]/_}"
 cache_file="${TMPDIR:-/tmp}/starship-aws-session-${UID}-${safe_profile}.cache"
@@ -71,12 +77,23 @@ compute() {
   # measured) for files that even mention this account id, then run jq
   # only on those matches. Correct regardless of file age, and fast
   # because jq (the actually expensive part) only ever touches candidates.
+  #
+  # Multiple matches for the same account are normal, not a bug: aws-cli
+  # writes a NEW cache file per credential refresh instead of overwriting
+  # the old one, so a stale file from weeks ago can sit right next to
+  # today's. `grep -l`'s output order is filename order, not chronological
+  # — sort matches by mtime (newest first) before handing them to jq, or
+  # `head -1` below picks whichever stale entry happens to sort first
+  # instead of the current one (reproduced live: it did, showing "expired"
+  # while `aws sts get-caller-identity` was succeeding).
   if [[ -n "$account_id" ]]; then
     local cache_dir="$HOME/.aws/cli/cache"
     if [[ -d "$cache_dir" ]]; then
-      local sso_cache_files=()
-      while IFS= read -r f; do sso_cache_files+=("$f"); done < <(grep -lF "$account_id" "$cache_dir"/*.json 2>/dev/null)
-      if (( ${#sso_cache_files[@]} > 0 )); then
+      local matched_files=()
+      while IFS= read -r f; do matched_files+=("$f"); done < <(grep -lF "$account_id" "$cache_dir"/*.json 2>/dev/null)
+      if (( ${#matched_files[@]} > 0 )); then
+        local sso_cache_files=()
+        while IFS= read -r f; do sso_cache_files+=("$f"); done < <(ls -t "${matched_files[@]}" 2>/dev/null)
         expiration=$(jq -r --arg acct "$account_id" \
           'select(.Credentials.AccountId == $acct) | .Credentials.Expiration' \
           "${sso_cache_files[@]}" 2>/dev/null | grep -v '^null$' | head -1)
@@ -108,7 +125,10 @@ compute() {
 
   [[ -z "$role" ]] && role="$profile"
 
-  [[ -z "$expiration" ]] && return 0
+  if [[ -z "$expiration" ]]; then
+    printf ' %s: no session' "$role"
+    return 0
+  fi
 
   # GNU `date -d` parses this directly. BSD/macOS `date` has no -d and needs
   # an explicit format: strip fractional seconds, turn a trailing Z/UTC into

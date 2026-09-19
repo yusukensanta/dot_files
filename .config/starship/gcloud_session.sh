@@ -2,9 +2,15 @@
 # Prints "<project> <H>H <m>m" for the active gcloud auth session, or
 # "<project> expired" once the cached token's expiry has passed (the
 # active config / project doesn't disappear on expiry, so this still
-# shows the last login until a fresh one overwrites it). Prints nothing
-# only if there's no active config / cached token at all. Read-only, no
-# network calls (safe to run on every prompt render).
+# shows the last login until a fresh one overwrites it). Prints "no active
+# config" or "<project>: no session" rather than nothing when there's no
+# gcloud config selected or no cached token: this module used to go fully
+# invisible in both cases, which made it indistinguishable from being
+# broken — showing *something* always means silence itself is never the
+# failure mode to debug. Still silent when ~/.config/gcloud doesn't exist
+# at all — that means gcloud was never set up on this machine, not "no
+# session right now", so there's nothing meaningful to report. Read-only,
+# no network calls (safe to run on every prompt render).
 #
 # Requires: awk, sqlite3, date (all standard, sqlite3 usually ships with
 # the OS or gcloud's own bundled Python). gcloud itself isn't required by
@@ -41,32 +47,55 @@ CACHE_TTL=5
 compute() {
   local active_config
   active_config=$(cat "$gcloud_dir/active_config" 2>/dev/null)
-  [[ -z "$active_config" ]] && return 0
+  if [[ -z "$active_config" ]]; then
+    printf ' no active config'
+    return 0
+  fi
 
   local config_file="$gcloud_dir/configurations/config_$active_config"
-  [[ -f "$config_file" ]] || return 0
+  if [[ ! -f "$config_file" ]]; then
+    printf ' %s: no session' "$active_config"
+    return 0
+  fi
 
   local project account
   project=$(awk -F'=' '/^[ \t]*project[ \t]*=/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' "$config_file")
   account=$(awk -F'=' '/^[ \t]*account[ \t]*=/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' "$config_file")
 
-  [[ -z "$project" || -z "$account" ]] && return 0
+  if [[ -z "$project" || -z "$account" ]]; then
+    printf ' %s: no session' "$active_config"
+    return 0
+  fi
 
   local tokens_db="$gcloud_dir/access_tokens.db"
-  [[ -f "$tokens_db" ]] || return 0
+  if [[ ! -f "$tokens_db" ]]; then
+    printf ' %s: no session' "$project"
+    return 0
+  fi
 
   # -cmd ".timeout 200": sqlite3's own busy-timeout, in milliseconds — not
   # an external `timeout`/`gtimeout` wrapper, which isn't portably
   # available (macOS ships neither by default). If `gcloud` itself holds a
   # write lock on this db concurrently, sqlite3 waits at most 200ms for it
-  # to clear, then gives up cleanly (empty result, caught by the check
-  # below) instead of failing instantly on a lock that might have cleared
-  # a moment later.
+  # to clear, then either succeeds or gives up cleanly instead of failing
+  # instantly on a lock that might have cleared a moment later.
   local expiry
-  expiry=$(sqlite3 -cmd ".timeout 200" "$tokens_db" \
-    "select token_expiry from access_tokens where account_id = '${account//\'/\'\'}';" 2>/dev/null)
+  if ! expiry=$(sqlite3 -cmd ".timeout 200" "$tokens_db" \
+      "select token_expiry from access_tokens where account_id = '${account//\'/\'\'}';" 2>/dev/null); then
+    # The QUERY ITSELF failed (non-zero exit — confirmed empirically that
+    # sqlite3 exits 1 here, not just empty stdout, when the lock outlasts
+    # .timeout above) — this is a transient failure, not "no session
+    # exists". Stay truly empty (no placeholder) so session_cache.sh's
+    # write-guard treats it as one and won't let it overwrite a previously
+    # good cached session; only a *successful* query with no matching row
+    # (below) is a real enough "no session" to show.
+    return 0
+  fi
 
-  [[ -z "$expiry" ]] && return 0
+  if [[ -z "$expiry" ]]; then
+    printf ' %s: no session' "$project"
+    return 0
+  fi
 
   # GNU `date -d` parses this directly. BSD/macOS `date` has no -d and needs
   # an explicit format with no fractional seconds.
