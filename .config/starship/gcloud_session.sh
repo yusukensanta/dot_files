@@ -1,39 +1,20 @@
 #!/usr/bin/env bash
 # Prints "<project> <H>H <m>m" for the active gcloud auth session, or
-# "<project> expired" once the cached token's expiry has passed (the
-# active config / project doesn't disappear on expiry, so this still
-# shows the last login until a fresh one overwrites it). Prints "no active
-# config" or "<project>: no session" rather than nothing when there's no
-# gcloud config selected or no cached token: this module used to go fully
-# invisible in both cases, which made it indistinguishable from being
-# broken — showing *something* always means silence itself is never the
-# failure mode to debug. Still silent when ~/.config/gcloud doesn't exist
-# at all — that means gcloud was never set up on this machine, not "no
-# session right now", so there's nothing meaningful to report. Read-only,
-# no network calls (safe to run on every prompt render).
+# "<project> expired" past the cached expiry (kept, not deleted, so the
+# last login still shows until a fresh one overwrites it).
 #
-# Requires: awk, sqlite3, date (all standard, sqlite3 usually ships with
-# the OS or gcloud's own bundled Python). gcloud itself isn't required by
-# this script — it only ever reads files gcloud leaves behind.
+# Always prints something, including "no active config" / "<project>: no
+# session": silence would be indistinguishable from the module being
+# broken. Stays silent only when ~/.config/gcloud doesn't exist at all —
+# gcloud was never set up here, so there's nothing to report. Read-only,
+# no network calls, safe on every prompt render.
 #
-# Caching is handled by lib/session_cache.sh (stale-while-revalidate: a
-# fresh cache is served directly; a stale one is still served immediately
-# — never blocks the prompt — while a background job refreshes it for the
-# next render; see that file for the full rationale).
+# Requires: awk, sqlite3, date. gcloud itself isn't required — this only
+# reads files it leaves behind.
 #
-# This fixes "sometimes gcloud info just doesn't show up" — measured and
-# confirmed the actual mechanism (not guessed): with no busy_timeout set,
-# sqlite3's default behavior on a locked access_tokens.db (locked by a
-# concurrent `gcloud` invocation — its normal rollback-journal locking, not
-# a bug) is to fail FAST with SQLITE_BUSY, not to hang. The old script
-# treated that failure identically to "no session" and unconditionally
-# overwrote its own cache with the resulting empty output — so a single
-# ~100ms lock could blank a perfectly valid session for a full second
-# (the old cache TTL). `.timeout 200` below makes sqlite3 wait up to 200ms
-# for the lock instead of failing instantly, and session_cache.sh
-# additionally refuses to let an empty compute() result overwrite a
-# previously non-empty cache — so even a lock that outlasts the timeout
-# can no longer blank a good cache, only skip refreshing it that once.
+# Caching (stale-while-revalidate, see lib/session_cache.sh) exists so a
+# slow recompute can never block the prompt or get dropped by starship's
+# command_timeout.
 set -uo pipefail
 
 gcloud_dir="$HOME/.config/gcloud"
@@ -82,13 +63,11 @@ compute() {
   local expiry
   if ! expiry=$(sqlite3 -cmd ".timeout 200" "$tokens_db" \
       "select token_expiry from access_tokens where account_id = '${account//\'/\'\'}';" 2>/dev/null); then
-    # The QUERY ITSELF failed (non-zero exit — confirmed empirically that
-    # sqlite3 exits 1 here, not just empty stdout, when the lock outlasts
-    # .timeout above) — this is a transient failure, not "no session
-    # exists". Stay truly empty (no placeholder) so session_cache.sh's
-    # write-guard treats it as one and won't let it overwrite a previously
-    # good cached session; only a *successful* query with no matching row
-    # (below) is a real enough "no session" to show.
+    # Non-zero exit means the query itself failed (a lock that outlasted
+    # .timeout above) — a transient failure, not "no session exists".
+    # Stay truly empty so session_cache.sh's write-guard won't let it
+    # overwrite a good cached session; only a successful query with no
+    # matching row (below) is a real enough "no session" to show.
     return 0
   fi
 

@@ -1,27 +1,23 @@
 #!/usr/bin/env bash
-# Prints " │" (leading space, no trailing one — gcloud_session.sh's own
-# output already starts with a space) only when both the AWS and GCloud
-# segments have something to show, so the separator never appears next to
-# an empty segment. The space lives here, not in starship.toml's format
-# string, because starship still renders a format string's static text
-# even when $output is empty — a static space there would show up (and
-# eat a column of $fill's width) on every render, gcloud or not.
+# Prints a separator between the AWS and gcloud segments, only when both
+# have something to show. No trailing space: gcloud_session.sh's own
+# output already starts with one. The leading space lives here rather
+# than in starship.toml's format string because starship renders a format
+# string's static text even when $output is empty — a static space there
+# would show up unconditionally.
 #
-# Reads aws_session.sh's and gcloud_session.sh's own cache files instead
-# of re-running them: starship evaluates custom modules in PARALLEL, not
-# sequentially, so an in-process cache in those scripts can't dedupe
-# against a concurrent invocation from here — both would start in the
-# same instant and both miss it. Reading the cache trades that for a
-# harmless one-render lag (the bar can take one extra prompt render to
-# appear/disappear right as a session starts/expires).
+# Reads aws_session.sh's/gcloud_session.sh's cache files instead of
+# re-running their logic: starship evaluates custom modules in parallel,
+# so an in-process cache in those scripts can't dedupe against a
+# concurrent invocation from here — both would start at the same instant
+# and both miss it. Trades that for a harmless one-render lag.
 #
-# aws_session.sh/gcloud_session.sh now serve a *stale* cache indefinitely
-# (refreshing it in the background) rather than expiring it after a fixed
-# window — see their own CACHE_TTL comment — so this check no longer needs
-# to track their TTL closely. It only exists to skip a cache file that's
-# old enough to no longer represent anything current (e.g. a leftover from
-# a profile that hasn't been active in a while); 10s comfortably covers
-# their 5s refresh target plus one full render's worth of slop.
+# CACHE_WINDOW is looser than aws_session.sh/gcloud_session.sh's own
+# CACHE_TTL on purpose: those scripts serve a stale cache indefinitely
+# (refreshed in the background) rather than expiring it, so this only
+# needs to skip a cache file old enough to no longer represent anything
+# current — 10s covers their 5s refresh target plus a render's worth of
+# slop.
 set -uo pipefail
 
 cache_dir="${TMPDIR:-/tmp}"

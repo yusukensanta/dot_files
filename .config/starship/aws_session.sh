@@ -1,31 +1,21 @@
 #!/usr/bin/env bash
 # Prints "<role> <H>H <m>m" for the current AWS session — via `aws sso
 # login` (SSO cache) or `saml2aws login` (credentials file) — or "<role>
-# expired" once the cached credentials' expiry has passed (role/expiry
-# data isn't deleted on expiry, just stale, so this still shows the last
-# login until a fresh one overwrites it). Prints "no profile" or "<profile>:
-# no session" rather than nothing when there's no AWS_PROFILE set or no
-# cached login: this module used to go fully invisible in both cases,
-# which made it indistinguishable from being broken — showing *something*
-# always means silence itself is never the failure mode to debug. Read-only,
-# no network calls (safe to run on every prompt render).
+# expired" past the cached expiry (kept, not deleted, so the last login
+# still shows until a fresh one overwrites it).
 #
-# Requires: awk, grep, date (all standard). jq only if using SSO login
+# Always prints something, including "no profile" / "<profile>: no
+# session": silence would be indistinguishable from the module being
+# broken. Read-only, no network calls, safe on every prompt render.
+#
+# Requires: awk, grep, date. jq only for the SSO cache path
 # (`~/.aws/cli/cache`) — the saml2aws path (`~/.aws/credentials`) doesn't
-# need it. Neither the aws-cli nor saml2aws themselves are required by
-# this script — it only ever reads files they leave behind.
+# need it. Neither aws-cli nor saml2aws themselves are required — this
+# only reads files they leave behind.
 #
-# Caching is handled by lib/session_cache.sh (stale-while-revalidate: a
-# fresh cache is served directly; a stale one is still served immediately
-# — never blocks the prompt — while a background job refreshes it for the
-# next render; see that file for the full rationale). This is what fixes
-# the "sometimes warn: command timed out" / "sometimes AWS info just
-# doesn't show up" flakiness: previously, ANY slow render (e.g. a `jq`
-# scan across an SSO cache directory that has accumulated hundreds of
-# stale JSON files over months of `aws sso login` — aws-cli never prunes
-# it) hit starship's command_timeout and starship dropped the module for
-# that render with no fallback — a valid session then looked identical to
-# no session, once per slow render.
+# Caching (stale-while-revalidate, see lib/session_cache.sh) exists so a
+# slow recompute can never block the prompt or get dropped by starship's
+# command_timeout.
 set -uo pipefail
 
 profile="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-}}"
@@ -66,26 +56,18 @@ compute() {
   local expiration=""
 
   # Path 1: AWS SSO cache (`aws sso login`) — matched by account id.
-  # aws-cli has historically never pruned this directory, so a machine
-  # with months/years of `aws sso login` history can accumulate hundreds
-  # or thousands of stale JSON files. Rather than bound by recency (tried
-  # first, reverted: a *different* profile's more recent login can push
-  # this profile's still-valid cache entry out of any fixed "N newest
-  # files" window — turns a perf fix into a correctness bug, silently
-  # hiding a real, current session), prefilter with a cheap literal-text
-  # `grep -l` (byte scan, no JSON parsing — ~10ms across 5000 files
-  # measured) for files that even mention this account id, then run jq
-  # only on those matches. Correct regardless of file age, and fast
-  # because jq (the actually expensive part) only ever touches candidates.
+  # aws-cli never prunes this directory, so it can accumulate years of
+  # stale JSON files. Bounding by recency instead of by content would risk
+  # a *different* profile's more recent login pushing this profile's
+  # still-valid entry out of the window — a perf fix that's actually a
+  # correctness bug. `grep -l` (byte scan, no JSON parsing) prefilters to
+  # candidates before jq ever runs, keeping it fast without that risk.
   #
-  # Multiple matches for the same account are normal, not a bug: aws-cli
-  # writes a NEW cache file per credential refresh instead of overwriting
-  # the old one, so a stale file from weeks ago can sit right next to
-  # today's. `grep -l`'s output order is filename order, not chronological
-  # — sort matches by mtime (newest first) before handing them to jq, or
-  # `head -1` below picks whichever stale entry happens to sort first
-  # instead of the current one (reproduced live: it did, showing "expired"
-  # while `aws sts get-caller-identity` was succeeding).
+  # aws-cli writes a new cache file per credential refresh instead of
+  # overwriting the old one, so multiple matches for the same account are
+  # expected. `grep -l`'s output order is filename order, not
+  # chronological — sort matches by mtime (newest first) before jq, or
+  # `head -1` below can pick a stale entry over the current one.
   if [[ -n "$account_id" ]]; then
     local cache_dir="$HOME/.aws/cli/cache"
     if [[ -d "$cache_dir" ]]; then
