@@ -16,7 +16,6 @@ fi
 # Ensure unique PATH entries
 typeset -U PATH
 
-# Add user binaries
 export PATH=$HOME/.local/bin:$PATH
 export PATH=$HOME/.cargo/bin:$PATH
 export PATH=$HOME/.google-cloud-sdk/bin:$PATH
@@ -39,7 +38,6 @@ export PATH=$HOME/.local/share/coursier/bin:$PATH
 export PATH=$HOME/.dotnet:$PATH
 export AWS_PAGER=""
 
-# pnpm configuration
 export PNPM_HOME="$HOME/.local/share/pnpm"
 export PATH="$PNPM_HOME:$PATH"  # typeset -U PATH above dedupes automatically
 

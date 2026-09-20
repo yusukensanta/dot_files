@@ -10,13 +10,10 @@
 export ABBR_SET_EXPANSION_CURSOR=1
 
 if command -v abbr >/dev/null 2>&1; then
-    # Desired abbreviations, as "name=expansion". zsh-abbr persists whatever
-    # `abbr add` writes across sessions, so re-declaring all of these on
-    # every shell start was pure waste once the persisted file already
-    # matched (~600ms across 28 `abbr add --force` calls — most of total
-    # startup time). Only re-sync when this list actually changed, tracked
-    # via a checksum marker — keep editing the list below as before, the
-    # next shell start picks up the change automatically.
+    # zsh-abbr persists whatever `abbr add` writes across sessions, so
+    # re-declaring all of these on every shell start is pure waste once the
+    # persisted file already matches — only re-sync when this list actually
+    # changed, tracked via the checksum marker below.
     _abbrs=(
         # git
         'g=git'

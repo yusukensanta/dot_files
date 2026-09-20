@@ -1,7 +1,5 @@
 #!/usr/bin/env zsh
 # ~/.zshrc - Minimal loader for modular configuration
-# Refactored: 2025-11-17
-# Clean, fast, and maintainable setup
 
 # === XDG BASE DIRECTORY ===
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"

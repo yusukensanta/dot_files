@@ -31,23 +31,19 @@ bindkey '^U' kill-whole-line
 bindkey '^W' backward-kill-word
 bindkey '^Y' yank
 
-# Word navigation
 bindkey '^[[1;5C' forward-word        # Ctrl+Right arrow
 bindkey '^[[1;5D' backward-word       # Ctrl+Left arrow
 bindkey '^[f' forward-word            # Alt+f
 bindkey '^[b' backward-word           # Alt+b
 
-# Delete operations
 bindkey '^H' backward-delete-char
 bindkey '^?' backward-delete-char
 bindkey '^[[3~' delete-char
 bindkey '^[d' delete-word
 bindkey '^[^?' backward-kill-word
 
-# Command line editing
 bindkey '^X^E' edit-command-line
 
-# Undo/Redo
 bindkey '^_' undo
 bindkey '^[_' redo
 
@@ -88,7 +84,6 @@ bindkey '^L' clear-screen
 
 # === CUSTOM WIDGETS ===
 
-# Widget to insert sudo at beginning of line
 sudo-command-line() {
     [[ -z $BUFFER ]] && zle up-history
     if [[ $BUFFER == sudo\ * ]]; then
@@ -100,7 +95,6 @@ sudo-command-line() {
 zle -N sudo-command-line
 bindkey '^[s' sudo-command-line
 
-# Widget to quickly cd to git root
 cd-git-root() {
     if ! command -v git &>/dev/null; then
         echo "git not installed"
@@ -124,7 +118,6 @@ cd-git-root() {
 zle -N cd-git-root
 bindkey '^[r' cd-git-root
 
-# Widget to open file manager
 open-file-manager() {
     if command -v xdg-open >/dev/null; then
         xdg-open . &>/dev/null &
@@ -138,7 +131,6 @@ open-file-manager() {
 zle -N open-file-manager
 bindkey '^[o' open-file-manager
 
-# Widget to copy command to clipboard
 copy-command() {
     if [[ -z $BUFFER ]]; then
         echo "Buffer is empty"
@@ -165,7 +157,6 @@ copy-command() {
 zle -N copy-command
 bindkey '^[c' copy-command
 
-# Widget to switch to the previous directory on the dir stack.
 # Bound under ^X, not Alt-. — that's the default emacs binding for
 # insert-last-word (insert the previous command's last argument), a much
 # more commonly used binding than this one.

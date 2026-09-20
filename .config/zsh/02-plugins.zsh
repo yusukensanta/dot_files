@@ -25,7 +25,6 @@ for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
 done
 
 # === SHELDON PLUGIN MANAGER ===
-# Lazy load external tools for performance
 if command -v sheldon &> /dev/null; then
     eval "$(sheldon source)"
 fi

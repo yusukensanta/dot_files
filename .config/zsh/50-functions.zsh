@@ -7,7 +7,6 @@
 # a category label (see README.md's table), not a constraint.
 
 # === PERFORMANCE UTILITIES ===
-# Zsh performance monitoring
 zsh-benchmark() {
     echo "Testing ZSH startup time (5 runs):"
     for i in {1..5}; do
