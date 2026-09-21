@@ -1,7 +1,7 @@
 -- Copilot integration
 -- Uses zbirenbaum/copilot.lua (pure Lua) instead of github/copilot.vim (VimScript).
--- Inline suggestions are surfaced via blink.cmp (blink-copilot source in cmp.lua)
--- rather than as a separate overlay, giving a unified completion UX.
+-- Inline suggestions are surfaced via blink.cmp (blink-copilot source in
+-- completion.lua) rather than as a separate overlay, giving a unified UX.
 return {
   {
     "zbirenbaum/copilot.lua",

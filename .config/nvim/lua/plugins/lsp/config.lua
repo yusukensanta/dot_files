@@ -1,9 +1,5 @@
--- LSP Configuration Module
--- Handles common LSP setup, keymaps, and server initialization
-
 local M = {}
 
--- Helper function to setup LSP servers using modern Neovim 0.11+ API
 local function lsp_setup(server, opts)
   if opts and not vim.tbl_isempty(opts) then
     vim.lsp.config(server, opts)
@@ -11,19 +7,11 @@ local function lsp_setup(server, opts)
   vim.lsp.enable(server)
 end
 
--- Setup common LSP keymaps on attach.
---
--- Format-on-save is NOT set up here. It used to be a per-buffer BufWritePre
--- autocmd in this file, gated by its own exclude_filetypes list — but that
--- list and conform.lua's disable_filetypes/biome_filetypes lists were two
--- independently-maintained skip-lists that didn't cover the same set, and
--- any filetype in neither (c/cpp via clangd, concretely) got formatted
--- twice on every save: once here, once by conform's own format_on_save
--- fallback. conform.nvim (event = "BufWritePre", lsp_format = "fallback"
--- for anything without its own formatter) is the single format-on-save
--- owner now for everything except go/python (go.lua/python.lua run their
--- own organize-imports-then-format flow) and the js/ts/json family
--- (format.lua's biome integration) — both already excluded in
+-- Format-on-save is deliberately NOT set up here: a skip-list kept alongside
+-- conform.lua's didn't cover the same filetypes, so any filetype in neither
+-- (e.g. c/cpp) was formatted twice. conform.nvim is the single owner, except
+-- go/python (go.lua/python.lua run organize-imports-then-format) and js/ts/json
+-- (config/autocmds.lua's biome integration) — both already excluded in
 -- conform.lua's disable_filetypes/biome_filetypes.
 function M.setup_lsp_attach()
   vim.api.nvim_create_autocmd("LspAttach", {
@@ -45,7 +33,6 @@ function M.setup_lsp_attach()
       map("n", "gd", vim.lsp.buf.definition, "Go to Definition")
       map("n", "gD", vim.lsp.buf.declaration, "Go to Declaration")
 
-      -- Information display
       map("n", "L", vim.lsp.buf.signature_help, "Show Signature Help")
       map("i", "<M-l>", vim.lsp.buf.signature_help, "Show Signature Help (Insert)")
 
@@ -53,7 +40,6 @@ function M.setup_lsp_attach()
       map({ "n", "v" }, "<space>ca", vim.lsp.buf.code_action, "Code Action")
       map("n", "<leader>rn", vim.lsp.buf.rename, "Rename Symbol")
 
-      -- Workspace management
       map("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")
       map("n", "<leader>wr", vim.lsp.buf.remove_workspace_folder, "Remove Workspace Folder")
       map("n", "<leader>wl", function()
@@ -70,7 +56,6 @@ function M.setup_lsp_attach()
       -- Diagnostics (supplements built-in [d/]d)
       map("n", "<leader>q", vim.diagnostic.setloclist, "Open Diagnostic List")
 
-      -- Enhanced diagnostic display
       map("n", "<leader>dd", function()
         vim.diagnostic.enable(not vim.diagnostic.is_enabled())
       end, "Toggle Diagnostics")
@@ -78,32 +63,25 @@ function M.setup_lsp_attach()
   })
 end
 
--- Load and setup all LSP servers
 function M.setup_servers()
-  -- Load server configurations
   local python = require("plugins.lsp.servers.python")
   local go = require("plugins.lsp.servers.go")
   local clangd = require("plugins.lsp.servers.clangd")
   local lua = require("plugins.lsp.servers.lua")
   local typescript = require("plugins.lsp.servers.typescript")
 
-  -- Setup Python servers (basedpyright + ruff)
   lsp_setup("basedpyright", python.basedpyright)
   lsp_setup("ruff", python.ruff)
-  python.setup_autocmds() -- Setup Python-specific formatting
+  python.setup_autocmds()
 
-  -- Setup Go servers (gopls + golangci-lint-langserver)
   lsp_setup("gopls", go.gopls)
   lsp_setup("golangci_lint_ls", go.golangci_lint_ls)
-  go.setup_autocmds() -- Setup Go-specific formatting
+  go.setup_autocmds()
 
-  -- Setup C/C++ server (clangd)
   lsp_setup("clangd", clangd.clangd)
 
-  -- Setup Lua server (lua_ls)
   lsp_setup("lua_ls", lua.lua_ls)
 
-  -- Setup TypeScript/JavaScript server (ts_ls)
   lsp_setup("ts_ls", typescript.ts_ls)
 end
 

@@ -9,7 +9,6 @@ vim.api.nvim_create_autocmd("User", {
   end,
 })
 
--- Auto refresh gitsigns when git state changes
 local refresh_timer = nil
 vim.api.nvim_create_autocmd({ "BufWritePost", "BufEnter", "FocusGained", "ShellCmdPost" }, {
   group = git_augroup,
@@ -45,7 +44,6 @@ return {
     },
     config = function()
       require("neogit").setup({
-        -- Modern enhancements
         graph_style = "unicode", -- "ascii", "unicode"
         integrations = {
           telescope = false,
@@ -67,7 +65,6 @@ return {
     "lewis6991/gitsigns.nvim",
     event = { "BufReadPre", "BufNewFile" },
     opts = {
-      -- Enhanced diff algorithm
       diff_opts = {
         algorithm = "patience",
         internal = true,
@@ -161,7 +158,7 @@ return {
         },
         default_commands = true,
         disable_diagnostics = false,
-        list_opener = "copen", -- Use quickfix list
+        list_opener = "copen",
         highlights = {
           incoming = "DiffAdd",
           current = "DiffText",
@@ -179,7 +176,6 @@ return {
       { "[x",          "<Plug>(git-conflict-prev-conflict)", desc = "Git Conflict - Prev conflict" },
     },
   },
-  -- 6. GITLINKER - Generate git permalinks
   {
     "linrongbin16/gitlinker.nvim",
     cmd = "GitLink",

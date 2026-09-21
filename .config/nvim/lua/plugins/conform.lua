@@ -1,16 +1,16 @@
 -- conform.nvim - Unified formatting interface
 -- The single format-on-save owner for everything except go/python
 -- (go.lua/python.lua run their own organize-imports-then-format flow) and
--- the js/ts/json family (format.lua's biome integration, both excluded
--- below). See the comment on setup_lsp_attach in lsp/config.lua for why
--- there's no second, generic LSP-attach format-on-save path anymore.
+-- the js/ts/json family (config/autocmds.lua's biome integration, both
+-- excluded below). See the comment on setup_lsp_attach in lsp/config.lua
+-- for why there's no second, generic LSP-attach format-on-save path.
 return {
   {
     -- Installs the formatters conform.lua references below (stylua,
     -- shfmt, prettier, taplo) via Mason, the same way mason-nvim-dap.nvim
     -- (dap.lua) auto-installs DAP adapters and mason-lspconfig
-    -- auto-installs LSP servers (lsp.lua) — without this, a fresh machine
-    -- has conform.lua pointing at formatters nothing ever installed.
+    -- auto-installs LSP servers (lsp/init.lua) — without this, a fresh
+    -- machine has conform.lua pointing at formatters nothing installed.
     "WhoIsSethDaniel/mason-tool-installer.nvim",
     dependencies = { "mason-org/mason.nvim" },
     opts = {
@@ -24,14 +24,12 @@ return {
     opts = {
       notify_on_error = true,
       formatters_by_ft = {
-        -- Python: Use ruff for formatting
-        -- Note: python.lua already configures ruff LSP formatting
-        -- This serves as explicit fallback
+        -- python.lua already runs ruff via LSP on save; this is only the
+        -- manual-format (<leader>cf) / non-LSP-fallback path for it.
         python = { "ruff_format" },
 
-        -- JavaScript/TypeScript/React/JSON: Use biome ONLY
-        -- Note: format.lua already has biome on save
-        -- This provides conform interface for manual formatting
+        -- config/autocmds.lua already runs biome via BufWritePre; this is
+        -- only the manual-format (<leader>cf) path for these filetypes.
         javascript = { "biome" },
         typescript = { "biome" },
         javascriptreact = { "biome" },
@@ -39,11 +37,8 @@ return {
         json = { "biome" },
         jsonc = { "biome" },
 
-        -- Rust: Use rustfmt (via rust-analyzer LSP preferred)
-        -- This is fallback if LSP formatting is not available
-        rust = { "rustfmt" },
+        rust = { "rustfmt" }, -- rust-analyzer's own LSP formatting is preferred when attached
 
-        -- Additional languages with standard formatters
         lua = { "stylua" },
         sh = { "shfmt" },
         bash = { "shfmt" },
@@ -65,23 +60,20 @@ return {
           return nil
         end
 
-        -- js/ts/json family: format.lua already formats these via biome
-        -- (a dedicated vim.system + stdin/stdout integration, not conform's
-        -- generic formatter interface — kept that way for its config-path
-        -- handling).
+        -- config/autocmds.lua already formats these via biome (a dedicated
+        -- vim.system + stdin/stdout integration, not conform's generic
+        -- formatter interface — kept that way for its config-path handling).
         local biome_filetypes = { "javascript", "typescript", "javascriptreact", "typescriptreact", "json", "jsonc" }
         if vim.tbl_contains(biome_filetypes, vim.bo[bufnr].filetype) then
           return nil
         end
 
-        -- Format other filetypes on save
         return {
           timeout_ms = 500,
           lsp_format = "fallback",
         }
       end,
 
-      -- Formatter configurations
       formatters = {
         shfmt = {
           -- -i 4   : 4-space indentation (0 = tabs)
@@ -90,7 +82,7 @@ return {
           -- -sr    : redirect operators at end of line (default), or use -s for short functions
           prepend_args = { "-i", "4", "-ci", "-bn" },
         },
-        -- Resolution shared with config/format.lua's biome BufWritePre
+        -- Resolution shared with config/autocmds.lua's biome BufWritePre
         -- pipeline via helpers/biome.lua (also documents the missing-guard
         -- tradeoff of running a project-local binary unprompted).
         biome = {
@@ -115,7 +107,6 @@ return {
       },
     },
 
-    -- Keymaps for manual formatting
     keys = {
       {
         "<leader>cf",

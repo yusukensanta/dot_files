@@ -1,7 +1,3 @@
--- Go LSP Configuration (gopls + golangci-lint-langserver)
--- gopls: Core LSP features (completion, navigation, refactoring)
--- golangci-lint-langserver: Comprehensive linting via golangci-lint
-
 local M = {}
 
 M.gopls = {
@@ -12,8 +8,7 @@ M.gopls = {
         shadow = true,
         fieldalignment = true,
       },
-      -- Disable staticcheck in gopls since golangci-lint handles it
-      -- This avoids duplicate diagnostics
+      -- golangci-lint already runs staticcheck; enabling both duplicates diagnostics
       staticcheck = false,
       gofumpt = true,
       usePlaceholders = true,
@@ -34,8 +29,6 @@ M.gopls = {
   }
 }
 
--- golangci-lint-langserver configuration
--- Provides diagnostics from golangci-lint (includes staticcheck + many more)
 M.golangci_lint_ls = {
   cmd = { "golangci-lint-langserver" },
   filetypes = { "go", "gomod" },
@@ -50,8 +43,6 @@ M.golangci_lint_ls = {
   },
 }
 
--- Go-specific formatting autocmd
--- Handles organize imports + formatting on save
 M.setup_autocmds = function()
   local lsp_helpers = require("helpers.lsp")
   vim.api.nvim_create_autocmd("BufWritePre", {

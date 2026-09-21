@@ -1,8 +1,7 @@
--- Autocompletion — blink.cmp (not nvim-cmp; despite the ecosystem-standard
--- "cmp" abbreviation, this file was previously named cmp.lua which pointed
--- at the wrong plugin family. Renamed to completion.lua; nvim-autopairs,
--- nvim-surround, and nvim-ts-autotag — unrelated to completion — moved out
--- to editing.lua.)
+-- Autocompletion — blink.cmp, not nvim-cmp: named completion.lua rather
+-- than the ecosystem-standard "cmp.lua" so it doesn't imply the wrong
+-- plugin family. nvim-autopairs, nvim-surround, and nvim-ts-autotag —
+-- unrelated to completion — live in editing.lua instead.
 return {
   {
     "saghen/blink.cmp",

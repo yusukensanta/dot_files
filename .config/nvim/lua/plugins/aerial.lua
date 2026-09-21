@@ -16,12 +16,9 @@ return {
         min_width = 30,
       },
       attach_mode = "window",
-      -- Don't re-trigger diagnostics on symbol update (performance)
-      lsp = { diagnostics_trigger_update = false },
-      -- Show a preview of the symbol when navigating
+      lsp = { diagnostics_trigger_update = false }, -- Avoid a diagnostics re-trigger per symbol update
       highlight_on_hover = true,
-      -- Update the statusline with the current symbol (requires lualine config)
-      show_guides = true,
+      show_guides = true, -- Statusline symbol display needs lualine's own aerial component configured too
     },
     keys = {
       { "<leader>ao", "<cmd>AerialToggle!<CR>",   desc = "Aerial: toggle outline" },

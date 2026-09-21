@@ -1,5 +1,5 @@
 -- Shared biome binary resolution: project-local > global > pinned npx
--- fallback. Used by both config/format.lua (BufWritePre pipeline) and
+-- fallback. Used by both config/autocmds.lua (BufWritePre pipeline) and
 -- plugins/conform.lua (biome formatter definition) so the two can't drift
 -- out of sync with each other.
 --

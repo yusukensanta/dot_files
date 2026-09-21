@@ -1,8 +1,7 @@
 -- Global keymaps not owned by a specific plugin (each plugin file registers
 -- its own bindings via keys=/map() instead — see doc/KEYMAP.md for the full
--- picture). Split out of options.lua, which used to mix vim.opt settings,
--- these bindings, and unrelated autocmds in one file despite its name.
--- Loaded after config.options in init.lua.
+-- picture). Must load after config.lazy (init.lua), which sets mapleader —
+-- the <leader>-prefixed maps below need that already set.
 
 local map = require("helpers.keys").map
 

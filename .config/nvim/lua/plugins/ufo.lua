@@ -12,7 +12,6 @@ return {
       provider_selector = function(bufnr, filetype, buftype)
         return { "lsp", "indent" }
       end,
-      -- Show a summary of hidden lines when a fold is closed
       fold_virt_text_handler = function(virtText, lnum, endLnum, width, truncate)
         local newVirtText = {}
         local suffix = (" 󰁂 %d lines"):format(endLnum - lnum)

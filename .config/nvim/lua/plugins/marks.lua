@@ -13,9 +13,7 @@ return {
     event = "VeryLazy",
     opts = {
       default_mappings = true,
-      -- Show marks in the sign column
       signs = true,
-      -- Exclude line/column marks from display (keep it clean)
       excluded_filetypes = { "NvimTree", "aerial", "Trouble", "oil" },
     },
   },

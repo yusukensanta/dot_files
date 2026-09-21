@@ -1,10 +1,5 @@
--- Python LSP Configuration (basedpyright + ruff)
--- basedpyright: Type checking, completion, and hover
--- ruff: Linting and formatting
-
 local M = {}
 
--- Basedpyright configuration
 M.basedpyright = {
   settings = {
     basedpyright = {
@@ -15,7 +10,6 @@ M.basedpyright = {
         -- Options: "off", "basic", "standard", "strict", "all"
         typeCheckingMode = "basic",
         diagnosticMode = "openFilesOnly",
-        -- Enable auto import suggestions in completions
         autoImportCompletions = true,
         diagnosticSeverityOverrides = {
           -- Suppress noisy diagnostics that ruff handles better
@@ -29,12 +23,9 @@ M.basedpyright = {
     -- Disable formatting (handled by ruff)
     client.server_capabilities.documentFormattingProvider = false
     client.server_capabilities.documentRangeFormattingProvider = false
-    -- Keep hover enabled for type information
-    -- Keep diagnostics enabled for type checking
   end
 }
 
--- Ruff configuration
 M.ruff = {
   init_options = {
     settings = {
@@ -59,8 +50,6 @@ M.ruff = {
   end
 }
 
--- Python-specific formatting autocmd
--- Handles organize imports + formatting on save
 M.setup_autocmds = function()
   local lsp_helpers = require("helpers.lsp")
   vim.api.nvim_create_autocmd("BufWritePre", {

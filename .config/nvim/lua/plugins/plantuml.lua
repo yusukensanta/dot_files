@@ -11,7 +11,6 @@ return {
     },
     ft = { "plantuml" },
     init = function()
-      -- Force local JAR rendering. Check common install locations.
       local jar_candidates = {
         vim.fn.expand("~/.local/share/plantuml/plantuml.jar"),
         "/usr/share/plantuml/plantuml.jar",

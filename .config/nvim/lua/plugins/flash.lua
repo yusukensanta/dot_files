@@ -3,8 +3,8 @@
 -- S → treesitter-aware jump (selects whole nodes).
 -- Enhances f/F/t/T to show jump labels for multi-occurrence characters.
 -- s is unused elsewhere. S collided with nvim-surround's default visual-mode
--- surround key (also "S") — nvim-surround's is remapped to "gs" (see cmp.lua)
--- so both keep working.
+-- surround key (also "S") — nvim-surround's is remapped to "gs" (see
+-- editing.lua) so both keep working.
 return {
   {
     "folke/flash.nvim",
@@ -19,18 +19,14 @@ return {
         -- char mode disabled: it hooks ; and , (repeat f/F/t/T), causing unexpected
         -- dimming of non-target characters after a character motion
         char = { enabled = false },
-        -- fzf-lua search highlighting integration
         search = { enabled = true },
       },
     },
     keys = {
-      -- s: jump to any visible position by typing chars
       { "s", mode = { "n", "x", "o" }, function() require("flash").jump() end,              desc = "Flash: jump" },
-      -- S: select treesitter node — x/o only (not n, which would leave an unexpected visual selection)
+      -- x/o only, not n: in normal mode this would leave an unexpected visual selection
       { "S", mode = { "x", "o" }, function() require("flash").treesitter() end, desc = "Flash: treesitter select" },
-      -- r (operator-pending): apply operator to a remote flash target (e.g. yr<char> to yank remote)
       { "r", mode = "o",               function() require("flash").remote() end,             desc = "Flash: remote" },
-      -- R (operator-pending/visual): treesitter search across the file
       { "R", mode = { "o", "x" },      function() require("flash").treesitter_search() end, desc = "Flash: treesitter search" },
     },
   },

@@ -13,16 +13,13 @@ return {
       local dap = require("dap")
       local dapui = require("dapui")
 
-      -- Auto-install DAP adapters via Mason
       require("mason-nvim-dap").setup({
         ensure_installed = { "debugpy", "delve", "codelldb" },
         automatic_installation = true,
       })
 
-      -- Setup DAP UI
       dapui.setup()
 
-      -- Setup virtual text
       require("nvim-dap-virtual-text").setup({
         enabled = true,
         enabled_commands = true,
@@ -43,13 +40,9 @@ return {
         virt_text_pos = 'inline',
       })
 
-      -- Python DAP (uses Mason-managed debugpy)
       require("dap-python").setup(vim.fn.stdpath("data") .. "/mason/packages/debugpy/venv/bin/python")
-
-      -- Go DAP (uses Mason-managed delve)
       require("dap-go").setup()
 
-      -- Auto open/close DAP UI
       dap.listeners.after.event_initialized["dapui_config"] = function()
         dapui.open()
       end
@@ -60,7 +53,6 @@ return {
         dapui.close()
       end
 
-      -- Keymappings
       local map = require("helpers.keys").map
       map("n", "<leader>db", dap.toggle_breakpoint, "DAP - Toggle Breakpoint")
       map("n", "<leader>dc", dap.continue, "DAP - Continue")

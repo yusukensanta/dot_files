@@ -1,14 +1,7 @@
--- LSP Plugin Configuration Entry Point (mason.nvim + mason-lspconfig.nvim specs)
--- Modern Neovim 0.11+ LSP setup using vim.lsp.config() and vim.lsp.enable()
--- Sibling config.lua (attach keymaps + setup_servers) and servers/*.lua
--- (per-language settings) live alongside this file; this used to be a
--- standalone plugins/lsp.lua next to the plugins/lsp/ directory, which read
--- as if "the LSP plugin spec" and "the LSP config folder" were unrelated —
--- moved in here as init.lua so it's one coherent lsp/ module. lazy.nvim's
--- directory scan (lazy/core/util.lua M.lsmod) only looks one level deep and
--- only for init.lua/*.lua at that level, so config.lua and servers/ were
--- never auto-scanned as plugin specs before this move and still aren't now
--- — they're loaded via the explicit require() calls below, same as always.
+-- mason.nvim + mason-lspconfig.nvim specs; servers run via vim.lsp.config()/enable() (0.11+).
+-- lazy.nvim's directory scan (lazy/core/util.lua M.lsmod) only reads init.lua/*.lua
+-- one level deep, so sibling config.lua and servers/ are never treated as plugin
+-- specs — they're loaded by the explicit require() calls below.
 
 return {
   {
@@ -47,7 +40,6 @@ return {
       "neovim/nvim-lspconfig",
     },
     config = function()
-      -- Ensure LSP servers are installed via Mason
       require("mason-lspconfig").setup({
         ensure_installed = {
           "lua_ls",                   -- Lua LSP
@@ -61,12 +53,10 @@ return {
         }
       })
 
-      -- Setup common LSP features (keymaps, formatting, etc.)
       local lsp_config = require("plugins.lsp.config")
       lsp_config.setup_lsp_attach()
 
-      -- Initialize all LSP servers
-      -- Wrapped in vim.schedule to ensure proper initialization order
+      -- vim.schedule to ensure proper initialization order
       vim.schedule(function()
         lsp_config.setup_servers()
       end)

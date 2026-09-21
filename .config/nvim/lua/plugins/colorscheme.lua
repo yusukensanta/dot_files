@@ -5,7 +5,7 @@ return {
     priority = 1000,
     config = function()
       require("tokyonight").setup({
-        style = "moon", -- Your current choice
+        style = "moon",
         transparent = false,
         terminal_colors = true,
         styles = {
@@ -14,7 +14,6 @@ return {
           functions = {},
           variables = {},
         },
-        -- Add these modern features:
         cache = true,
         compile_path = vim.fn.stdpath("cache") .. "/tokyonight",
       })

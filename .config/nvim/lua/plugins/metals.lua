@@ -12,7 +12,6 @@ return {
       local metals_config = require("metals").bare_config()
 
       metals_config.on_attach = function(client, bufnr)
-        -- Wire up Metals DAP adapter
         require("metals").setup_dap()
 
         buffer_map("n", "<leader>mc", function()
@@ -40,7 +39,6 @@ return {
     config = function(plugin, metals_config)
       local dap = require("dap")
 
-      -- Scala DAP launch configurations
       dap.configurations.scala = {
         {
           type = "scala",

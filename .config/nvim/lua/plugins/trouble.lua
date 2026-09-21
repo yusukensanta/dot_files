@@ -2,7 +2,6 @@
 -- Instead of raw quickfix for gr / gd results, opens a navigable panel with
 -- icons, grouping by file, and jump-to-line. Essential for tracing call graphs
 -- and reference chains across large codebases.
--- All <leader>x* keys are free in your config (verified).
 return {
   {
     "folke/trouble.nvim",
@@ -10,7 +9,6 @@ return {
     cmd = "Trouble",
     opts = {
       modes = {
-        -- Show workspace diagnostics with error count in the title
         diagnostics = {
           auto_close = false,
           auto_preview = true,

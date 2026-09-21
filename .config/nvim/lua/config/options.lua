@@ -10,19 +10,19 @@ local options = {
 
   -- Visual appearance
   background = "dark", -- Set background theme
-  cmdheight = 1,       -- Reduced from 2 for more space (modern trend)
+  cmdheight = 1,       -- More room for messages
   conceallevel = 0,    -- Don't hide characters (markdown, etc.)
   cursorcolumn = true, -- Highlight current column
   cursorline = true,   -- Highlight current line
   list = true,         -- Show invisible characters
   listchars = {
     eol = '⤶',
-    space = '·', -- Changed to less intrusive dot
-    tab = '→ ', -- Added tab visualization
+    space = '·',
+    tab = '→ ',
     trail = '✚',
     extends = '◀',
     precedes = '▶',
-    nbsp = '␣' -- Added non-breaking space visualization
+    nbsp = '␣'
   },
   number = true, -- Show line numbers
   numberwidth = 4, -- Width of line number column
@@ -38,33 +38,33 @@ local options = {
   termguicolors = true, -- Enable 24-bit colors
   title = true, -- Set terminal title
   winblend = 0, -- Window transparency
-  wrap = false, -- Changed to false for code (modern preference)
+  wrap = false, -- No wrapping for code
 
   -- Search and completion
   completeopt = { "menu", "menuone", "noselect" }, -- Enhanced completion
   hlsearch = true,                                            -- Highlight search results
   ignorecase = true,                                          -- Case insensitive search
-  incsearch = true,                                           -- Show search matches as you type (NEW)
+  incsearch = true,                                           -- Show search matches as you type
   smartcase = true,                                           -- Smart case sensitivity
-  wildmenu = true,                                            -- Enhanced command line completion (NEW)
-  wildmode = "longest:full,full",                             -- Command completion behavior (NEW)
+  wildmenu = true,                                            -- Enhanced command line completion
+  wildmode = "longest:full,full",                             -- Command completion behavior
   wildoptions = "pum",                                        -- Use popup for wildmenu
 
   -- Indentation and formatting
-  autoindent = true,  -- Copy indent from current line (NEW)
+  autoindent = true,  -- Copy indent from current line
   expandtab = true,   -- Use spaces instead of tabs
-  shiftround = true,  -- Round indent to multiple of shiftwidth (NEW)
+  shiftround = true,  -- Round indent to multiple of shiftwidth
   shiftwidth = 2,     -- Number of spaces for indentation
   smartindent = true, -- Smart auto indenting
   tabstop = 2,        -- Number of spaces for tab
 
   -- Performance and behavior
   mouse = "a",        -- Enable mouse support
-  splitbelow = true,  -- Open horizontal splits below (NEW)
-  splitright = true,  -- Open vertical splits to the right (NEW)
+  splitbelow = true,  -- Open horizontal splits below
+  splitright = true,  -- Open vertical splits to the right
   timeoutlen = 300,   -- Time to wait for mapped sequence
 
-  updatetime = 250,   -- Reduced from 300 for faster response
+  updatetime = 250,   -- Faster CursorHold/diagnostics response than the 4000ms default
 
   -- Encoding and shell
   fileencoding = "utf-8", -- File encoding
@@ -74,7 +74,7 @@ local options = {
   clipboard = "unnamedplus", -- Use system clipboard
 
 
-  -- New modern options for better coding experience
+  -- Misc
   breakindent = true,  -- Wrapped lines maintain indent level
   --colorcolumn = "120",                    -- Show ruler at 80 and 120 characters
   confirm = true,      -- Confirm before closing unsaved files
@@ -87,7 +87,7 @@ local options = {
   grepformat = "%f:%l:%c:%m", -- Format for grep output
   grepprg = "rg --vimgrep", -- Use ripgrep for better search
   inccommand = "nosplit", -- Show live preview of substitutions
-  laststatus = 3, -- Global statusline (modern feature)
+  laststatus = 3, -- Global statusline
   linebreak = true, -- Wrap at word boundaries
   showbreak = "↪ ", -- Character to show at wrapped lines
   spelllang = { "en" }, -- Spell checking language

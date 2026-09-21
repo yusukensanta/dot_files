@@ -1,6 +1,5 @@
--- which-key.nvim group labels. Renamed from keymaps.lua, which held zero
--- actual keymap definitions — those live in config/keymaps.lua and each
--- plugin's own file (see doc/KEYMAP.md for the full picture).
+-- which-key.nvim group labels only — actual keymap definitions live in
+-- config/keymaps.lua and each plugin's own file (see doc/KEYMAP.md).
 return {
   {
     "folke/which-key.nvim",

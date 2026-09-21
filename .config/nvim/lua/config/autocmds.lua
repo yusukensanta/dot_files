@@ -1,9 +1,7 @@
--- General autocmds: per-filetype indent settings, biome format-on-save, and
--- general coding-experience/file-handling behavior (trailing whitespace,
--- yank highlight, auto-mkdir on save, cursor restore, autoread). Renamed
--- from format.lua, whose name fit only the BiomeFormat group below — not
--- LanguageOptions, CodingExperience, or AutoRead (moved here from
--- options.lua, which had the same mismatch: "options" holding autocmds).
+-- General autocmds, grouped by concern: per-filetype indent settings
+-- (LanguageOptions), biome format-on-save (BiomeFormat), trailing
+-- whitespace/yank-highlight/auto-mkdir/cursor-restore (CodingExperience),
+-- and autoread (AutoRead).
 local language_group = vim.api.nvim_create_augroup("LanguageOptions", { clear = true })
 
 -- Resolve biome binary: project-local > global > pinned npx fallback.
@@ -18,7 +16,6 @@ local function resolve_biome_cmd()
   return cmd
 end
 
--- Biome Formatting for TypeScript/JavaScript/JSON
 local biome_group = vim.api.nvim_create_augroup("BiomeFormat", { clear = true })
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = biome_group,
@@ -155,7 +152,6 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   group = coding_group,
   pattern = "*",
   callback = function()
-    -- Skip if buffer is not modifiable
     if not vim.bo.modifiable then
       return
     end
@@ -170,7 +166,6 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   end
 })
 
--- Highlight yanked text
 vim.api.nvim_create_autocmd("TextYankPost", {
   group = coding_group,
   pattern = "*",
@@ -179,19 +174,17 @@ vim.api.nvim_create_autocmd("TextYankPost", {
   end,
 })
 
--- Auto-create directories when saving files
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = coding_group,
   pattern = "*",
   callback = function()
     local bufname = vim.fn.expand('<afile>')
 
-    -- Skip special buffers with URL schemes (oil://, http://, etc.)
+    -- URL-scheme buffers (oil://, http://, ...) and non-file buftypes
+    -- (terminal, quickfix, help, ...) have no real parent dir to create.
     if bufname:match("^%w+://") then
       return
     end
-
-    -- Skip non-file buffers (terminal, quickfix, help, etc.)
     if vim.bo.buftype ~= "" then
       return
     end
@@ -200,7 +193,6 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   end,
 })
 
--- Jump to last position when opening files
 vim.api.nvim_create_autocmd("BufReadPost", {
   group = coding_group,
   pattern = "*",
@@ -211,11 +203,8 @@ vim.api.nvim_create_autocmd("BufReadPost", {
   end,
 })
 
--- Auto-reload files when changed externally (makes autoread work properly).
--- Moved here from options.lua (this is an autocmd group, not an option).
 local autoread_group = vim.api.nvim_create_augroup("AutoRead", { clear = true })
 
--- Trigger checktime when window focus changes or buffer is entered
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
   group = autoread_group,
   pattern = "*",
@@ -227,7 +216,6 @@ vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
   desc = "Check if file needs to be reloaded from disk"
 })
 
--- Notification when file is auto-reloaded
 vim.api.nvim_create_autocmd("FileChangedShellPost", {
   group = autoread_group,
   pattern = "*",

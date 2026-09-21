@@ -1,6 +1,5 @@
 -- Text-editing helpers: auto-pairs, surround, and tag auto-close/rename.
--- Split out of the old cmp.lua (which was really just blink.cmp's config
--- plus these three unrelated plugins bundled in) — see completion.lua.
+-- blink.cmp itself lives in completion.lua — unrelated to these.
 return {
   {
     "windwp/nvim-autopairs",
