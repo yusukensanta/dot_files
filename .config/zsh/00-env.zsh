@@ -43,3 +43,26 @@ export PATH="$PNPM_HOME:$PATH"  # typeset -U PATH above dedupes automatically
 
 # === SECURITY SETTINGS ===
 umask 022
+
+# === CACHED SUBPROCESS INIT SCRIPTS ===
+# sheldon/starship/fzf's `init`/`source` subcommands regenerate an
+# identical script every single shell start (same plugins.lock, same
+# binary -> same output) purely to fork+exec that binary. Cache the
+# output and only pay the fork again when the thing that determines the
+# output actually changed. Shared here (not in 02-plugins.zsh/40-tools.zsh,
+# which use it) since 00-env.zsh is guaranteed to load first.
+_dotfiles_cached_source() {
+    local cache=$1 gate=$2
+    shift 2
+    if [[ ! -s "$cache" || "$gate" -nt "$cache" ]]; then
+        mkdir -p "${cache:h}"
+        local tmp="${cache}.tmp.$$"
+        if "$@" >| "$tmp"; then
+            mv -f "$tmp" "$cache"
+        else
+            rm -f "$tmp"
+            return 1
+        fi
+    fi
+    source "$cache"
+}

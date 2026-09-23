@@ -42,8 +42,16 @@ fi
 # Not deferred like mise above: this eval sets $PROMPT/$RPROMPT directly,
 # so deferring it would show no prompt (or briefly the fallback below) for
 # a moment after shell start.
+#
+# `starship init zsh` only ever depends on the starship binary itself (not
+# on starship.toml, read later at prompt-draw time), so its output is
+# cached the same way sheldon's is (see _dotfiles_cached_source, 00-env.zsh)
+# and only regenerated when the binary itself changes.
 if command -v starship &> /dev/null; then
-    eval "$(starship init zsh)"
+    _dotfiles_cached_source \
+        "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/starship-init.zsh" \
+        "${commands[starship]}" \
+        starship init zsh
 fi
 
 # === PROMPT FALLBACK ===
@@ -70,9 +78,15 @@ fi
 # fzf-cd-widget, fzf-history-widget, ^T/Alt-C/^R, and ** fuzzy-completion,
 # using FZF_DEFAULT_COMMAND above as its fallback. Captures whatever ^I
 # currently is (fzf-tab's binding, per the note above) as its own
-# non-fuzzy fallback.
+# non-fuzzy fallback — still true with caching below since this still
+# sources at the same point in load order, just from a cached copy of
+# `fzf --zsh`'s output (which, like starship's, only changes with the
+# binary itself — see _dotfiles_cached_source, 00-env.zsh).
 if command -v fzf >/dev/null; then
-    source <(fzf --zsh)
+    _dotfiles_cached_source \
+        "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/fzf-init.zsh" \
+        "${commands[fzf]}" \
+        fzf --zsh
     # This config's own aliases for the widgets fzf just defined, kept
     # alongside fzf's defaults (^T, Alt-C, ^R) above.
     bindkey '^[t' fzf-cd-widget

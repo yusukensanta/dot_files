@@ -25,8 +25,16 @@ for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
 done
 
 # === SHELDON PLUGIN MANAGER ===
+# `sheldon source` reads plugins.lock and prints a script; that script is
+# the same until the lock changes, so cache it instead of forking sheldon
+# every shell start (see _dotfiles_cached_source in 00-env.zsh). Sheldon
+# regenerates the lock itself whenever plugins.toml changes, so gating on
+# the lock's mtime also catches toml edits.
 if command -v sheldon &> /dev/null; then
-    eval "$(sheldon source)"
+    _dotfiles_cached_source \
+        "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/sheldon-source.zsh" \
+        "${XDG_DATA_HOME:-$HOME/.local/share}/sheldon/plugins.lock" \
+        sheldon source
 fi
 
 # === AUTOSUGGESTIONS CONFIGURATION ===
