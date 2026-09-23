@@ -42,8 +42,3 @@ private config (secrets, work-only aliases) — not tracked in git.
   so if you add or remove a binding there, update that heredoc too.
 - Run `zsh-doctor` / `zsh-benchmark` (also in `50-functions.zsh`) to check
   startup time.
-
-`REFACTORING.md` / `REFACTORING-COMPLETED.md` exist locally but aren't
-tracked — they document a specific past migration (2025-11) and reference
-filenames that no longer exist, kept as personal history rather than
-maintained reference material.

@@ -32,11 +32,8 @@
 .config/zsh/local.d/*
 !.config/zsh/local.d/.gitkeep
 
-# doc/ holds hand-written, evergreen reference docs (allowlisted below) plus
-# dated analysis/brainstorm write-ups (enhancement-recommendations.md,
-# plugin-ideas-problems.md, plugin-implementations.md) that stay covered by
-# the blanket *.md rule above since they're point-in-time notes, not
-# maintained reference material.
+# Only allowlisted docs are tracked; any other *.md stays ignored so
+# point-in-time notes can't be committed by accident.
 !.config/nvim/doc/KEYMAP.md
 !.config/nvim/doc/README.md
 !.config/nvim/doc/lua-basics.md
@@ -49,10 +46,4 @@
 .config/nvim/lua/local/*
 !.config/nvim/lua/local/.gitkeep
 
-# Same allowlist pattern as doc/ above: ZLE-WIDGETS-REFERENCE.md is a
-# maintained reference doc. REFACTORING.md / REFACTORING-COMPLETED.md
-# describe a past, now-finished migration and still name files that no
-# longer exist (keybindings.zsh, aliases.zsh, options.zsh) — point-in-time
-# notes, not maintained reference material, so they stay covered by the
-# blanket *.md rule above.
 !.config/zsh/ZLE-WIDGETS-REFERENCE.md
