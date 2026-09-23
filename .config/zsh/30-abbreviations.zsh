@@ -1,20 +1,42 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/30-abbreviations.zsh
-# zsh-abbr abbreviations
+# zsh-abbr: load the plugin and sync this file's abbreviation list into it
 #
-# Must follow 02-plugins.zsh (needs the `abbr` command from zsh-abbr) —
-# tested with a fresh $HOME, where there's no persisted abbr store to mask
-# the effect: reversed, `command -v abbr` below fails and this whole block
-# is skipped, silently, for that session. See README.md's table.
+# Must follow 00-env.zsh (reads DOTFILES_BREW_PREFIXES, defined there, to
+# find zsh-abbr.zsh) and should follow 02-plugins.zsh (zsh-defer, also
+# from there, to actually defer the load below — falls back to
+# synchronous, not broken, if it's unavailable). Both tested with a fresh
+# $HOME.
 
 export ABBR_SET_EXPANSION_CURSOR=1
 
-if command -v abbr >/dev/null 2>&1; then
+# Sourcing zsh-abbr itself registers this session's ~28 stored
+# abbreviations into zle one at a time and is the single most expensive
+# thing this shell does at startup (~15ms, more than sheldon+starship+fzf
+# combined) — deferred below so it happens on the first idle tick after
+# the prompt draws instead of before, same tradeoff already made for mise
+# (40-tools.zsh) and the sheldon-deferred plugins (autosuggestions,
+# syntax-highlighting, autopair, history-substring-search): `abbr` isn't
+# callable for a beat, invisible in practice since nothing expands an
+# abbreviation in that window. Folds in the sync-if-changed logic below
+# too, not just the plugin source — splitting them into two separate
+# deferred calls would risk the sync running before the source that
+# defines `abbr` for it to use, depending on zsh-defer's own scheduling.
+_dotfiles_load_abbr() {
+    local brew_prefix
+    for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
+        if [[ -f "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh" ]]; then
+            source "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh"
+            break
+        fi
+    done
+    command -v abbr >/dev/null 2>&1 || return
+
     # zsh-abbr persists whatever `abbr add` writes across sessions, so
-    # re-declaring all of these on every shell start is pure waste once the
-    # persisted file already matches — only re-sync when this list actually
-    # changed, tracked via the checksum marker below.
-    _abbrs=(
+    # re-declaring all of these every shell start is pure waste once the
+    # persisted file already matches — only re-sync when this list
+    # actually changed, tracked via the checksum marker below.
+    local -a _abbrs=(
         # git
         'g=git'
         'ga=git add'
@@ -53,7 +75,7 @@ if command -v abbr >/dev/null 2>&1; then
     )
 
     zmodload -F zsh/stat b:zstat 2>/dev/null
-    _abbr_store="${ABBR_USER_ABBREVIATIONS_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh-abbr/user-abbreviations}"
+    local _abbr_store="${ABBR_USER_ABBREVIATIONS_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh-abbr/user-abbreviations}"
     _abbr_store_state() {
         # zstat only honors a single +element flag per call — passing
         # multiple (+size +mtime together) silently misparses the rest as
@@ -69,13 +91,13 @@ if command -v abbr >/dev/null 2>&1; then
     # marker matching while every abbreviation is silently gone. Comparing
     # the store's own state too means deleting or replacing it (however
     # that happens) forces a re-sync.
-    _abbr_list_checksum=$(print -r -- "${(j:|:)_abbrs}" | cksum)
-    _abbr_marker="${XDG_CACHE_HOME:-$HOME/.cache}/zsh-abbr-synced"
-    _abbr_previous=""
+    local _abbr_list_checksum=$(print -r -- "${(j:|:)_abbrs}" | cksum)
+    local _abbr_marker="${XDG_CACHE_HOME:-$HOME/.cache}/zsh-abbr-synced"
+    local _abbr_previous=""
     [[ -f "$_abbr_marker" ]] && _abbr_previous=$(<$_abbr_marker)
 
     if [[ "$_abbr_previous" != "$_abbr_list_checksum $(_abbr_store_state)" ]]; then
-        _abbr_ok=1
+        local _abbr_ok=1 _abbr
         for _abbr in "${_abbrs[@]}"; do
             abbr add --force "$_abbr" >/dev/null 2>&1 || _abbr_ok=0
         done
@@ -87,8 +109,18 @@ if command -v abbr >/dev/null 2>&1; then
             mkdir -p "${_abbr_marker:h}"
             print -r -- "$_abbr_list_checksum $(_abbr_store_state)" >| "$_abbr_marker"
         fi
-        unset _abbr_ok
     fi
+    # A `local function() {}` defined inside a function is still a global
+    # function in zsh (no lexical scoping for function definitions), so
+    # this needs an explicit unset — unlike the _abbr_* locals above, which
+    # vanish on their own when the function returns.
     unset -f _abbr_store_state
-    unset _abbrs _abbr_store _abbr_list_checksum _abbr_marker _abbr_previous _abbr
+}
+
+if command -v zsh-defer &> /dev/null; then
+    zsh-defer _dotfiles_load_abbr
+else
+    # zsh-defer unavailable (sheldon missing/failed to load) — fall back to
+    # synchronous, same as mise's fallback in 40-tools.zsh.
+    _dotfiles_load_abbr
 fi

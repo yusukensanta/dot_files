@@ -8,21 +8,9 @@
 # fzf-tab tolerates loading before compinit fine (it has its own fallback
 # path for that case) despite older advice to the contrary.
 #
-# Also must precede 30-abbreviations.zsh (needs the `abbr` command from
-# zsh-abbr) and must follow 00-env.zsh (reads DOTFILES_BREW_PREFIXES,
-# defined there). All three constraints tested with a fresh $HOME, not
-# just asserted — see README.md's table for what broke and how.
-
-# === ZSH-ABBR ===
-# Load zsh-abbr if available, from whichever Homebrew prefix 00-env.zsh
-# found (DOTFILES_BREW_PREFIXES) — same list, so this stays in sync with
-# the PATH setup there instead of re-declaring it.
-for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
-    if [[ -f "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh" ]]; then
-        source "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh"
-        break
-    fi
-done
+# Must follow 00-env.zsh (calls _dotfiles_cached_source, defined there).
+# zsh-abbr itself is no longer sourced here: see 30-abbreviations.zsh,
+# which loads it (deferred) together with the sync logic that needs it.
 
 # === SHELDON PLUGIN MANAGER ===
 # `sheldon source` reads plugins.lock and prints a script; that script is
