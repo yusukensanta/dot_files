@@ -17,10 +17,15 @@ elif command -v brew &> /dev/null; then
     # load formula ... from untrusted tap"). Guarded by checking the
     # subcommand exists first: older Homebrew has no such requirement and
     # no `trust` subcommand either, so this is a no-op there instead of
-    # aborting the script under `set -e`.
+    # aborting the script under `set -e`. Trusting the whole tap, not
+    # `--formula olets/tap/zsh-abbr@6` specifically: the versioned CLI
+    # name and the formula Homebrew actually loads internally aren't the
+    # same trust-store key (confirmed by trusting the versioned name and
+    # still hitting the same "untrusted tap" error on install) — trusting
+    # the tap sidesteps that mismatch entirely.
     if brew commands 2>/dev/null | grep -qx trust; then
         brew tap olets/tap &> /dev/null || true
-        brew trust --formula olets/tap/zsh-abbr@6
+        brew trust olets/tap
     fi
     echo "📦 Installing zsh-abbr..."
     brew install olets/tap/zsh-abbr@6
