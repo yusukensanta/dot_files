@@ -12,6 +12,16 @@ echo "🔧 Installing ZSH tools..."
 if command -v brew &> /dev/null && [ -f "$(brew --prefix)/share/zsh-abbr/zsh-abbr.zsh" ]; then
     echo "✅ zsh-abbr already installed"
 elif command -v brew &> /dev/null; then
+    # Homebrew 7+ refuses to load a formula from a non-official tap until
+    # it's explicitly trusted (`brew install` alone errors: "Refusing to
+    # load formula ... from untrusted tap"). Guarded by checking the
+    # subcommand exists first: older Homebrew has no such requirement and
+    # no `trust` subcommand either, so this is a no-op there instead of
+    # aborting the script under `set -e`.
+    if brew commands 2>/dev/null | grep -qx trust; then
+        brew tap olets/tap &> /dev/null || true
+        brew trust --formula olets/tap/zsh-abbr@6
+    fi
     echo "📦 Installing zsh-abbr..."
     brew install olets/tap/zsh-abbr@6
 else
