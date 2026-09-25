@@ -23,12 +23,20 @@ export ABBR_SET_EXPANSION_CURSOR=1
 # deferred calls would risk the sync running before the source that
 # defines `abbr` for it to use, depending on zsh-defer's own scheduling.
 _dotfiles_load_abbr() {
-    local brew_prefix
+    # olets/tap's zsh-abbr@6 formula has installed under two different
+    # layouts depending on when it was tapped: an older unversioned
+    # share/zsh-abbr/zsh-abbr.zsh, and (confirmed on a fresh macOS
+    # Homebrew install) the version-suffixed share/zsh-abbr@6/zsh-abbr.zsh
+    # the formula's own current caveat message documents — check both
+    # rather than assume whichever one happens to be on this machine.
+    local brew_prefix zsh_abbr_candidate
     for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
-        if [[ -f "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh" ]]; then
-            source "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh"
-            break
-        fi
+        for zsh_abbr_candidate in "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh" "$brew_prefix/share/zsh-abbr@6/zsh-abbr.zsh"; do
+            if [[ -f "$zsh_abbr_candidate" ]]; then
+                source "$zsh_abbr_candidate"
+                break 2
+            fi
+        done
     done
     command -v abbr >/dev/null 2>&1 || return
 

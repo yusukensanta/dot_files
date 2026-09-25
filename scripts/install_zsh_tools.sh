@@ -9,7 +9,11 @@ echo "🔧 Installing ZSH tools..."
 # === ZSH-ABBR ===
 # Works out zsh-abbr's install path via `brew --prefix`, so this covers
 # macOS (/opt/homebrew or /usr/local) and Linuxbrew (/home/linuxbrew/.linuxbrew) alike.
-if command -v brew &> /dev/null && [ -f "$(brew --prefix)/share/zsh-abbr/zsh-abbr.zsh" ]; then
+# Checks both share/zsh-abbr/ (older tap layout) and share/zsh-abbr@6/
+# (the version-suffixed layout a fresh tap clone currently installs, per
+# the formula's own caveat message) — see the matching comment in
+# .config/zsh/30-abbreviations.zsh, which loads whichever one exists.
+if command -v brew &> /dev/null && { [ -f "$(brew --prefix)/share/zsh-abbr/zsh-abbr.zsh" ] || [ -f "$(brew --prefix)/share/zsh-abbr@6/zsh-abbr.zsh" ]; }; then
     echo "✅ zsh-abbr already installed"
 elif command -v brew &> /dev/null; then
     # Homebrew 7+ refuses to load a formula from a non-official tap until

@@ -9,13 +9,38 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REAL_HOME="$HOME"
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
 export XDG_CONFIG_HOME="$REPO_ROOT/.config"
 export XDG_CACHE_HOME="$WORKDIR/cache"
+# Real, not $WORKDIR: sheldon's already-cloned plugin repos live under the
+# real $HOME/.local/share/sheldon — pointing this at a fresh dir would
+# force a slow re-clone instead of testing against what's actually there.
+export XDG_DATA_HOME="${XDG_DATA_HOME:-$REAL_HOME/.local/share}"
 export ABBR_USER_ABBREVIATIONS_FILE="$WORKDIR/user-abbreviations"
 mkdir -p "$XDG_CACHE_HOME"
+
+# .zshrc lives at the repo root, not under .config/zsh, and zsh finds it
+# via $ZDOTDIR/.zshrc (or $HOME/.zshrc if $ZDOTDIR is unset) at shell
+# startup — before .zshrc's own body ever runs. Pointing XDG_CONFIG_HOME
+# at the repo (above) is not enough on its own: it only reaches
+# .zshrc's *contents* once .zshrc has already been found and is
+# executing. On a machine that's run scripts/sync_to_host.sh, $HOME/.zshrc
+# is already a symlink to this repo's copy, which is what let this pass
+# locally the first few times despite the gap — a fresh machine (this
+# script's actual purpose) has no such symlink. Replicate that same
+# "installed" layout in a throwaway $HOME instead of relying on it having
+# been set up already. $ZDOTDIR is deliberately left unset here, not
+# pointed at the repo directly: .zshrc's own `ZDOTDIR="${ZDOTDIR:-...}"
+# only reassigns it for the modular-file loop below when it was unset to
+# begin with — pre-setting it would leave that loop searching the wrong
+# directory for the numbered config files.
+export HOME="$WORKDIR/home"
+mkdir -p "$HOME"
+ln -s "$REPO_ROOT/.zshrc" "$HOME/.zshrc"
+unset ZDOTDIR
 
 fail=0
 pass() { echo "PASS: $*"; }
