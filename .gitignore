@@ -1,4 +1,6 @@
 .cache
+__pycache__/
+*.pyc
 .rustup
 .zsh_history
 .config/mise

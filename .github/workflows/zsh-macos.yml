@@ -1,0 +1,57 @@
+name: zsh startup (macOS)
+
+# This repo's zsh perf work (caching sheldon/starship/fzf's generated init
+# scripts, deferring zsh-abbr's load) is plain zsh logic with nothing
+# Linux-specific in it, and should transfer to macOS unchanged — but
+# "should" isn't verified without actually running it there, and none of
+# this was developed on real Mac hardware. This job is that verification:
+# real macOS runner, real Homebrew-installed tools, the same correctness +
+# timing checks used during development on Linux (scripts/tests), so a
+# regression that's macOS-only (a BSD-vs-GNU flag, a Homebrew path that
+# doesn't exist, ...) fails here instead of going unnoticed.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.config/zsh/**'
+      - '.config/sheldon/**'
+      - 'scripts/install_zsh_tools.sh'
+      - 'scripts/tests/test_zsh_startup.sh'
+      - 'scripts/tests/zsh_pty_check.py'
+      - '.github/workflows/zsh-macos.yml'
+  pull_request:
+    paths:
+      - '.config/zsh/**'
+      - '.config/sheldon/**'
+      - 'scripts/install_zsh_tools.sh'
+      - 'scripts/tests/test_zsh_startup.sh'
+      - 'scripts/tests/zsh_pty_check.py'
+      - '.github/workflows/zsh-macos.yml'
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # fzf isn't installed by install_zsh_tools.sh below (that script
+      # only covers zsh-abbr/starship/sheldon — see its own header); eza
+      # and bat are deliberately left uninstalled so the fzf-tab
+      # cd-preview's `ls` fallback (the actual bug this workflow exists to
+      # catch) runs for real instead of eza's own preview short-circuiting
+      # it. fd/ripgrep are cheap and make FZF_DEFAULT_COMMAND's own
+      # fallback chain (40-tools.zsh) representative of a real setup too.
+      - name: Install fzf, fd, ripgrep via Homebrew
+        run: brew install fzf fd ripgrep
+
+      # Reuses this repo's own bootstrap script (installs zsh-abbr,
+      # starship, sheldon, then `sheldon lock`) instead of duplicating
+      # that install logic here.
+      - name: Install zsh-abbr, starship, sheldon
+        env:
+          XDG_CONFIG_HOME: ${{ github.workspace }}/.config
+        run: bash scripts/install_zsh_tools.sh
+
+      - name: Run correctness + timing checks
+        run: bash scripts/tests/test_zsh_startup.sh
