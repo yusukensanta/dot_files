@@ -14,19 +14,17 @@ if command -v brew &> /dev/null && [ -f "$(brew --prefix)/share/zsh-abbr/zsh-abb
 elif command -v brew &> /dev/null; then
     # Homebrew 7+ refuses to load a formula from a non-official tap until
     # it's explicitly trusted (`brew install` alone errors: "Refusing to
-    # load formula ... from untrusted tap"). Guarded by checking the
-    # subcommand exists first: older Homebrew has no such requirement and
-    # no `trust` subcommand either, so this is a no-op there instead of
-    # aborting the script under `set -e`. Trusting the whole tap, not
-    # `--formula olets/tap/zsh-abbr@6` specifically: the versioned CLI
-    # name and the formula Homebrew actually loads internally aren't the
-    # same trust-store key (confirmed by trusting the versioned name and
-    # still hitting the same "untrusted tap" error on install) — trusting
-    # the tap sidesteps that mismatch entirely.
-    if brew commands 2>/dev/null | grep -qx trust; then
-        brew tap olets/tap &> /dev/null || true
-        brew trust olets/tap
-    fi
+    # load formula ... from untrusted tap"). `|| true` on both, not a
+    # pre-check for the `trust` subcommand's existence: `brew commands |
+    # grep -qx trust` looked like a reasonable existence check but
+    # silently returned false on a Homebrew that DOES have `trust` (the
+    # tap/trust calls never ran at all, yet the subsequent install still
+    # failed the same way) — not worth chasing why when tolerating
+    # failure here is already correct behavior either way: older Homebrew
+    # has no trust concept and no such restriction to work around, so a
+    # failed `brew trust` there is harmless to ignore.
+    brew tap olets/tap || true
+    brew trust olets/tap || true
     echo "📦 Installing zsh-abbr..."
     brew install olets/tap/zsh-abbr@6
 else
