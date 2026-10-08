@@ -294,14 +294,82 @@ test_zsh_history_permissions_hardened() {
 }
 
 test_starship_cache_files_created_private() {
-    local desc="aws_session.sh and gcloud_session.sh create their \$TMPDIR cache files under umask 077"
-    local aws="$SCRIPTS_DIR/../.config/starship/aws_session.sh"
-    local gcloud="$SCRIPTS_DIR/../.config/starship/gcloud_session.sh"
-    if grep -q 'umask 077' "$aws" && grep -q 'umask 077' "$gcloud"; then
+    local desc="aws_session.sh and gcloud_session.sh write their \$TMPDIR cache files via session_cache.sh, under umask 077"
+    local dir="$SCRIPTS_DIR/../.config/starship"
+    if grep -q 'umask 077' "$dir/lib/session_cache.sh" \
+        && grep -q 'session_cache_serve' "$dir/aws_session.sh" \
+        && grep -q 'session_cache_serve' "$dir/gcloud_session.sh"; then
         ok "$desc"
     else
         fail "$desc"
     fi
+}
+
+# Runs a starship/*.sh script with an isolated HOME/TMPDIR so the real
+# ~/.aws, ~/.config/gcloud and cache files can't influence the result.
+# $1=home $2=tmp $3=AWS_PROFILE ("" = unset) $4=script name
+run_starship_script() {
+    local home="$1" tmp="$2" profile="$3" script="$4"
+    rm -rf "$tmp"; mkdir -p "$tmp"
+    if [[ -n "$profile" ]]; then
+        env -i PATH="$PATH" HOME="$home" TMPDIR="$tmp" AWS_PROFILE="$profile" \
+            "$SCRIPTS_DIR/../.config/starship/$script"
+    else
+        env -i PATH="$PATH" HOME="$home" TMPDIR="$tmp" \
+            "$SCRIPTS_DIR/../.config/starship/$script"
+    fi
+}
+
+test_starship_gcloud_gated_on_aws_session() {
+    local desc="gcloud segment hidden unless AWS session is live; separator always shown; AWS always shown"
+    local root; root="$(mktemp -d)"
+    local home="$root/home" tmp="$root/tmp"
+    mkdir -p "$home/.aws" "$home/.config/gcloud"
+    local good=true out
+
+    # Signed out (no profile): aws visible, gcloud hidden, separator shown.
+    out="$(run_starship_script "$home" "$tmp" "" aws_session.sh)"
+    [[ "$out" == *"no profile"* ]] || good=false
+    [[ -z "$(run_starship_script "$home" "$tmp" "" gcloud_session.sh)" ]] || good=false
+    [[ "$(run_starship_script "$home" "$tmp" "" aws_gcloud_separator.sh)" == " │" ]] || good=false
+
+    # Profile set but never signed in.
+    out="$(run_starship_script "$home" "$tmp" dev aws_session.sh)"
+    [[ "$out" == *"no session"* ]] || good=false
+    [[ -z "$(run_starship_script "$home" "$tmp" dev gcloud_session.sh)" ]] || good=false
+
+    # Expired: aws visible, gcloud hidden, separator shown.
+    printf '[dev]\nx_security_token_expires = 2000-01-01T00:00:00Z\n' > "$home/.aws/credentials"
+    out="$(run_starship_script "$home" "$tmp" dev aws_session.sh)"
+    [[ "$out" == *"expired"* ]] || good=false
+    [[ -z "$(run_starship_script "$home" "$tmp" dev gcloud_session.sh)" ]] || good=false
+    [[ "$(run_starship_script "$home" "$tmp" dev aws_gcloud_separator.sh)" == " │" ]] || good=false
+
+    # Live session: gcloud segment appears, separator still shown.
+    printf '[dev]\nx_security_token_expires = 2099-01-01T00:00:00Z\n' > "$home/.aws/credentials"
+    out="$(run_starship_script "$home" "$tmp" dev gcloud_session.sh)"
+    [[ -n "$out" ]] || good=false
+    [[ "$(run_starship_script "$home" "$tmp" dev aws_gcloud_separator.sh)" == " │" ]] || good=false
+
+    rm -rf "$root"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_starship_first_render_shows_everything() {
+    local desc="with a cold cache and all three modules run in parallel, the first render shows AWS, separator and gcloud"
+    local root; root="$(mktemp -d)"
+    local home="$root/home" tmp="$root/tmp" d="$SCRIPTS_DIR/../.config/starship"
+    mkdir -p "$home/.aws" "$home/.config/gcloud/configurations" "$tmp"
+    printf '[dev]\nx_security_token_expires = 2099-01-01T00:00:00Z\n' > "$home/.aws/credentials"
+    echo default > "$home/.config/gcloud/active_config"
+    printf '[core]\nproject = p\naccount = a@b.c\n' > "$home/.config/gcloud/configurations/config_default"
+    local e=(env -i PATH="$PATH" HOME="$home" TMPDIR="$tmp" AWS_PROFILE=dev)
+    "${e[@]}" "$d/aws_session.sh" > "$root/a" &
+    "${e[@]}" "$d/aws_gcloud_separator.sh" > "$root/s" &
+    "${e[@]}" "$d/gcloud_session.sh" > "$root/g" &
+    wait
+    if [[ -s "$root/a" && "$(<"$root/s")" == " │" && -s "$root/g" ]]; then ok "$desc"; else fail "$desc"; fi
+    rm -rf "$root"
 }
 
 echo "== sync_to_host.sh / sync_here.sh / nvim / starship fixes =="
@@ -324,6 +392,8 @@ test_sheldon_plugins_pinned
 test_gitignore_blocks_credential_paths
 test_zsh_history_permissions_hardened
 test_starship_cache_files_created_private
+test_starship_gcloud_gated_on_aws_session
+test_starship_first_render_shows_everything
 
 echo ""
 echo "$PASS passed, $FAIL failed"
