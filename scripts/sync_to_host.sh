@@ -26,90 +26,14 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Configuration directories to sync
-TARGET_DIRS=(nvim zsh sheldon starship)
+# shellcheck source=lib/sync_common.sh
+source "$SCRIPT_DIR/lib/sync_common.sh"
 
-# Never sync machine-local/generated cruft that shouldn't jump between
-# hosts: compiled zsh completion dumps, editor scratch/analysis notes, and
-# metals' project-path-bearing LSP databases.
-COMMON_EXCLUDES=(--exclude=.zcompdump* --exclude=.claude --exclude=.metals)
-
-# === PLATFORM DETECTION ===
-OS="$(uname -s)"
-IS_WSL=false
-if [[ "$OS" == "Linux" ]] && uname -r | grep -qi microsoft; then
-    IS_WSL=true
-fi
-
-# macOS ships openrsync (BSD), not GNU rsync, under the name `rsync`. When
-# given --backup and --backup-dir together, openrsync silently does neither
-# the delete nor the backup for the affected files — it just leaves stale
-# destination files in place with no error. GNU rsync handles the same
-# combination correctly. Detect it once so the rest of the script can back
-# files up itself instead of relying on the broken combo.
-RSYNC_IS_OPENRSYNC=false
-if rsync --version 2>&1 | grep -qi '^openrsync'; then
-    RSYNC_IS_OPENRSYNC=true
-fi
-
-# Parse flags
+parse_sync_args "$@"
+# rsync takes --dry-run as a bare word; everything else here uses $DRY_RUN.
 DRY_RUN_FLAG=""
-ASSUME_YES=false
-for arg in "$@"; do
-    case "$arg" in
-        --dry-run) DRY_RUN_FLAG="--dry-run" ;;
-        --yes|-y) ASSUME_YES=true ;;
-        *)
-            echo "Unknown option: $arg" >&2
-            echo "Usage: $0 [--dry-run] [--yes]" >&2
-            exit 1
-            ;;
-    esac
-done
-
-if [[ -n "$DRY_RUN_FLAG" ]]; then
-    echo "🔍 DRY RUN MODE - No files will be modified"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-fi
-
-# Anything --delete would remove or overwrite gets moved here instead of
-# destroyed outright — inspect or restore from it if a sync goes wrong.
-# Each call gets its own subdirectory (see backup_opts_for below) since
-# rsync's --backup-dir is relative to that call's own source root, and a
-# single shared dir would let same-named files from different synced
-# trees collide and silently clobber each other's backup.
-BACKUP_ROOT="$HOME/.dotfiles-sync-backup/$(date +%Y%m%d-%H%M%S)"
-# Sets the global array BACKUP_OPTS. A function return value (string) would
-# have to be word-split back apart at the call site, and BACKUP_ROOT itself
-# embeds $HOME — spaces there (real on macOS) would fragment it into bogus
-# extra rsync arguments the same way an unsanitized description once did.
-# An array sidesteps that entirely: each element is used exactly as-is.
-backup_opts_for() {
-    BACKUP_OPTS=()
-    [[ -n "$DRY_RUN_FLAG" ]] && return
-    # On openrsync, --backup + --backup-dir together silently disable
-    # --delete (see RSYNC_IS_OPENRSYNC above) — never pass that combo there.
-    # manual_backup_if_openrsync() below takes over the backup responsibility
-    # instead, so --delete keeps working.
-    $RSYNC_IS_OPENRSYNC && return
-    local safe="${1//[^A-Za-z0-9._\/-]/_}"
-    BACKUP_OPTS=(--backup "--backup-dir=$BACKUP_ROOT/$safe")
-}
-
-# Stands in for rsync's own --backup on openrsync, where that combo breaks
-# --delete (see RSYNC_IS_OPENRSYNC above). Copies the pre-sync destination
-# into BACKUP_ROOT before rsync touches it, so anything rsync deletes or
-# overwrites is still recoverable.
-manual_backup_if_openrsync() {
-    local dest="$1" description="$2"
-    $RSYNC_IS_OPENRSYNC || return
-    [[ -n "$DRY_RUN_FLAG" ]] && return
-    [[ -e "$dest" ]] || return
-    local safe="${description//[^A-Za-z0-9._\/-]/_}"
-    local target="$BACKUP_ROOT/$safe"
-    mkdir -p "$(dirname "$target")" 2>/dev/null || true
-    cp -a "$dest" "$target" 2>/dev/null || true
-}
+$DRY_RUN && DRY_RUN_FLAG="--dry-run"
+print_dry_run_banner "No files will be modified"
 
 # rsync options:
 # -a (archive): preserves permissions, times, symbolic links, etc. (includes -rlptgoD)
@@ -145,7 +69,7 @@ sync_directory() {
     # Create destination directory if it doesn't exist.
     # Suppress permission errors on NTFS mounts (WSL cannot set Unix permissions
     # on Windows paths, but the directory is still created successfully).
-    if [[ -z "$DRY_RUN_FLAG" ]]; then
+    if ! $DRY_RUN; then
         mkdir -p "$dest" 2>/dev/null || true
         if [[ ! -d "$dest" ]]; then
             echo "   ✗ Could not create destination directory: $dest"
@@ -164,7 +88,7 @@ sync_directory() {
     # unbound variable under `set -u` — this array is legitimately empty
     # whenever RSYNC_IS_OPENRSYNC is true or this call passed no extra flags.
     if rsync "${RSYNC_BASE_OPTS[@]}" "${COMMON_EXCLUDES[@]}" ${BACKUP_OPTS[@]+"${BACKUP_OPTS[@]}"} ${extra_opts[@]+"${extra_opts[@]}"} $DRY_RUN_FLAG "$src" "$dest"; then
-        if [[ -n "$DRY_RUN_FLAG" ]]; then
+        if $DRY_RUN; then
             echo "   ✓ Dry-run completed"
         else
             echo "   ✓ Synced successfully"
@@ -194,7 +118,7 @@ sync_file() {
     echo "   Target: $dest"
 
     # Create destination parent directory if it doesn't exist
-    if [[ -z "$DRY_RUN_FLAG" ]]; then
+    if ! $DRY_RUN; then
         mkdir -p "$(dirname "$dest")"
     fi
 
@@ -205,7 +129,7 @@ sync_file() {
     # Execute rsync for single file. See the matching comment in
     # sync_directory() for why BACKUP_OPTS/extra_opts use this guarded form.
     if rsync "${RSYNC_BASE_OPTS[@]}" ${BACKUP_OPTS[@]+"${BACKUP_OPTS[@]}"} ${extra_opts[@]+"${extra_opts[@]}"} $DRY_RUN_FLAG "$src" "$dest"; then
-        if [[ -n "$DRY_RUN_FLAG" ]]; then
+        if $DRY_RUN; then
             echo "   ✓ Dry-run completed"
         else
             echo "   ✓ Synced successfully"
@@ -213,18 +137,6 @@ sync_file() {
     else
         echo "   ✗ Sync failed"
         FAILURES=$((FAILURES + 1))
-    fi
-}
-
-# Discover the Windows user profile dir from inside WSL, without hardcoding
-# a username — uses cmd.exe interop (always available on WSL) + wslpath.
-detect_win_userprofile() {
-    local winpath
-    if command -v wslpath &>/dev/null && command -v cmd.exe &>/dev/null; then
-        winpath="$(cmd.exe /C 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r\n')"
-        if [[ -n "$winpath" ]]; then
-            wslpath "$winpath" 2>/dev/null || true
-        fi
     fi
 }
 
@@ -241,35 +153,12 @@ echo "Target: $HOME"
 echo "Platform: $OS$($IS_WSL && echo ' (WSL)')"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if [[ -z "$DRY_RUN_FLAG" ]] && ! $ASSUME_YES; then
-    echo ""
-    echo "⚠️  This will overwrite files under \$HOME and delete anything there"
-    echo "   not present in the repo. Anything affected is backed up first to:"
-    echo "   $BACKUP_ROOT"
-    if { exec 3</dev/tty; } 2>/dev/null; then
-        read -r -p "Continue? [y/N] " reply <&3
-        exec 3<&-
-        case "$reply" in
-            [yY]|[yY][eE][sS]) ;;
-            *) echo "Aborted. Re-run with --yes to skip this prompt, or --dry-run to preview."; exit 0 ;;
-        esac
-    else
-        echo "❌ No TTY to confirm and --yes not passed. Aborting." >&2
-        exit 1
-    fi
-fi
+confirm_sync "under \$HOME" "in the repo"
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
-    # local.d/ is host-specific and untracked (see .gitignore) — never let
-    # a repo <-> $HOME sync delete it just because it's absent on one side.
-    if [[ "$dir" == "zsh" ]]; then
-        sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" --exclude=local.d
-    elif [[ "$dir" == "nvim" ]]; then
-        sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" --exclude=lua/local
-    else
-        sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir"
-    fi
+    exclude="$(target_dir_exclude "$dir")"
+    sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" ${exclude:+"$exclude"}
 done
 
 # Sync individual files. biome.json is NOT synced separately here — it
@@ -302,7 +191,7 @@ if $IS_WSL; then
             echo ""
             echo "📄 Syncing: alacritty.toml (Windows, base + WSL shell override)"
             echo "   Target: $dest_file"
-            if [[ -z "$DRY_RUN_FLAG" ]]; then
+            if ! $DRY_RUN; then
                 mkdir -p "$dest_dir" 2>/dev/null || true
                 if [[ -f "$dest_file" ]]; then
                     mkdir -p "$BACKUP_ROOT/alacritty_windows" 2>/dev/null || true
@@ -328,7 +217,7 @@ if $IS_WSL; then
 
         sync_directory "$REPO_DIR/.config/nvim" \
             "$WIN_USERPROFILE/AppData/Local/nvim" \
-            ".config/nvim (Windows native)" --no-perms --no-owner --no-group --no-times --exclude=lua/local
+            ".config/nvim (Windows native)" --no-perms --no-owner --no-group --no-times "$(target_dir_exclude nvim)"
     else
         echo ""
         echo "⚠️  Could not detect Windows user profile (needs cmd.exe/wslpath interop)."
@@ -344,7 +233,7 @@ fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if [[ -n "$DRY_RUN_FLAG" ]]; then
+if $DRY_RUN; then
     echo "✅ Dry run complete. Run without --dry-run to apply changes."
 elif [[ "$FAILURES" -eq 0 ]]; then
     echo "✅ Sync complete!"

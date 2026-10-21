@@ -17,6 +17,9 @@
 # command_timeout.
 set -uo pipefail
 
+# shellcheck source=lib/session_format.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/session_format.sh"
+
 gcloud_dir="$HOME/.config/gcloud"
 [[ -d "$gcloud_dir" ]] || exit 0
 
@@ -40,8 +43,8 @@ compute() {
   fi
 
   local project account
-  project=$(awk -F'=' '/^[ \t]*project[ \t]*=/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' "$config_file")
-  account=$(awk -F'=' '/^[ \t]*account[ \t]*=/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' "$config_file")
+  project=$(ini_value '^[ \t]*project[ \t]*=' < "$config_file")
+  account=$(ini_value '^[ \t]*account[ \t]*=' < "$config_file")
 
   if [[ -z "$project" || -z "$account" ]]; then
     printf ' %s: no session' "$active_config"
@@ -82,17 +85,7 @@ compute() {
   exp_epoch=$(date -d "$expiry UTC" +%s 2>/dev/null) \
     || exp_epoch=$(TZ=UTC date -j -f "%Y-%m-%d %H:%M:%S" "${expiry%%.*}" +%s 2>/dev/null)
   [[ -z "$exp_epoch" ]] && return 0
-  local now_epoch
-  now_epoch=$(date +%s)
-  local remaining=$((exp_epoch - now_epoch))
-
-  if [[ "$remaining" -le 0 ]]; then
-    printf ' %s expired' "$project"
-  else
-    local hours=$((remaining / 3600))
-    local minutes=$(((remaining % 3600) / 60))
-    printf ' %s %dH %dm' "$project" "$hours" "$minutes"
-  fi
+  session_print_remaining "$project" "$exp_epoch"
 }
 
 # shellcheck source=lib/session_cache.sh

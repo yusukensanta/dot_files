@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1091,SC2030,SC2031
+# shellcheck disable=SC1090,SC1091,SC2030,SC2031,SC2016,SC2153
 # SC1091: sync_to_host.sh is a sibling file, not a real "unfollowable" path.
+# SC2016: grep patterns deliberately contain a literal `$` (searching script text).
+# SC2153: FAILURES is set by the sourced script under test, not a typo of `failures`.
 # SC2030/2031: PATH/HOME are deliberately scoped to each test's subshell so
 # tests can't leak env changes into each other or the real $HOME.
 #
@@ -222,13 +224,25 @@ test_nvim_local_dir_gitignored() {
 }
 
 test_sync_scripts_exclude_nvim_local() {
-    local desc="both sync scripts pass --exclude=lua/local for the nvim target"
-    if grep -q -- '--exclude=lua/local' "$SCRIPTS_DIR/sync_to_host.sh" \
-        && grep -q -- '--exclude=lua/local' "$SCRIPTS_DIR/sync_here.sh"; then
-        ok "$desc"
-    else
-        fail "$desc"
-    fi
+    local desc="host-specific dirs (nvim lua/local, zsh local.d) are excluded, and both sync scripts use that rule"
+    local lib="$SCRIPTS_DIR/lib/sync_common.sh" good=true
+    [[ "$(source "$lib"; target_dir_exclude nvim)" == "--exclude=lua/local" ]] || good=false
+    [[ "$(source "$lib"; target_dir_exclude zsh)" == "--exclude=local.d" ]] || good=false
+    [[ -z "$(source "$lib"; target_dir_exclude starship)" ]] || good=false
+    grep -q 'target_dir_exclude "\$dir"' "$SCRIPTS_DIR/sync_to_host.sh" || good=false
+    grep -q 'target_dir_exclude "\$dir"' "$SCRIPTS_DIR/sync_here.sh" || good=false
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_sync_common_args_and_confirm() {
+    local desc="sync_common: parse_sync_args sets flags and rejects unknown options; confirm_sync skips on --yes/--dry-run"
+    local lib="$SCRIPTS_DIR/lib/sync_common.sh" good=true
+    [[ "$(source "$lib"; parse_sync_args --dry-run -y; echo "$DRY_RUN $ASSUME_YES")" == "true true" ]] || good=false
+    [[ "$(source "$lib"; parse_sync_args; echo "$DRY_RUN $ASSUME_YES")" == "false false" ]] || good=false
+    ( source "$lib"; parse_sync_args --bogus ) >/dev/null 2>&1 && good=false
+    [[ -z "$(source "$lib"; parse_sync_args --yes; confirm_sync "x" "y")" ]] || good=false
+    [[ -z "$(source "$lib"; parse_sync_args --dry-run; confirm_sync "x" "y")" ]] || good=false
+    if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
 test_starship_command_timeout() {
@@ -434,6 +448,97 @@ test_pull_alacritty_dry_run_writes_nothing() {
     rm -rf "$work"
 }
 
+test_platform_lib_detects_os() {
+    local desc="platform.sh sets OS from uname and IS_WSL only for a Linux kernel with 'microsoft' in its release"
+    local lib="$SCRIPTS_DIR/lib/platform.sh" good=true work; work="$(mktemp -d)"
+    local c
+    for c in "Darwin:23.0.0:false" "Linux:6.1.0-generic:false" "Linux:6.6.0-microsoft-standard-WSL2:true" "Darwin:5.15-microsoft:false"; do
+        IFS=: read -r os rel want <<< "$c"
+        printf '#!/bin/sh\ncase "$1" in -s) echo %s ;; -r) echo %s ;; esac\n' "$os" "$rel" > "$work/uname"
+        chmod +x "$work/uname"
+        [[ "$(PATH="$work:$PATH"; source "$lib"; echo "$OS $IS_WSL")" == "$os $want" ]] || { good=false; echo "    wrong for $c"; }
+    done
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+# Runs an install script with every external command stubbed to log its own
+# argv, so the sequence of commands it would run can be asserted without
+# installing anything. $1 = script, $2 = space-separated stub names,
+# remaining args = extra env (FAKE_OS=, FAKE_REL=). Prints the log, then
+# "exit=N".
+run_install_script_stubbed() {
+    local script="$1" names="$2"; shift 2
+    local work stubs name; work="$(mktemp -d)"; stubs="$work/bin"
+    mkdir -p "$stubs" "$work/home"
+    cat > "$stubs/_stub" <<'STUB'
+#!/usr/bin/env bash
+case "$(basename "$0")" in
+    uname) case "${1:-}" in -r) echo "${FAKE_REL:-6.1.0}" ;; *) echo "${FAKE_OS:-Linux}" ;; esac; exit 0 ;;
+    brew) [[ "${1:-}" == "--prefix" ]] && { echo "$FAKE_PREFIX"; exit 0; } ;;
+    fish) if [[ "$*" == *"type -q fisher"* ]]; then echo "fish $*" >> "$LOG"; exit 1; fi ;;
+    git) [[ "${1:-}" == clone ]] && mkdir -p "${@: -1}" ;;
+esac
+echo "$(basename "$0") $*" >> "$LOG"
+exit 0
+STUB
+    chmod +x "$stubs/_stub"
+    for name in $names; do ln -s _stub "$stubs/$name"; done
+    : > "$work/log"
+    ( cd "$work" && env -i PATH="$stubs:/usr/bin:/bin" HOME="$work/home" USER=tester \
+        LOG="$work/log" FAKE_PREFIX="$work/prefix" "$@" bash "$script" >/dev/null 2>&1
+      rc=$?; sed "s#$work#TMP#g" "$work/log"; echo "exit=$rc" )
+    rm -rf "$work"
+}
+
+test_install_zsh_tools_command_sequence() {
+    local desc="install_zsh_tools.sh: brew path installs zsh-abbr+starship via brew; no-brew path falls back to curl/cargo"
+    local out good=true
+    out="$(run_install_script_stubbed "$SCRIPTS_DIR/install_zsh_tools.sh" "brew curl cargo starship sheldon")"
+    [[ "$out" == *"brew tap olets/tap"* && "$out" == *"brew install olets/tap/zsh-abbr@6"* && "$out" == *"sheldon lock"* && "$out" == *"exit=0"* ]] || good=false
+    [[ "$out" != *"brew install starship"* ]] || good=false   # already on PATH -> not reinstalled
+    out="$(run_install_script_stubbed "$SCRIPTS_DIR/install_zsh_tools.sh" "curl cargo starship")"
+    [[ "$out" == *"cargo install sheldon"* && "$out" != *"brew"* && "$out" == *"exit=0"* ]] || good=false
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_libraries_command_sequence() {
+    local desc="install_libraries.sh: macOS uses brew, Linux uses apt; unsupported OS exits non-zero before installing anything"
+    local stubs="sudo apt-get apt-add-repository apt-cache curl unzip git fish mise cargo pip nvim gpg dpkg lsb_release tee uname brew"
+    local out good=true
+    out="$(run_install_script_stubbed "$SCRIPTS_DIR/install_libraries.sh" "$stubs" FAKE_OS=Darwin)"
+    [[ "$out" == *"brew install curl unzip git zsh"* && "$out" != *"apt-get"* && "$out" == *"mise use --global go@latest"* && "$out" == *"exit=0"* ]] || good=false
+    out="$(run_install_script_stubbed "$SCRIPTS_DIR/install_libraries.sh" "$stubs" FAKE_OS=Linux FAKE_REL=6.1.0-generic)"
+    [[ "$out" == *"sudo apt-get install -y fish"* && "$out" == *"mise use --global poetry@latest"* && "$out" == *"pip install pynvim"* && "$out" == *"exit=0"* ]] || good=false
+    out="$(run_install_script_stubbed "$SCRIPTS_DIR/install_libraries.sh" "$stubs" FAKE_OS=FreeBSD)"
+    [[ "$out" == "exit=1" ]] || good=false
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_starship_session_format_lib() {
+    local desc="session_format.sh: ini_value/ini_section parse INI text; session_print_remaining formats countdown and expiry"
+    local lib="$SCRIPTS_DIR/../.config/starship/lib/session_format.sh" good=true
+    local text=$'[a]\nrole =  Admin  \nid=1\n[b]\nrole = Other\n'
+    [[ "$(source "$lib"; ini_section '[a]' <<< "$text" | ini_value '^role')" == "Admin" ]] || good=false
+    [[ "$(source "$lib"; ini_section '[b]' <<< "$text" | ini_value '^role')" == "Other" ]] || good=false
+    [[ -z "$(source "$lib"; ini_section '[missing]' <<< "$text")" ]] || good=false
+    [[ "$(source "$lib"; ini_value '^[ \t]*id[ \t]*=' <<< "$text")" == "1" ]] || good=false
+    [[ "$(source "$lib"; session_print_remaining dev $(( $(date +%s) - 10 )))" == " dev expired" ]] || good=false
+    [[ "$(source "$lib"; session_print_remaining dev $(( $(date +%s) + 3*3600 + 25*60 + 30 )))" == " dev 3H 25m" ]] || good=false
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_shellcheck_clean() {
+    local desc="shellcheck reports no warnings or errors across the repo's bash scripts"
+    if ! command -v shellcheck >/dev/null 2>&1; then ok "$desc (skipped: shellcheck not installed)"; return; fi
+    local root="$SCRIPTS_DIR/.." out
+    if out="$(cd "$root" && shellcheck -S warning scripts/*.sh scripts/lib/*.sh scripts/tests/*.sh .config/starship/*.sh .config/starship/lib/*.sh 2>&1)"; then
+        ok "$desc"
+    else
+        fail "$desc"; echo "$out" | head -20
+    fi
+}
+
 echo "== sync_to_host.sh / sync_here.sh / nvim / starship fixes =="
 test_openrsync_detection_and_delete_still_works
 test_manual_backup_runs_under_openrsync
@@ -445,6 +550,12 @@ test_plain_expansion_would_have_failed
 test_nvim_local_hook_exists
 test_nvim_local_dir_gitignored
 test_sync_scripts_exclude_nvim_local
+test_sync_common_args_and_confirm
+test_platform_lib_detects_os
+test_install_zsh_tools_command_sequence
+test_install_libraries_command_sequence
+test_starship_session_format_lib
+test_shellcheck_clean
 test_starship_command_timeout
 test_pull_alacritty_strips_wsl_fragment
 test_pull_alacritty_refuses_unsplittable_file

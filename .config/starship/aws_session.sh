@@ -18,6 +18,9 @@
 # command_timeout.
 set -uo pipefail
 
+# shellcheck source=lib/session_format.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/session_format.sh"
+
 profile="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-}}"
 if [[ -z "$profile" ]]; then
   printf ' no profile'
@@ -43,14 +46,10 @@ compute() {
     [[ "$profile" == "default" ]] && section_header="[default]"
 
     local section
-    section=$(awk -v hdr="$section_header" '
-      $0 == hdr { found=1; next }
-      found && /^\[/ { exit }
-      found { print }
-    ' "$config_file")
+    section=$(ini_section "$section_header" < "$config_file")
 
-    role=$(awk -F'=' '/sso_role_name/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' <<< "$section")
-    account_id=$(awk -F'=' '/sso_account_id/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' <<< "$section")
+    role=$(ini_value 'sso_role_name' <<< "$section")
+    account_id=$(ini_value 'sso_account_id' <<< "$section")
   fi
 
   local expiration=""
@@ -89,16 +88,12 @@ compute() {
     local creds_file="$HOME/.aws/credentials"
     if [[ -f "$creds_file" ]]; then
       local creds_section
-      creds_section=$(awk -v hdr="[$profile]" '
-        $0 == hdr { found=1; next }
-        found && /^\[/ { exit }
-        found { print }
-      ' "$creds_file")
-      expiration=$(awk -F'=' '/x_security_token_expires/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' <<< "$creds_section")
+      creds_section=$(ini_section "[$profile]" < "$creds_file")
+      expiration=$(ini_value 'x_security_token_expires' <<< "$creds_section")
 
       if [[ -z "$role" ]]; then
         local principal_arn
-        principal_arn=$(awk -F'=' '/x_principal_arn/ { gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit }' <<< "$creds_section")
+        principal_arn=$(ini_value 'x_principal_arn' <<< "$creds_section")
         # e.g. arn:aws:sts::123456789012:assumed-role/MyRoleName/session -> MyRoleName
         [[ "$principal_arn" =~ assumed-role/([^/]+) ]] && role="${BASH_REMATCH[1]}"
       fi
@@ -126,17 +121,7 @@ compute() {
   exp_epoch=$(date -d "$expiration" +%s 2>/dev/null) \
     || exp_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S%z" "$clean" +%s 2>/dev/null)
   [[ -z "$exp_epoch" ]] && return 0
-  local now_epoch
-  now_epoch=$(date +%s)
-  local remaining=$((exp_epoch - now_epoch))
-
-  if [[ "$remaining" -le 0 ]]; then
-    printf ' %s expired' "$role"
-  else
-    local hours=$((remaining / 3600))
-    local minutes=$(((remaining % 3600) / 60))
-    printf ' %s %dH %dm' "$role" "$hours" "$minutes"
-  fi
+  session_print_remaining "$role" "$exp_epoch"
 }
 
 # shellcheck source=lib/session_cache.sh

@@ -138,20 +138,21 @@ copy-command() {
         return 1
     fi
 
+    local -a clip_cmd
     if command -v xclip &>/dev/null; then
-        echo -n "$BUFFER" | xclip -selection clipboard
-        echo "✓ Copied to clipboard"
+        clip_cmd=(xclip -selection clipboard)
     elif command -v pbcopy &>/dev/null; then
-        echo -n "$BUFFER" | pbcopy
-        echo "✓ Copied to clipboard"
+        clip_cmd=(pbcopy)
     elif command -v wl-copy &>/dev/null; then
-        echo -n "$BUFFER" | wl-copy
-        echo "✓ Copied to clipboard"
+        clip_cmd=(wl-copy)
     else
         echo "No clipboard utility found"
         zle reset-prompt
         return 1
     fi
+
+    echo -n "$BUFFER" | "${clip_cmd[@]}"
+    echo "✓ Copied to clipboard"
     zle reset-prompt
 }
 zle -N copy-command

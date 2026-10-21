@@ -1,0 +1,4 @@
+# Resolve `source` directives relative to the file that contains them, so
+# the lib/ helpers sourced by scripts/ and .config/starship/ are followed.
+source-path=SCRIPTDIR
+external-sources=true
