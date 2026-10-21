@@ -5,11 +5,9 @@
 #
 # Always prints something, including "no active config" / "<project>: no
 # session": silence would be indistinguishable from the module being
-# broken. Stays silent when ~/.config/gcloud doesn't exist at all (gcloud
-# was never set up here) or when there is no live AWS session (see
-# lib/aws_signed_in.sh) — this segment is only meant to show alongside a
-# signed-in AWS one. Read-only, no network calls, safe on every prompt
-# render.
+# broken. Stays silent only when ~/.config/gcloud doesn't exist at all —
+# gcloud was never set up here, so there's nothing to report. Read-only,
+# no network calls, safe on every prompt render.
 #
 # Requires: awk, sqlite3, date. gcloud itself isn't required — this only
 # reads files it leaves behind.
@@ -21,10 +19,6 @@ set -uo pipefail
 
 gcloud_dir="$HOME/.config/gcloud"
 [[ -d "$gcloud_dir" ]] || exit 0
-
-# shellcheck source=lib/aws_signed_in.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib/aws_signed_in.sh"
-aws_signed_in || exit 0
 
 cache_file="${TMPDIR:-/tmp}/starship-gcloud-session-${UID}.cache"
 
