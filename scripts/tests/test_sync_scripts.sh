@@ -372,6 +372,72 @@ test_starship_first_render_shows_everything() {
     rm -rf "$root"
 }
 
+# Runs pull_windows_alacritty in a subshell against fixtures; prints the
+# resulting FAILURES count. $1 = work dir, $2 = "dry" for dry-run mode.
+run_pull_alacritty() {
+    local work="$1" mode="${2:-}"
+    (
+        export HOME="$work/home"
+        mkdir -p "$HOME"
+        cd "$SCRIPTS_DIR" || exit 1
+        source ./sync_here.sh --yes >/dev/null
+        # shellcheck disable=SC2034  # read by pull_windows_alacritty
+        BACKUP_ROOT="$work/backup"
+        # shellcheck disable=SC2034
+        [[ "$mode" == dry ]] && DRY_RUN=true
+        pull_windows_alacritty "$work/win.toml" "$work/base.toml" "$work/frag.toml" >/dev/null
+        echo "$FAILURES"
+    )
+}
+
+test_pull_alacritty_strips_wsl_fragment() {
+    local desc="pull_windows_alacritty writes Windows file minus WSL fragment into repo base"
+    local work; work="$(mktemp -d)"
+    printf '[font]\nsize = 12\n' > "$work/new_base.toml"
+    printf '# wsl\n[terminal.shell]\nprogram = "wsl"\n' > "$work/frag.toml"
+    cat "$work/new_base.toml" "$work/frag.toml" > "$work/win.toml"
+    printf '[font]\nsize = 11\n' > "$work/base.toml"
+    local failures; failures="$(run_pull_alacritty "$work")"
+    if [[ "$failures" == 0 ]] && cmp -s "$work/base.toml" "$work/new_base.toml" \
+        && [[ -f "$work/backup/alacritty_repo/alacritty.toml" ]]; then
+        ok "$desc"
+    else
+        fail "$desc (failures=$failures, base: $(<"$work/base.toml"))"
+    fi
+    rm -rf "$work"
+}
+
+test_pull_alacritty_refuses_unsplittable_file() {
+    local desc="pull_windows_alacritty refuses (and leaves repo untouched) when fragment is absent"
+    local work; work="$(mktemp -d)"
+    printf '# wsl\n[terminal.shell]\nprogram = "wsl"\n' > "$work/frag.toml"
+    printf '[font]\nsize = 12\n' > "$work/win.toml"
+    printf '[font]\nsize = 11\n' > "$work/base.toml"
+    local failures; failures="$(run_pull_alacritty "$work")"
+    if [[ "$failures" == 1 && "$(<"$work/base.toml")" == $'[font]\nsize = 11' ]]; then
+        ok "$desc"
+    else
+        fail "$desc (failures=$failures)"
+    fi
+    rm -rf "$work"
+}
+
+test_pull_alacritty_dry_run_writes_nothing() {
+    local desc="pull_windows_alacritty --dry-run leaves repo base and backup untouched"
+    local work; work="$(mktemp -d)"
+    printf '# wsl\nprogram = "wsl"\n' > "$work/frag.toml"
+    { printf '[font]\nsize = 12\n'; cat "$work/frag.toml"; } > "$work/win.toml"
+    printf '[font]\nsize = 11\n' > "$work/base.toml"
+    local failures; failures="$(run_pull_alacritty "$work" dry)"
+    if [[ "$failures" == 0 && "$(<"$work/base.toml")" == $'[font]\nsize = 11' && ! -e "$work/backup" ]] \
+        && ! ls "$work"/base.toml.tmp.* >/dev/null 2>&1; then
+        ok "$desc"
+    else
+        fail "$desc (failures=$failures)"
+    fi
+    rm -rf "$work"
+}
+
 echo "== sync_to_host.sh / sync_here.sh / nvim / starship fixes =="
 test_openrsync_detection_and_delete_still_works
 test_manual_backup_runs_under_openrsync
@@ -384,6 +450,9 @@ test_nvim_local_hook_exists
 test_nvim_local_dir_gitignored
 test_sync_scripts_exclude_nvim_local
 test_starship_command_timeout
+test_pull_alacritty_strips_wsl_fragment
+test_pull_alacritty_refuses_unsplittable_file
+test_pull_alacritty_dry_run_writes_nothing
 
 echo ""
 echo "== security hardening fixes =="

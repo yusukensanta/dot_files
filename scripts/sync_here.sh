@@ -173,6 +173,79 @@ sync_file() {
     fi
 }
 
+# Pulls the Windows-native Alacritty config back into the repo's base file.
+# sync_to_host.sh writes that file as base + alacritty-wsl.toml concatenated,
+# so it can be split again only if it still ends with the fragment verbatim.
+# If it doesn't (fragment edited by hand on the Windows side, or the file was
+# replaced), refuse rather than guess — pulling a half-merged file into the
+# base would leak the WSL-only `program = "wsl ..."` into native Linux/macOS
+# configs and break Alacritty there.
+pull_windows_alacritty() {
+    local win_file="$1" base_file="$2" frag_file="$3"
+
+    if [[ ! -f "$win_file" ]]; then
+        echo "⚠️  Source not found: $win_file — skipping"
+        FAILURES=$((FAILURES + 1))
+        return
+    fi
+    if [[ ! -f "$frag_file" ]]; then
+        echo "⚠️  WSL fragment missing: $frag_file — skipping"
+        FAILURES=$((FAILURES + 1))
+        return
+    fi
+
+    echo ""
+    if $DRY_RUN; then
+        echo "📄 Would sync: $win_file -> $base_file (WSL fragment stripped)"
+    else
+        echo "📄 Syncing: $win_file -> $base_file (WSL fragment stripped)"
+    fi
+
+    local total frag_len
+    total="$(wc -c < "$win_file" | tr -d ' ')"
+    frag_len="$(wc -c < "$frag_file" | tr -d ' ')"
+
+    if (( total < frag_len )) || ! tail -c "$frag_len" "$win_file" | cmp -s - "$frag_file"; then
+        echo "   ✗ $win_file does not end with $(basename "$frag_file") — can't split it safely."
+        echo "     Edit alacritty/alacritty.toml in the repo and run sync_to_host.sh instead."
+        FAILURES=$((FAILURES + 1))
+        return
+    fi
+
+    local tmp_file="$base_file.tmp.$$"
+    if ! head -c "$((total - frag_len))" "$win_file" > "$tmp_file"; then
+        echo "   ✗ Sync failed"
+        rm -f "$tmp_file"
+        FAILURES=$((FAILURES + 1))
+        return
+    fi
+
+    if [[ -f "$base_file" ]] && cmp -s "$tmp_file" "$base_file"; then
+        echo "   ✓ Already up to date"
+        rm -f "$tmp_file"
+        return
+    fi
+
+    if $DRY_RUN; then
+        diff -u "$base_file" "$tmp_file" | sed 's/^/   /'
+        echo "   ✓ Dry-run completed"
+        rm -f "$tmp_file"
+        return
+    fi
+
+    if [[ -f "$base_file" ]]; then
+        mkdir -p "$BACKUP_ROOT/alacritty_repo" 2>/dev/null || true
+        cp -p "$base_file" "$BACKUP_ROOT/alacritty_repo/alacritty.toml" 2>/dev/null || true
+    fi
+    if mv -f "$tmp_file" "$base_file"; then
+        echo "   ✓ Synced successfully"
+    else
+        echo "   ✗ Sync failed"
+        rm -f "$tmp_file"
+        FAILURES=$((FAILURES + 1))
+    fi
+}
+
 # Everything below actually performs the sync, wrapped in main() so this
 # file can also be sourced (e.g. by scripts/tests/) to reuse the functions
 # above — backup_opts_for, manual_backup_if_openrsync, sync_file,
@@ -221,11 +294,21 @@ sync_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
 
 # Sync alacritty
 if $IS_WSL; then
-    # Not pulled back: the Windows-native file is base + WSL shell-override
-    # concatenated together by sync_to_host.sh, and can't be split back
-    # apart automatically. Edit alacritty/alacritty.toml or
-    # alacritty/alacritty-wsl.toml in the repo directly instead.
-    :
+    # The Windows-native file is base + alacritty-wsl.toml concatenated by
+    # sync_to_host.sh; split the fragment back off before writing the repo's
+    # base file (see pull_windows_alacritty).
+    WIN_USERPROFILE="$(detect_win_userprofile)"
+    if [[ -n "$WIN_USERPROFILE" && -d "$WIN_USERPROFILE" ]]; then
+        pull_windows_alacritty \
+            "$WIN_USERPROFILE/AppData/Roaming/alacritty/alacritty.toml" \
+            "$REPO_DIR/alacritty/alacritty.toml" \
+            "$REPO_DIR/alacritty/alacritty-wsl.toml"
+    else
+        echo ""
+        echo "⚠️  Could not detect Windows user profile (needs cmd.exe/wslpath interop)."
+        echo "   Skipping Windows-native Alacritty sync."
+        FAILURES=$((FAILURES + 1))
+    fi
 else
     # Native Linux/macOS: Alacritty reads its config from the XDG path.
     if [[ -f "$HOME/.config/alacritty/alacritty.toml" ]]; then

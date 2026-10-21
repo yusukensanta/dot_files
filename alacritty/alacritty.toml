@@ -2,9 +2,9 @@
 size = 11
 
 [font.normal]
-family = "FiraCode Nerd Font"
+family = "Moralerspace Neon HW"
 style = "Regular"
 
 [font.offset]
-x = 0
+x = 2
 y = 1
