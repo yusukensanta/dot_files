@@ -320,36 +320,32 @@ run_starship_script() {
     fi
 }
 
-test_starship_gcloud_gated_on_aws_session() {
-    local desc="gcloud segment hidden unless AWS session is live; separator always shown; AWS always shown"
+test_starship_separator_independent_of_sessions() {
+    local desc="separator is always shown, regardless of AWS or gcloud state; gcloud is not gated on AWS"
     local root; root="$(mktemp -d)"
     local home="$root/home" tmp="$root/tmp"
     mkdir -p "$home/.aws" "$home/.config/gcloud"
-    local good=true out
+    local good=true
 
-    # Signed out (no profile): aws visible, gcloud hidden, separator shown.
-    out="$(run_starship_script "$home" "$tmp" "" aws_session.sh)"
-    [[ "$out" == *"no profile"* ]] || good=false
+    # No profile / profile without a session / expired / live: the separator
+    # prints identically every time, and gcloud shows regardless.
+    local state
+    for state in none nosession expired live; do
+        local profile=dev
+        case "$state" in
+            none) profile="" ;;
+            nosession) rm -f "$home/.aws/credentials" ;;
+            expired) printf '[dev]\nx_security_token_expires = 2000-01-01T00:00:00Z\n' > "$home/.aws/credentials" ;;
+            live) printf '[dev]\nx_security_token_expires = 2099-01-01T00:00:00Z\n' > "$home/.aws/credentials" ;;
+        esac
+        [[ "$(run_starship_script "$home" "$tmp" "$profile" aws_gcloud_separator.sh)" == " │" ]] || { good=false; echo "    separator wrong for AWS state: $state"; }
+        [[ -n "$(run_starship_script "$home" "$tmp" "$profile" gcloud_session.sh)" ]] || { good=false; echo "    gcloud hidden for AWS state: $state"; }
+    done
+
+    # Separator stays even when gcloud was never set up (gcloud segment silent).
+    rm -rf "$home/.config/gcloud"
     [[ -z "$(run_starship_script "$home" "$tmp" "" gcloud_session.sh)" ]] || good=false
     [[ "$(run_starship_script "$home" "$tmp" "" aws_gcloud_separator.sh)" == " │" ]] || good=false
-
-    # Profile set but never signed in.
-    out="$(run_starship_script "$home" "$tmp" dev aws_session.sh)"
-    [[ "$out" == *"no session"* ]] || good=false
-    [[ -z "$(run_starship_script "$home" "$tmp" dev gcloud_session.sh)" ]] || good=false
-
-    # Expired: aws visible, gcloud hidden, separator shown.
-    printf '[dev]\nx_security_token_expires = 2000-01-01T00:00:00Z\n' > "$home/.aws/credentials"
-    out="$(run_starship_script "$home" "$tmp" dev aws_session.sh)"
-    [[ "$out" == *"expired"* ]] || good=false
-    [[ -z "$(run_starship_script "$home" "$tmp" dev gcloud_session.sh)" ]] || good=false
-    [[ "$(run_starship_script "$home" "$tmp" dev aws_gcloud_separator.sh)" == " │" ]] || good=false
-
-    # Live session: gcloud segment appears, separator still shown.
-    printf '[dev]\nx_security_token_expires = 2099-01-01T00:00:00Z\n' > "$home/.aws/credentials"
-    out="$(run_starship_script "$home" "$tmp" dev gcloud_session.sh)"
-    [[ -n "$out" ]] || good=false
-    [[ "$(run_starship_script "$home" "$tmp" dev aws_gcloud_separator.sh)" == " │" ]] || good=false
 
     rm -rf "$root"
     if $good; then ok "$desc"; else fail "$desc"; fi
@@ -461,7 +457,7 @@ test_sheldon_plugins_pinned
 test_gitignore_blocks_credential_paths
 test_zsh_history_permissions_hardened
 test_starship_cache_files_created_private
-test_starship_gcloud_gated_on_aws_session
+test_starship_separator_independent_of_sessions
 test_starship_first_render_shows_everything
 
 echo ""
