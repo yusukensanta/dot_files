@@ -153,7 +153,7 @@ echo
 echo "--- an fzf without --zsh (older than the minimum) is refused, not half-used ---"
 # A stand-in that behaves like fzf < 0.48: `--zsh` is an unknown option.
 old_fzf_dir="$WORKDIR/old-fzf"
-mkdir -p "$old_fzf_dir/bin" "$old_fzf_dir/cache"
+mkdir -p "$old_fzf_dir/bin" "$old_fzf_dir/cache" "$old_fzf_dir/zdotdir"
 cat > "$old_fzf_dir/bin/fzf" <<'OLDFZF'
 #!/bin/sh
 case "$1" in
@@ -162,14 +162,30 @@ case "$1" in
 esac
 OLDFZF
 chmod +x "$old_fzf_dir/bin/fzf"
-old_fzf_out="$(PATH="$old_fzf_dir/bin:$PATH" XDG_CACHE_HOME="$old_fzf_dir/cache" \
+# The stand-in has to be the fzf the shell finds, and putting it first in
+# this script's PATH does not guarantee that: 00-env.zsh puts Homebrew's bin
+# directory ahead of everything it inherited, so on a Homebrew machine the
+# real fzf wins. The scenario therefore gets its own ZDOTDIR: the repo's
+# files (symlinked) plus one drop-in that loads after 00-env.zsh and before
+# 40-tools.zsh and puts the stand-in first, whatever 00-env.zsh did.
+for zdotdir_entry in "$XDG_CONFIG_HOME/zsh"/*; do
+    ln -s "$zdotdir_entry" "$old_fzf_dir/zdotdir/"
+done
+# With ZDOTDIR set, zsh reads .zshenv and .zshrc from there, not from $HOME.
+ln -s "$HOME/.zshenv" "$old_fzf_dir/zdotdir/.zshenv"
+ln -s "$REPO_ROOT/.zshrc" "$old_fzf_dir/zdotdir/.zshrc"
+# shellcheck disable=SC2016  # expanded by zsh when it loads the file
+echo 'path=("$OLD_FZF_BIN" $path)' > "$old_fzf_dir/zdotdir/05-old-fzf-first.zsh"
+old_fzf_out="$(ZDOTDIR="$old_fzf_dir/zdotdir" OLD_FZF_BIN="$old_fzf_dir/bin" XDG_CACHE_HOME="$old_fzf_dir/cache" \
     zsh -i -c 'print -r -- "CTRL_R=${$(bindkey "^R")##* } WIDGET=$+widgets[fzf-history-widget] ALT_T=${$(bindkey "^[t")##* }"' 2>&1)"
 if [[ "$old_fzf_out" == *"CTRL_R=history-incremental-search-backward WIDGET=0"* && "$old_fzf_out" != *"ALT_T=fzf-cd-widget"* ]]; then
     pass "old fzf: fzf widgets left off, Ctrl+R falls back to zsh's own history search"
 else
     fail "old fzf: expected the built-in Ctrl+R and no fzf widgets, got: $(printf '%s' "$old_fzf_out" | tail -1)"
 fi
-if [[ "$old_fzf_out" == *"too old"*"install_zsh_tools.sh"* && "$old_fzf_out" != *"unknown option"* ]]; then
+# The warning names the fzf it judged: it must be the stand-in, or this
+# scenario tested the machine's real fzf instead.
+if [[ "$old_fzf_out" == *"$old_fzf_dir/bin/fzf is too old"*"install_zsh_tools.sh"* && "$old_fzf_out" != *"unknown option"* ]]; then
     pass "old fzf: the shell says it is too old and how to update, without leaking fzf's own error"
 else
     fail "old fzf: missing or noisy warning: $(printf '%s' "$old_fzf_out" | grep -a -i 'fzf' | head -3)"
