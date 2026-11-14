@@ -14,6 +14,7 @@ Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared acro
 .tmux.conf           tmux config
 claude/              Claude Code user-scope config: CLAUDE.md, statusline script, statusLine setting
 .zshrc               zsh entrypoint, sources .config/zsh/*
+.zshenv              Block merged into ~/.zshenv (skips Ubuntu's system compinit, stamps the startup timer)
 alacritty/           Alacritty terminal config (synced to the Windows-native path under WSL, ~/.config/alacritty elsewhere)
 scripts/             Install and sync helper scripts
 ```
@@ -51,6 +52,28 @@ cd ~/dot_files
 `install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing core CLI tools, fish + fisher, mise with several language runtimes, Docker, and a few Rust tools via cargo.
 
 `install_zsh_tools.sh` installs zsh-abbr, starship, and sheldon via Homebrew (falling back to curl/cargo installers where possible).
+
+## zsh startup time
+
+Every new shell prints `✨ ZSH loaded in <N>ms ⚡`: the time from the start of
+zsh (stamped in `~/.zshenv`, so system startup files are counted) until the
+prompt can be drawn. Work deferred with `zsh-defer` (mise, zsh-abbr, some
+plugins) finishes just after, so it is not in that number.
+
+Measured on WSL2 Ubuntu 24.04, 90ms -> 12ms average. Two rules keep it there,
+and `scripts/tests/test_zsh_startup.sh` fails if either is broken:
+
+- **`~/.zshenv` sets `skip_global_compinit=1`.** Ubuntu's `/etc/zsh/zshrc`
+  otherwise runs a full `compinit` before `~/.zshrc` is read;
+  `03-completion.zsh` already runs its own cached one.
+- **Never read `$commands` / `${commands[x]}` at startup.** The first access
+  makes zsh hash every executable on `$PATH`; under WSL that includes
+  `/mnt/c/WINDOWS/system32` (~5000 files over 9p) and costs ~60ms. Use
+  `command -v x` instead.
+
+`sync_to_host.sh` merges `.zshenv` into `~/.zshenv` as a marked block and
+leaves every other line (rustup, employer setup) alone. It is one-way:
+`sync_here.sh` does not pull it back.
 
 ## Using this on a work machine
 

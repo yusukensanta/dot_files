@@ -34,8 +34,14 @@ elif command -v mise &> /dev/null; then
 fi
 
 # === ZOXIDE (Smart CD) ===
+# `zoxide init zsh` prints the same script every time for a given binary, so
+# it is cached like starship's/fzf's below (see _dotfiles_cached_source in
+# 00-env.zsh) instead of forking zoxide on every shell start.
 if command -v zoxide &> /dev/null; then
-    eval "$(zoxide init zsh)"
+    _dotfiles_cached_source \
+        "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zoxide-init.zsh" \
+        "$(command -v zoxide)" \
+        zoxide init zsh
 fi
 
 # === STARSHIP (Prompt) ===
@@ -50,7 +56,7 @@ fi
 if command -v starship &> /dev/null; then
     _dotfiles_cached_source \
         "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/starship-init.zsh" \
-        "${commands[starship]}" \
+        "$(command -v starship)" \
         starship init zsh
 fi
 
@@ -85,7 +91,7 @@ fi
 if command -v fzf >/dev/null; then
     _dotfiles_cached_source \
         "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/fzf-init.zsh" \
-        "${commands[fzf]}" \
+        "$(command -v fzf)" \
         fzf --zsh
     # This config's own aliases for the widgets fzf just defined, kept
     # alongside fzf's defaults (^T, Alt-C, ^R) above.

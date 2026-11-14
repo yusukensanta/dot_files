@@ -184,6 +184,13 @@ done
 # wholesale; a second pass was pure redundant work (and a second,
 # pointless backup-dir entry).
 sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
+# ~/.zshenv is shared with whatever else the host keeps there (rustup,
+# employer setup), so only a marked block is merged in — never a whole-file
+# replace. One-way: the repo's .zshenv is the source of truth for the block.
+echo ""
+echo "📄 Syncing: .zshenv (managed block)"
+echo "   Target: $HOME/.zshenv"
+merge_managed_block "$REPO_DIR/.zshenv" "$HOME/.zshenv" || FAILURES=$((FAILURES + 1))
 sync_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf" ".tmux.conf"
 sync_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml" "starship.toml"
 # Identity-free shared git settings; ~/.gitconfig (identity, signing) is never touched.

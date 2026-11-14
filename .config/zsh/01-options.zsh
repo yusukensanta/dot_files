@@ -26,7 +26,18 @@ SAVEHIST=100000
 # as args, etc.) — tighten to owner-only, since the global umask (022,
 # 00-env.zsh) would otherwise leave a freshly created HISTFILE 644 and
 # readable by every other local user on a shared/multi-user host.
-[[ -f "$HISTFILE" ]] && chmod 600 "$HISTFILE" 2>/dev/null
+# zstat (builtin) first, chmod (a fork+exec on every shell start) only when
+# the mode is actually wrong. 8#... because zsh reads a leading-zero number
+# like 07777 as decimal unless OCTAL_ZEROES is set.
+if [[ -f "$HISTFILE" ]]; then
+    zmodload -F zsh/stat b:zstat 2>/dev/null
+    typeset -A _dotfiles_hist_stat
+    if ! zstat -H _dotfiles_hist_stat +mode "$HISTFILE" 2>/dev/null \
+        || (( (_dotfiles_hist_stat[mode] & 8#7777) != 8#600 )); then
+        chmod 600 "$HISTFILE" 2>/dev/null
+    fi
+    unset _dotfiles_hist_stat
+fi
 
 # === SHELL BEHAVIOR ===
 setopt AUTO_CD                   # Change directory without typing cd

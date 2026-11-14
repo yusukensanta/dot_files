@@ -20,6 +20,13 @@ export XDG_CACHE_HOME="$WORKDIR/cache"
 # force a slow re-clone instead of testing against what's actually there.
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$REAL_HOME/.local/share}"
 export ABBR_USER_ABBREVIATIONS_FILE="$WORKDIR/user-abbreviations"
+# mise asks "config files in <dir> are not trusted. Trust them?" on stdin the
+# first time it activates in a directory it hasn't seen. In the pty check
+# below that prompt swallowed the commands the test types, making a healthy
+# shell look like "starship not active". Test-only: this runs in a throwaway
+# $HOME; never set this in the real shell config (it would auto-trust the
+# config of any repo you cd into).
+export MISE_YES=1
 mkdir -p "$XDG_CACHE_HOME"
 
 # .zshrc lives at the repo root, not under .config/zsh, and zsh finds it
@@ -41,6 +48,10 @@ export HOME="$WORKDIR/home"
 mkdir -p "$HOME"
 ln -s "$REPO_ROOT/.zshrc" "$HOME/.zshrc"
 unset ZDOTDIR
+# ~/.zshenv is part of the installed layout too: sync_to_host.sh merges the
+# repo's .zshenv into it as a managed block. Done through the real function,
+# so this exercises the same code path a fresh machine goes through.
+( source "$REPO_ROOT/scripts/lib/sync_common.sh"; merge_managed_block "$REPO_ROOT/.zshenv" "$HOME/.zshenv" >/dev/null )
 
 fail=0
 pass() { echo "PASS: $*"; }
@@ -122,6 +133,32 @@ else
 fi
 echo
 
+echo "--- no \$commands access at startup (it hashes all of PATH: ~60ms under WSL) ---"
+# Comment-only lines are ignored. See the note above _dotfiles_cached_source
+# in 00-env.zsh for why this is a hard rule.
+if offenders="$(grep -nE '\$\{?\+?commands\[' "$REPO_ROOT/.zshrc" "$XDG_CONFIG_HOME"/zsh/*.zsh | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')"; [[ -z "$offenders" ]]; then
+    pass "no \$commands / \$+commands / \${commands[...]} in the startup files"
+else
+    fail "startup files read \$commands (first access hashes every executable on PATH):"
+    echo "$offenders" | sed 's/^/    /'
+fi
+echo
+
+echo "--- .zshenv block: global compinit skipped, startup message ---"
+skip_val="$(zsh -i -c 'print -r -- ${skip_global_compinit:-UNSET}' 2>/dev/null | tail -1 | tr -d '\r')"
+if [[ "$skip_val" == "1" ]]; then
+    pass "skip_global_compinit=1 reaches interactive shells (Debian/Ubuntu's /etc/zsh/zshrc honours it)"
+else
+    fail "skip_global_compinit is '$skip_val', expected 1 — system compinit would run before .zshrc"
+fi
+loaded_msg="$(zsh -i -c exit 2>&1 | grep -aE 'ZSH loaded in [0-9]+ms' | head -1)"
+if [[ -n "$loaded_msg" ]]; then
+    pass "startup message reports a time: $(printf '%s' "$loaded_msg" | tr -d '\r')"
+else
+    fail "no 'ZSH loaded in <N>ms' message printed"
+fi
+echo
+
 echo "--- interactive session: deferred abbr load, starship, fzf (real pty) ---"
 if python3 "$REPO_ROOT/scripts/tests/zsh_pty_check.py" "$baseline_count" "$WORKDIR/pty-results"; then
     :
@@ -144,6 +181,19 @@ avg="$(zsh -c '
     printf "%.3f" $(( total / n ))
 ')"
 echo "average: ${avg}s over 10 warm runs"
+# Regression guard for the Debian/Ubuntu system-wide compinit (~70ms when not
+# skipped; ~15ms total once skipped). Linux only: a shared macOS runner's
+# absolute numbers are too noisy for a fixed limit. Override with
+# ZSH_STARTUP_MAX_MS; the default leaves ~3x headroom over a healthy run.
+if [[ "$(uname -s)" == Linux ]]; then
+    max_ms="${ZSH_STARTUP_MAX_MS:-60}"
+    avg_ms="$(awk -v s="$avg" 'BEGIN { printf "%.0f", s * 1000 }')"
+    if [[ "$avg_ms" -le "$max_ms" ]]; then
+        pass "average startup ${avg_ms}ms <= ${max_ms}ms"
+    else
+        fail "average startup ${avg_ms}ms > ${max_ms}ms — something slow is back (compare with: zsh -i -c exit under ZDOTDIR=empty)"
+    fi
+fi
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     {

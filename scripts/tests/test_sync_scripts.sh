@@ -805,6 +805,75 @@ test_portfolio_opt_out() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
+
+# --- ~/.zshenv managed block ---
+
+test_managed_block_merge() {
+    local desc="merge_managed_block: creates, appends without touching other lines, replaces in place, idempotent, refuses a broken marker, honours dry-run, backs up"
+    local work; work="$(mktemp -d)"
+    local lib="$SCRIPTS_DIR/lib/sync_common.sh" good=true
+    local src="$work/src" dest="$work/home/.zshenv"
+    mkdir -p "$work/home"
+    # m [PREFIX_CMD]: run merge_managed_block src -> dest in a clean bash,
+    # optionally after PREFIX_CMD (e.g. "DRY_RUN=true;"); prints its output.
+    m() { local pre="${1:-}"; HOME="$work/home" bash -c "source \"\$1\"; $pre merge_managed_block \"\$2\" \"\$3\"" _ "$lib" "$src" "$dest" 2>&1; }
+
+    # 1. Missing dest: created, markers present.
+    printf 'A=1\n' > "$src"
+    m >/dev/null
+    grep -qxF 'A=1' "$dest" && grep -q '^# >>> dot_files managed block' "$dest" && grep -q '^# <<< dot_files managed block' "$dest" || { good=false; echo "    not created"; }
+
+    # 2. Existing foreign content (rustup-style) is preserved on append.
+    printf '. "$HOME/.cargo/env"\nexport FOO=bar' > "$dest"      # note: no trailing newline
+    m >/dev/null
+    grep -qxF '. "$HOME/.cargo/env"' "$dest" && grep -qxF 'export FOO=bar' "$dest" && grep -qxF 'A=1' "$dest" || { good=false; echo "    foreign lines lost on append"; }
+
+    # 3. Idempotent.
+    local before; before="$(cksum < "$dest")"
+    local out; out="$(m)"
+    [[ "$out" == *"already up to date"* && "$(cksum < "$dest")" == "$before" ]] || { good=false; echo "    not idempotent: $out"; }
+
+    # 4. Changed source replaces the block IN PLACE; lines after it stay after it.
+    printf 'export AFTER=1\n' >> "$dest"
+    printf 'A=2\nB=3\n' > "$src"
+    m >/dev/null
+    grep -qxF 'A=2' "$dest" && grep -qxF 'B=3' "$dest" && ! grep -qxF 'A=1' "$dest" || { good=false; echo "    block not replaced"; }
+    [[ "$(grep -c '>>> dot_files managed block' "$dest")" == "1" ]] || { good=false; echo "    block duplicated"; }
+    [[ "$(tail -1 "$dest")" == "export AFTER=1" ]] || { good=false; echo "    block moved / trailing line lost"; }
+    grep -qxF '. "$HOME/.cargo/env"' "$dest" || { good=false; echo "    foreign line lost on replace"; }
+
+    # 5. Begin marker without end marker: refused, file untouched.
+    printf 'X=1\n# >>> dot_files managed block (edits between these markers are overwritten) >>>\nY=2\nZ=3\n' > "$dest"
+    before="$(cksum < "$dest")"
+    if m >/dev/null; then good=false; echo "    broken marker not refused"; fi
+    [[ "$(cksum < "$dest")" == "$before" ]] || { good=false; echo "    broken-marker file was modified"; }
+
+    # 6. Dry-run writes nothing; real run leaves a backup of the old file.
+    printf 'KEEP=1\n' > "$dest"; before="$(cksum < "$dest")"
+    m "DRY_RUN=true;" >/dev/null
+    [[ "$(cksum < "$dest")" == "$before" ]] || { good=false; echo "    dry-run modified the file"; }
+    m >/dev/null
+    local bk; bk="$(find "$work/home/.dotfiles-sync-backup" -path '*managed_block*' -name .zshenv 2>/dev/null | head -1)"
+    [[ -n "$bk" && "$(<"$bk")" == "KEEP=1" ]] || { good=false; echo "    backup missing/wrong"; }
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_zshenv_block_content() {
+    local desc="repo .zshenv block sets skip_global_compinit=1, stamps the start time only for interactive shells, parses cleanly, and sync_to_host merges it"
+    local f="$SCRIPTS_DIR/../.zshenv" good=true
+    [[ -f "$f" ]] || { fail "$desc (missing)"; return; }
+    grep -qxF 'skip_global_compinit=1' "$f" || { good=false; echo "    skip_global_compinit=1 missing"; }
+    grep -q '\[\[ -o interactive \]\]' "$f" && grep -q '_dotfiles_t0=\$EPOCHREALTIME' "$f" || { good=false; echo "    interactive-only timestamp missing"; }
+    if command -v zsh >/dev/null 2>&1; then
+        zsh -n "$f" || { good=false; echo "    zsh -n failed"; }
+        # Non-interactive shells must not pay for / be changed by the stamp.
+        [[ "$(zsh -fc "source '$f'; print -r -- \${+_dotfiles_t0}")" == "0" ]] || { good=false; echo "    stamp set in a non-interactive shell"; }
+    fi
+    grep -q 'merge_managed_block "\$REPO_DIR/.zshenv" "\$HOME/.zshenv"' "$SCRIPTS_DIR/sync_to_host.sh" || { good=false; echo "    sync_to_host.sh does not merge it"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
 echo "== sync_to_host.sh / sync_here.sh / nvim / starship fixes =="
 test_openrsync_detection_and_delete_still_works
 test_manual_backup_runs_under_openrsync
@@ -832,6 +901,8 @@ test_claude_statusline_extract
 test_claude_sync_round_trip
 test_claude_repo_files_publishable
 test_portfolio_opt_out
+test_managed_block_merge
+test_zshenv_block_content
 test_starship_command_timeout
 test_pull_alacritty_strips_wsl_fragment
 test_pull_alacritty_refuses_unsplittable_file

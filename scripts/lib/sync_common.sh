@@ -241,3 +241,63 @@ extract_claude_statusline() {
         rm -f "$tmp"; echo "   ✗ save failed"; return 1
     fi
 }
+
+# === MANAGED BLOCK IN A SHARED FILE ===
+# For files the host may also use for other things (~/.zshenv: rustup,
+# employer setup). The repo file's content is kept between two marker lines;
+# everything outside them is never touched. An existing block is replaced in
+# place; with none, the block is appended. Return: 0 = done / up to date,
+# 1 = failed, 2 = source missing. The previous file is backed up to
+# $BACKUP_ROOT/managed_block/ first. Honours $DRY_RUN.
+DOTFILES_BLOCK_BEGIN='# >>> dot_files managed block (edits between these markers are overwritten) >>>'
+DOTFILES_BLOCK_END='# <<< dot_files managed block <<<'
+
+# merge_managed_block SRC DEST
+merge_managed_block() {
+    local src="$1" dest="$2"
+    [[ -f "$src" ]] || { echo "   ⚠️  $src not found — skipping"; return 2; }
+
+    local tmp="${dest}.tmp.$$" blk="${dest}.block.$$" input=/dev/null
+    mkdir -p "$(dirname "$dest")" 2>/dev/null || true
+    [[ -f "$dest" ]] && input="$dest"
+    { printf '%s\n' "$DOTFILES_BLOCK_BEGIN"; cat "$src"; printf '%s\n' "$DOTFILES_BLOCK_END"; } > "$blk" \
+        || { rm -f "$blk"; echo "   ✗ could not build the block"; return 1; }
+
+    # A file with a begin marker but no end marker would have everything
+    # after it swallowed by the replace below — refuse instead.
+    if [[ -f "$dest" ]] && grep -qxF "$DOTFILES_BLOCK_BEGIN" "$dest" && ! grep -qxF "$DOTFILES_BLOCK_END" "$dest"; then
+        rm -f "$blk"; echo "   ✗ $dest has a begin marker without an end marker — refusing to touch it"
+        return 1
+    fi
+
+    # Replace the existing block in place, or append at the end if absent.
+    if ! awk -v b="$DOTFILES_BLOCK_BEGIN" -v e="$DOTFILES_BLOCK_END" -v f="$blk" '
+            BEGIN { while ((getline l < f) > 0) blk = blk l "\n" }
+            $0 == b { printf "%s", blk; skip = 1; done = 1; next }
+            skip { if ($0 == e) skip = 0; next }
+            { print }
+            END { if (!done) printf "%s", blk }
+        ' "$input" > "$tmp"; then
+        rm -f "$blk" "$tmp"; echo "   ✗ merge failed"; return 1
+    fi
+    rm -f "$blk"
+
+    if [[ -f "$dest" ]] && cmp -s "$tmp" "$dest"; then
+        rm -f "$tmp"; echo "   ✓ managed block already up to date in $dest"
+        return 0
+    fi
+    if $DRY_RUN; then
+        rm -f "$tmp"; echo "   ✓ Dry-run: would update the managed block in $dest"
+        return 0
+    fi
+    if [[ -f "$dest" ]]; then
+        mkdir -p "$BACKUP_ROOT/managed_block" 2>/dev/null || true
+        cp -p "$dest" "$BACKUP_ROOT/managed_block/$(basename "$dest")" 2>/dev/null || true
+        chmod --reference="$dest" "$tmp" 2>/dev/null || chmod "$(stat -f %Lp "$dest" 2>/dev/null || echo 644)" "$tmp" 2>/dev/null || true
+    fi
+    if mv -f "$tmp" "$dest"; then
+        echo "   ✓ managed block written to $dest (other lines untouched)"
+    else
+        rm -f "$tmp"; echo "   ✗ write failed"; return 1
+    fi
+}

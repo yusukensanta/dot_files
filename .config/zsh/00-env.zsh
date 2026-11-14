@@ -72,6 +72,14 @@ umask 022
 # output and only pay the fork again when the thing that determines the
 # output actually changed. Shared here (not in 02-plugins.zsh/40-tools.zsh,
 # which use it) since 00-env.zsh is guaranteed to load first.
+# NEVER read $commands / $+commands[...] / ${commands[...]} at startup: the
+# first access makes zsh hash every executable on $PATH, and under WSL that
+# includes the Windows directories (/mnt/c/WINDOWS/system32 alone is ~5000
+# files behind a 9p mount) — measured 61-65ms, vs 0.1ms for `command -v`,
+# which stops at the first PATH hit. The gate arguments below are therefore
+# built with $(command -v tool) (a tiny fork, only after the caller has
+# checked the tool exists — a *missing* tool makes `command -v` scan the
+# whole PATH too). scripts/tests/test_zsh_startup.sh fails on any use.
 _dotfiles_cached_source() {
     local cache=$1 gate=$2
     shift 2
