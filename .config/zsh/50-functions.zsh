@@ -61,8 +61,8 @@ FILE & DIRECTORY:
   Ctrl+X d     - Switch to previous directory (dir stack)
 
   cd/git/docker one-liners (cd ~, cd .., git status, docker ps, ...) are
-  zsh-abbr abbreviations now, not keybindings — type e.g. "gs", "dps",
-  "~" and press space to expand. Run `abbr list` to see all of them.
+  abbreviations now, not keybindings — type e.g. "gs", "dps", "~" and
+  press Space or Enter to expand. Run `abbr` to see all of them.
 
 UTILITIES:
   Alt+s        - Toggle sudo

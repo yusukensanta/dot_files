@@ -19,7 +19,6 @@ export XDG_CACHE_HOME="$WORKDIR/cache"
 # real $HOME/.local/share/sheldon — pointing this at a fresh dir would
 # force a slow re-clone instead of testing against what's actually there.
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$REAL_HOME/.local/share}"
-export ABBR_USER_ABBREVIATIONS_FILE="$WORKDIR/user-abbreviations"
 # mise asks "config files in <dir> are not trusted. Trust them?" on stdin the
 # first time it activates in a directory it hasn't seen. In the pty check
 # below that prompt swallowed the commands the test types, making a healthy
@@ -70,26 +69,18 @@ for f in "$XDG_CONFIG_HOME"/zsh/*.zsh; do
 done
 echo
 
-# Ground truth for the abbr count: run the real sync logic synchronously
-# (skip 02-plugins.zsh entirely, so zsh-defer is never defined and
-# 30-abbreviations.zsh's own fallback branch runs it inline — exactly the
-# code path already used when sheldon/zsh-defer is unavailable) against a
-# throwaway store, rather than hardcoding a number that would silently go
-# stale the next time an abbreviation is added or removed.
-echo "--- synchronous baseline (ground truth for abbr count) ---"
-baseline_store="$WORKDIR/baseline-user-abbreviations"
-baseline_count="$(
-    ABBR_USER_ABBREVIATIONS_FILE="$baseline_store" zsh -c "
-        source '$XDG_CONFIG_HOME/zsh/00-env.zsh'
-        source '$XDG_CONFIG_HOME/zsh/30-abbreviations.zsh'
-        abbr list-abbreviations 2>/dev/null | wc -l | tr -d ' '
-    "
-)"
-if [[ "$baseline_count" =~ ^[0-9]+$ && "$baseline_count" -gt 0 ]]; then
-    pass "synchronous fallback synced $baseline_count abbreviations"
+# The expansion rules themselves (command position, cursor marker, quoting)
+# need no terminal: test_abbr_expand.zsh drives the function directly. The
+# key bindings are exercised for real in the pty section further down.
+echo "--- abbreviations: expansion rules (no terminal needed) ---"
+abbr_out="$(zsh "$REPO_ROOT/scripts/tests/test_abbr_expand.zsh" "$XDG_CONFIG_HOME/zsh/30-abbreviations.zsh" 2>&1)"
+abbr_rc=$?
+abbr_summary="$(printf '%s\n' "$abbr_out" | tail -1)"
+if [[ "$abbr_rc" -eq 0 ]]; then
+    pass "abbreviation expansion: $abbr_summary"
 else
-    fail "synchronous fallback produced no usable abbr count (got '$baseline_count')"
-    baseline_count=-1
+    printf '%s\n' "$abbr_out" | grep -v '^PASS' | sed 's/^/    /'
+    fail "abbreviation expansion: $abbr_summary"
 fi
 echo
 
@@ -159,8 +150,8 @@ else
 fi
 echo
 
-echo "--- interactive session: deferred abbr load, starship, fzf (real pty) ---"
-if python3 "$REPO_ROOT/scripts/tests/zsh_pty_check.py" "$baseline_count" "$WORKDIR/pty-results"; then
+echo "--- interactive session: abbreviations typed for real, starship, fzf (real pty) ---"
+if python3 "$REPO_ROOT/scripts/tests/zsh_pty_check.py" "$WORKDIR/pty-results"; then
     :
 else
     fail "pty interactive check reported at least one failure (see PASS/FAIL lines above)"
@@ -199,7 +190,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     {
         echo "### zsh startup — $(uname -s) ($(zsh --version))"
         echo "- \$DOTFILES_OS: $actual_os"
-        echo "- abbreviations synced: $baseline_count"
+        echo "- abbreviations: $abbr_summary"
         echo "- average warm-run startup: **${avg}s** (10 runs)"
     } >> "$GITHUB_STEP_SUMMARY"
 fi

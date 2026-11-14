@@ -43,6 +43,6 @@ export GPG_TTY=$TTY  # zsh builtin — avoids forking `tty` on every startup
 
 # === STARTUP MESSAGE ===
 # Last on purpose, so everything above is counted. This is the time until the
-# prompt can be drawn; work deferred with zsh-defer (mise, zsh-abbr, some
-# plugins) finishes just after, on the first idle tick.
+# prompt can be drawn; work deferred with zsh-defer (mise, some plugins)
+# finishes just after, on the first idle tick.
 printf '✨ ZSH loaded in %.0fms ⚡\n' $(( (EPOCHREALTIME - _dotfiles_t0) * 1000 ))

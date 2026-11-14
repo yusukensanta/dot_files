@@ -42,8 +42,7 @@ typeset -U PATH
 [[ -d "$HOME/.google-cloud-sdk/bin" ]] && export PATH="$HOME/.google-cloud-sdk/bin:$PATH"
 
 # Homebrew: check known prefixes directly (fast, no subprocess) rather than
-# hardcoding one — covers Apple Silicon, Intel macOS, and Linuxbrew. Shared
-# with 30-abbreviations.zsh's zsh-abbr lookup, which reuses this same array.
+# hardcoding one — covers Apple Silicon, Intel macOS, and Linuxbrew.
 # Check for the `brew` binary itself, not just the bin dir: /usr/local/bin
 # exists on stock Linux (Debian/Ubuntu, WSL) without Homebrew installed,
 # so a dir-only check stops at /usr/local and never reaches Linuxbrew.

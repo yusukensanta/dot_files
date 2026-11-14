@@ -510,18 +510,33 @@ test_platform_lib_detects_os() {
 # Runs an install script with every external command stubbed to log its own
 # argv, so the sequence of commands it would run can be asserted without
 # installing anything. $1 = script, $2 = space-separated stub names,
-# remaining args = extra env (FAKE_OS=, FAKE_REL=). Prints the log, then
-# "exit=N".
+# remaining args = extra env (FAKE_OS=, FAKE_REL=, FAKE_SUDO_DENIED=1 to
+# make every sudo call fail). Prints the log, then
+# "exit=N". With ONLY_STUBS=1 the real /usr/bin and /bin are NOT on PATH
+# (only the few coreutils the scripts need, linked into $work/sys), so a
+# tool the host happens to have installed (zsh, fzf, ...) can't make the
+# script skip an install the test expects to see.
 run_install_script_stubbed() {
     local script="$1" names="$2"; shift 2
     local work stubs name; work="$(mktemp -d)"; stubs="$work/bin"
     mkdir -p "$stubs" "$work/home"
+    local path_tail="/usr/bin:/bin" arg
+    for arg in "$@"; do
+        if [[ "$arg" == ONLY_STUBS=1 ]]; then
+            mkdir -p "$work/sys"
+            for name in bash env basename dirname mkdir ln id sed cat grep mktemp rm tee chmod; do
+                ln -s "$(command -v "$name")" "$work/sys/$name"
+            done
+            path_tail="$work/sys"
+        fi
+    done
     cat > "$stubs/_stub" <<'STUB'
 #!/usr/bin/env bash
 case "$(basename "$0")" in
     uname) case "${1:-}" in -r) echo "${FAKE_REL:-6.1.0}" ;; *) echo "${FAKE_OS:-Linux}" ;; esac; exit 0 ;;
     brew) [[ "${1:-}" == "--prefix" ]] && { echo "$FAKE_PREFIX"; exit 0; } ;;
     fish) if [[ "$*" == *"type -q fisher"* ]]; then echo "fish $*" >> "$LOG"; exit 1; fi ;;
+    sudo) if [[ -n "${FAKE_SUDO_DENIED:-}" ]]; then echo "sudo $*" >> "$LOG"; exit 1; fi ;;
     git) [[ "${1:-}" == clone ]] && mkdir -p "${@: -1}" ;;
 esac
 echo "$(basename "$0") $*" >> "$LOG"
@@ -530,20 +545,88 @@ STUB
     chmod +x "$stubs/_stub"
     for name in $names; do ln -s _stub "$stubs/$name"; done
     : > "$work/log"
-    ( cd "$work" && env -i PATH="$stubs:/usr/bin:/bin" HOME="$work/home" USER=tester \
+    ( cd "$work" && env -i PATH="$stubs:$path_tail" HOME="$work/home" USER=tester \
         LOG="$work/log" FAKE_PREFIX="$work/prefix" "$@" bash "$script" >/dev/null 2>&1
       rc=$?; sed "s#$work#TMP#g" "$work/log"; echo "exit=$rc" )
     rm -rf "$work"
 }
 
 test_install_zsh_tools_command_sequence() {
-    local desc="install_zsh_tools.sh: brew path installs zsh-abbr+starship via brew; no-brew path falls back to curl/cargo"
-    local out good=true
-    out="$(run_install_script_stubbed "$SCRIPTS_DIR/install_zsh_tools.sh" "brew curl cargo starship sheldon")"
-    [[ "$out" == *"brew tap olets/tap"* && "$out" == *"brew install olets/tap/zsh-abbr@6"* && "$out" == *"sheldon lock"* && "$out" == *"exit=0"* ]] || good=false
-    [[ "$out" != *"brew install starship"* ]] || good=false   # already on PATH -> not reinstalled
-    out="$(run_install_script_stubbed "$SCRIPTS_DIR/install_zsh_tools.sh" "curl cargo starship")"
-    [[ "$out" == *"cargo install sheldon"* && "$out" != *"brew"* && "$out" == *"exit=0"* ]] || good=false
+    local desc="install_zsh_tools.sh: installs zsh + runtime tools first (brew or apt), then starship/sheldon; falls back to curl/cargo without brew"
+    local script="$SCRIPTS_DIR/install_zsh_tools.sh" out good=true
+    # brew path, nothing but brew/curl/cargo present: everything is installed via brew
+    out="$(run_install_script_stubbed "$script" "brew curl cargo starship sheldon zsh" ONLY_STUBS=1)"
+    [[ "$out" == *"brew install fzf"* && "$out" == *"brew install ripgrep"* \
+        && "$out" == *"brew install eza"* && "$out" == *"brew install zoxide"* \
+        && "$out" == *"exit=0"* ]] || { good=false; echo "    brew path: $out"; }
+    # abbreviations are plain zsh now: no third-party tap, nothing to install
+    [[ "$out" != *"olets"* && "$out" != *"abbr"* && "$out" != *"brew tap"* ]] || { good=false; echo "    zsh-abbr should no longer be installed: $out"; }
+    [[ "$out" != *"brew install starship"* && "$out" != *"brew install zsh"$'\n'* ]] || good=false   # already on PATH -> not reinstalled
+    # zsh itself comes first, before the tools its config uses
+    out="$(run_install_script_stubbed "$script" "brew curl cargo starship sheldon" ONLY_STUBS=1)"
+    [[ "$out" == *"brew install zsh"*"brew install fzf"* ]] || { good=false; echo "    order: $out"; }
+    # apt path: no brew, apt-get + sudo stubbed
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo starship zsh" ONLY_STUBS=1)"
+    [[ "$out" == *"sudo apt-get update"* && "$out" == *"sudo apt-get install -y fd-find"* \
+        && "$out" == *"sudo apt-get install -y ripgrep"* \
+        && "$out" == *"cargo install sheldon"* && "$out" != *"brew"* && "$out" == *"exit=0"* ]] || { good=false; echo "    apt path: $out"; }
+    [[ "$(grep -c 'apt-get update' <<< "$out")" == 1 ]] || { good=false; echo "    apt-get update should run exactly once"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_zsh_tools_runs_first_on_fresh_machine() {
+    local desc="install_zsh_tools.sh: with no sheldon config on the host yet (run before sync_to_host.sh) it locks against the repo's plugins.toml; an existing host config is used as-is"
+    local script="$SCRIPTS_DIR/install_zsh_tools.sh" out good=true
+    local repo_toml; repo_toml="$(cd "$SCRIPTS_DIR/.." && pwd)/.config/sheldon/plugins.toml"
+    out="$(run_install_script_stubbed "$script" "brew curl starship sheldon zsh" ONLY_STUBS=1)"
+    [[ "$out" == *"sheldon --config-file $repo_toml lock"* && "$out" == *"exit=0"* ]] || { good=false; echo "    fresh: $out"; }
+    local cfg; cfg="$(mktemp -d)"; mkdir -p "$cfg/sheldon"; : > "$cfg/sheldon/plugins.toml"
+    out="$(run_install_script_stubbed "$script" "brew curl starship sheldon zsh" ONLY_STUBS=1 XDG_CONFIG_HOME="$cfg")"
+    [[ "$out" == *$'\n'"sheldon lock"$'\n'* && "$out" != *"--config-file"* ]] || { good=false; echo "    existing config: $out"; }
+    rm -rf "$cfg"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_zsh_tools_survives_restricted_machine() {
+    local desc="install_zsh_tools.sh: sudo denied or no package manager is a warning, not an abort (later steps still run, sudo asked once); exit is non-zero only when zsh itself is missing"
+    local script="$SCRIPTS_DIR/install_zsh_tools.sh" out good=true
+    # sudo denied, zsh already there: carries on to sheldon, asks sudo once, exits 0
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo starship zsh" ONLY_STUBS=1 FAKE_SUDO_DENIED=1)"
+    [[ "$(grep -c '^sudo ' <<< "$out")" == 1 && "$out" == *"cargo install sheldon"* && "$out" == *"exit=0"* ]] || { good=false; echo "    sudo denied: $out"; }
+    # sudo denied and no zsh: still runs every later step, then reports failure
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo starship" ONLY_STUBS=1 FAKE_SUDO_DENIED=1)"
+    [[ "$out" == *"cargo install sheldon"* && "$out" == *"exit=1"* ]] || { good=false; echo "    sudo denied, no zsh: $out"; }
+    # no package manager at all
+    out="$(run_install_script_stubbed "$script" "curl cargo starship zsh" ONLY_STUBS=1)"
+    [[ "$out" != *"brew"* && "$out" != *"apt-get"* && "$out" == *"cargo install sheldon"* && "$out" == *"exit=0"* ]] || { good=false; echo "    no-pm: $out"; }
+    out="$(run_install_script_stubbed "$script" "curl cargo starship" ONLY_STUBS=1)"
+    [[ "$out" == *"exit=1"* ]] || { good=false; echo "    no-pm, no zsh: $out"; }
+    # without brew, starship installs unattended into ~/.local/bin (no sudo, no tty prompt)
+    out="$(run_install_script_stubbed "$script" "curl sh cargo zsh" ONLY_STUBS=1)"
+    [[ "$out" == *"sh -s -- -y -b TMP/home/.local/bin"* ]] || { good=false; echo "    starship fallback: $out"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_zsh_tools_machine_local_settings() {
+    local desc="install_zsh_tools.sh: ZSH_TOOLS_SKIP covers every tool (incl. starship/sheldon); the untracked install.local.sh sets it per machine and adds extras; an env value wins over the file"
+    local script="$SCRIPTS_DIR/install_zsh_tools.sh" out good=true
+    out="$(run_install_script_stubbed "$script" "brew curl cargo zsh" ONLY_STUBS=1 ZSH_TOOLS_SKIP="eza bat starship sheldon")"
+    [[ "$out" != *"brew install eza"* && "$out" != *"brew install bat"* \
+        && "$out" != *"starship"* && "$out" != *"sheldon"* && "$out" == *"brew install fzf"* && "$out" == *"exit=0"* ]] || { good=false; echo "    skip: $out"; }
+    # per-machine file: found at $XDG_CONFIG_HOME/dot_files/install.local.sh
+    local cfg; cfg="$(mktemp -d)"; mkdir -p "$cfg/dot_files"
+    printf 'ZSH_TOOLS_SKIP="eza starship"\ninstall_local_extras() { brew install work-only-tool; }\n' > "$cfg/dot_files/install.local.sh"
+    out="$(run_install_script_stubbed "$script" "brew curl cargo zsh sheldon" ONLY_STUBS=1 XDG_CONFIG_HOME="$cfg")"
+    [[ "$out" != *"brew install eza"* && "$out" != *"starship"* && "$out" == *"brew install bat"* \
+        && "$out" == *"brew install work-only-tool"* && "$out" == *"exit=0"* ]] || { good=false; echo "    local file: $out"; }
+    # extras run last, after the standard tools
+    [[ "$out" == *"sheldon"*"brew install work-only-tool"* ]] || { good=false; echo "    extras should run last"; }
+    # explicit path, and the environment beats the file
+    out="$(run_install_script_stubbed "$script" "brew curl cargo zsh sheldon starship" ONLY_STUBS=1 DOTFILES_INSTALL_LOCAL="$cfg/dot_files/install.local.sh" ZSH_TOOLS_SKIP="bat")"
+    [[ "$out" == *"brew install eza"* && "$out" != *"brew install bat"* && "$out" == *"brew install work-only-tool"* ]] || { good=false; echo "    env over file: $out"; }
+    # no file at all is fine, and the file is never looked for inside the repo
+    ! git -C "$SCRIPTS_DIR/.." ls-files | grep -q 'install\.local\.sh' || { good=false; echo "    install.local.sh must stay untracked"; }
+    rm -rf "$cfg"
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
@@ -888,6 +971,9 @@ test_sync_scripts_exclude_nvim_local
 test_sync_common_args_and_confirm
 test_platform_lib_detects_os
 test_install_zsh_tools_command_sequence
+test_install_zsh_tools_runs_first_on_fresh_machine
+test_install_zsh_tools_survives_restricted_machine
+test_install_zsh_tools_machine_local_settings
 test_install_libraries_command_sequence
 test_starship_session_format_lib
 test_shellcheck_clean

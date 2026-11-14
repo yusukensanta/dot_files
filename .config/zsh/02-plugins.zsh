@@ -9,8 +9,6 @@
 # path for that case) despite older advice to the contrary.
 #
 # Must follow 00-env.zsh (calls _dotfiles_cached_source, defined there).
-# zsh-abbr itself is no longer sourced here: see 30-abbreviations.zsh,
-# which loads it (deferred) together with the sync logic that needs it.
 
 # === SHELDON PLUGIN MANAGER ===
 # `sheldon source` reads plugins.lock and prints a script; that script is

@@ -1,134 +1,142 @@
 #!/usr/bin/env zsh
 # ~/.config/zsh/30-abbreviations.zsh
-# zsh-abbr: load the plugin and sync this file's abbreviation list into it
+# Abbreviations: type the short form, press Space or Enter, and it is
+# replaced by the full command on the command line, where you can see and
+# edit it before it runs (unlike an alias).
 #
-# Must follow 00-env.zsh (reads DOTFILES_BREW_PREFIXES, defined there, to
-# find zsh-abbr.zsh) and should follow 02-plugins.zsh (zsh-defer, also
-# from there, to actually defer the load below — falls back to
-# synchronous, not broken, if it's unavailable). Both tested with a fresh
-# $HOME.
+# Self-contained: an associative array and two zle widgets, no plugin and
+# nothing to install. Needs nothing from the other numbered files (the
+# unit test sources this file on its own). zsh-autopair, loaded later and
+# deferred by sheldon, rebinds Space to its own widget but calls the widget
+# that was bound before it for ordinary spaces, so the expansion below keeps
+# working through it.
+#
+# Per machine: add or remove entries from a file in local.d/ (loaded after
+# this one), e.g.
+#   DOTFILES_ABBRS[kx]='kubectx'
+#   unset 'DOTFILES_ABBRS[d]'
+#
+# Rules:
+# - Only a whole word in command position expands: at the start of the
+#   line or after ; | || && |& & ( {. `echo g` stays `echo g`.
+# - A % in the expansion is where the cursor lands (`gcm` puts it between
+#   the quotes). An expansion therefore can't contain a literal %.
+# - To type an abbreviation literally, press Ctrl+V before the Space.
+# - `abbr` lists them all.
 
-export ABBR_SET_EXPANSION_CURSOR=1
+typeset -gA DOTFILES_ABBRS
+DOTFILES_ABBRS=(
+    # git
+    g     'git'
+    ga    'git add'
+    gaa   'git add --all'
+    gco   'git checkout'
+    gcm   'git commit -m "%"'
+    gs    'git status'
+    gsw   'git switch'
+    gd    'git diff'
+    gl    'git log --oneline'
+    gps   'git push'
+    gpl   'git pull'
+    # docker
+    d     'docker'
+    dc    'docker compose'
+    dps   'docker ps'
+    di    'docker images'
+    # kubernetes
+    k     'kubectl'
+    kg    'kubectl get'
+    kd    'kubectl describe'
+    ka    'kubectl apply -f'
+    # file operations
+    ll    "eza -lauUg -s modified -r --time-style 'long-iso' --group-directories-first"
+    la    'eza -la'
+    lt    'eza -T'
+    cat   'bat'
+    # editor
+    vi    'nvim'
+    # mise
+    m     'mise'
+    # directory navigation
+    '..'  'cd ..'
+    '...' 'cd ../..'
+    '~'   'cd ~'
+)
 
-# Sourcing zsh-abbr itself registers this session's ~28 stored
-# abbreviations into zle one at a time and is the single most expensive
-# thing this shell does at startup (~15ms, more than sheldon+starship+fzf
-# combined) — deferred below so it happens on the first idle tick after
-# the prompt draws instead of before, same tradeoff already made for mise
-# (40-tools.zsh) and the sheldon-deferred plugins (autosuggestions,
-# syntax-highlighting, autopair, history-substring-search): `abbr` isn't
-# callable for a beat, invisible in practice since nothing expands an
-# abbreviation in that window. Folds in the sync-if-changed logic below
-# too, not just the plugin source — splitting them into two separate
-# deferred calls would risk the sync running before the source that
-# defines `abbr` for it to use, depending on zsh-defer's own scheduling.
-_dotfiles_load_abbr() {
-    # olets/tap's zsh-abbr@6 formula has installed under two different
-    # layouts depending on when it was tapped: an older unversioned
-    # share/zsh-abbr/zsh-abbr.zsh, and (confirmed on a fresh macOS
-    # Homebrew install) the version-suffixed share/zsh-abbr@6/zsh-abbr.zsh
-    # the formula's own current caveat message documents — check both
-    # rather than assume whichever one happens to be on this machine.
-    local brew_prefix zsh_abbr_candidate
-    for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
-        for zsh_abbr_candidate in "$brew_prefix/share/zsh-abbr/zsh-abbr.zsh" "$brew_prefix/share/zsh-abbr@6/zsh-abbr.zsh"; do
-            if [[ -f "$zsh_abbr_candidate" ]]; then
-                source "$zsh_abbr_candidate"
-                break 2
-            fi
-        done
-    done
-    command -v abbr >/dev/null 2>&1 || return
+# Tokens after which the next word is a command. Shell keywords (do, then,
+# else, ...) are left out on purpose: they are also ordinary words
+# (`echo then g`), and a wrong expansion is worse than a missed one.
+typeset -ga _dotfiles_abbr_command_starts=(';' '|' '||' '&&' '|&' '&' '(' '{')
 
-    # zsh-abbr persists whatever `abbr add` writes across sessions, so
-    # re-declaring all of these every shell start is pure waste once the
-    # persisted file already matches — only re-sync when this list
-    # actually changed, tracked via the checksum marker below.
-    local -a _abbrs=(
-        # git
-        'g=git'
-        'ga=git add'
-        'gaa=git add --all'
-        'gco=git checkout'
-        'gcm=git commit -m "%"'
-        'gs=git status'
-        'gsw=git switch'
-        'gd=git diff'
-        'gl=git log --oneline'
-        'gps=git push'
-        'gpl=git pull'
-        # docker
-        'd=docker'
-        'dc=docker compose'
-        'dps=docker ps'
-        'di=docker images'
-        # kubernetes
-        'k=kubectl'
-        'kg=kubectl get'
-        'kd=kubectl describe'
-        'ka=kubectl apply -f'
-        # file operations
-        "ll=eza -lauUg -s modified -r --time-style 'long-iso' --group-directories-first"
-        'la=eza -la'
-        'lt=eza -T'
-        'cat=bat'
-        # editor
-        'vi=nvim'
-        # mise
-        'm=mise'
-        # directory navigation
-        '..=cd ..'
-        '...=cd ../..'
-        '~=cd ~'
-    )
+# Expands the abbreviation directly left of the cursor when it stands in
+# command position. Returns 0 if it expanded something; REPLY is then 1
+# when the expansion had a cursor marker (the cursor is already placed, so
+# the caller must not add a space or run the line), else 0.
+_dotfiles_abbr_expand() {
+    emulate -L zsh
+    REPLY=0
+    local word=${LBUFFER##*[[:space:]]}
+    [[ -n $word ]] || return 1
+    local expansion=${DOTFILES_ABBRS[$word]-}
+    [[ -n $expansion ]] || return 1
 
-    zmodload -F zsh/stat b:zstat 2>/dev/null
-    local _abbr_store="${ABBR_USER_ABBREVIATIONS_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh-abbr/user-abbreviations}"
-    _abbr_store_state() {
-        # zstat only honors a single +element flag per call — passing
-        # multiple (+size +mtime together) silently misparses the rest as
-        # extra filename arguments instead of extracting both fields.
-        [[ -f "$_abbr_store" ]] || return
-        print -r -- "$(zstat +size -- "$_abbr_store" 2>/dev/null) $(zstat +mtime -- "$_abbr_store" 2>/dev/null)"
-    }
-
-    # Marker holds "<list checksum> <store file size+mtime>". The list
-    # checksum alone only proves intent ("we asked for this list before"),
-    # not that the store still holds it — a wiped/corrupted/migrated store
-    # (e.g. zsh-abbr's own v5->v6 format change) would otherwise leave the
-    # marker matching while every abbreviation is silently gone. Comparing
-    # the store's own state too means deleting or replacing it (however
-    # that happens) forces a re-sync.
-    local _abbr_list_checksum=$(print -r -- "${(j:|:)_abbrs}" | cksum)
-    local _abbr_marker="${XDG_CACHE_HOME:-$HOME/.cache}/zsh-abbr-synced"
-    local _abbr_previous=""
-    [[ -f "$_abbr_marker" ]] && _abbr_previous=$(<$_abbr_marker)
-
-    if [[ "$_abbr_previous" != "$_abbr_list_checksum $(_abbr_store_state)" ]]; then
-        local _abbr_ok=1 _abbr
-        for _abbr in "${_abbrs[@]}"; do
-            abbr add --force "$_abbr" >/dev/null 2>&1 || _abbr_ok=0
-        done
-        # Only cache success — a partially-failed sync must be retried next
-        # shell start, not silently treated as done. Store state is read
-        # again here (post-write), not reused from above, since it just
-        # changed as a result of the sync.
-        if (( _abbr_ok )); then
-            mkdir -p "${_abbr_marker:h}"
-            print -r -- "$_abbr_list_checksum $(_abbr_store_state)" >| "$_abbr_marker"
-        fi
+    # Split the line the way the shell itself would, so a word inside a
+    # quoted string ("a; g") is never mistaken for a command.
+    local -a words=( ${(z)LBUFFER} )
+    [[ $words[-1] == $word ]] || return 1
+    if (( $#words > 1 )); then
+        (( ${_dotfiles_abbr_command_starts[(Ie)$words[-2]]} )) || return 1
     fi
-    # A `local function() {}` defined inside a function is still a global
-    # function in zsh (no lexical scoping for function definitions), so
-    # this needs an explicit unset — unlike the _abbr_* locals above, which
-    # vanish on their own when the function returns.
-    unset -f _abbr_store_state
+
+    local prefix=${LBUFFER[1,-$#word-1]}
+    if [[ $expansion == *%* ]]; then
+        LBUFFER=$prefix${expansion%%\%*}
+        RBUFFER=${expansion#*%}$RBUFFER
+        REPLY=1
+    else
+        LBUFFER=$prefix$expansion
+    fi
 }
 
-if command -v zsh-defer &> /dev/null; then
-    zsh-defer _dotfiles_load_abbr
-else
-    # zsh-defer unavailable (sheldon missing/failed to load) — fall back to
-    # synchronous, same as mise's fallback in 40-tools.zsh.
-    _dotfiles_load_abbr
-fi
+# Widget names have no leading underscore on purpose: zsh-autosuggestions
+# skips `_*` widgets when it hooks widgets, and the suggestion would then
+# go stale after an expansion.
+abbr-expand-space() {
+    _dotfiles_abbr_expand && (( REPLY )) && return
+    zle self-insert
+}
+zle -N abbr-expand-space
+
+# Enter expands too, so `gs<Enter>` runs `git status`. With the cursor in
+# the middle of a word (`g|it status`) the left part is not a whole word,
+# so it is left alone. An expansion with a cursor marker is not run: the
+# cursor goes to the marker for the missing part to be typed.
+abbr-expand-accept() {
+    if [[ -z $RBUFFER || $RBUFFER == [[:space:]]* ]]; then
+        _dotfiles_abbr_expand && (( REPLY )) && return
+    fi
+    zle accept-line
+}
+zle -N abbr-expand-accept
+
+bindkey ' ' abbr-expand-space
+bindkey '^M' abbr-expand-accept
+# A space typed into an incremental search (Ctrl+S) is part of the search
+# string, not the end of a command word.
+bindkey -M isearch ' ' self-insert
+
+# abbr [list]: prints every abbreviation and its expansion.
+abbr() {
+    emulate -L zsh
+    if (( $# )) && [[ $1 != list ]]; then
+        print -u2 -- "usage: abbr [list]"
+        print -u2 -- "Abbreviations are the DOTFILES_ABBRS array; to change them on this machine, put e.g."
+        print -u2 -- "  DOTFILES_ABBRS[kx]='kubectx'"
+        print -u2 -- "in ${ZDOTDIR:-$HOME/.config/zsh}/local.d/<name>.zsh"
+        return 1
+    fi
+    local key
+    for key in ${(ko)DOTFILES_ABBRS}; do
+        print -r -- "${(r:5:)key} $DOTFILES_ABBRS[$key]"
+    done
+}

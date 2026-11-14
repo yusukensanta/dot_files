@@ -1,47 +1,140 @@
 #!/usr/bin/env bash
-# Install ZSH tools and dependencies
-# Run this script once to set up all required tools
+# Install everything needed to launch this repo's zsh config.
+# Run this FIRST on a new machine (before install_libraries.sh and
+# sync_to_host.sh): it needs nothing but bash, and installs
+#   - zsh itself, plus git and curl (used by the installers below)
+#   - the CLI tools .config/zsh calls at startup: fzf, fd, ripgrep, bat,
+#     eza, zoxide
+#   - the prompt/plugin tooling: starship, sheldon (+ its plugins)
+# Safe to re-run: anything already on PATH is skipped.
+#
+# A step that fails (no sudo, blocked download, package missing from this
+# distro) is recorded and the script carries on; the warnings are listed at
+# the end. The exit status is non-zero only when zsh itself is missing.
+#
+# Per-machine settings (personal, work, someone else's machine) live in an
+# untracked file outside the repo, never in this script:
+#   ${XDG_CONFIG_HOME:-~/.config}/dot_files/install.local.sh
+# (DOTFILES_INSTALL_LOCAL=<path> points at a different file). It is sourced
+# as bash and may
+#   - set ZSH_TOOLS_SKIP="starship eza"       tools this machine must not install
+#   - define install_local_extras() { ... }   runs last, for machine-only extras
+# ZSH_TOOLS_SKIP given in the environment wins over the file. Names are the
+# ones this script prints: zsh git curl fzf fd rg bat eza zoxide starship
+# sheldon.
 
 set -euo pipefail
 
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# The fallback installers below put binaries here; without this a tool
+# installed a moment ago would still look missing to the next step.
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
 have() { command -v "$1" &>/dev/null; }
 
-# Works out zsh-abbr's install path via `brew --prefix`, so this covers
-# macOS (/opt/homebrew or /usr/local) and Linuxbrew (/home/linuxbrew/.linuxbrew) alike.
-# Checks both share/zsh-abbr/ (older tap layout) and share/zsh-abbr@6/
-# (the version-suffixed layout a fresh tap clone currently installs, per
-# the formula's own caveat message) — see the matching comment in
-# .config/zsh/30-abbreviations.zsh, which loads whichever one exists.
-zsh_abbr_installed() {
-    have brew || return 1
-    local prefix
-    prefix="$(brew --prefix)"
-    [[ -f "$prefix/share/zsh-abbr/zsh-abbr.zsh" || -f "$prefix/share/zsh-abbr@6/zsh-abbr.zsh" ]]
+WARNINGS=()
+warn() {
+    WARNINGS+=("$*")
+    echo "⚠️  $*" >&2
 }
 
-install_zsh_abbr() {
-    if zsh_abbr_installed; then
-        echo "✅ zsh-abbr already installed"
-    elif have brew; then
-        # Homebrew 7+ refuses to load a formula from a non-official tap until
-        # it's explicitly trusted (`brew install` alone errors: "Refusing to
-        # load formula ... from untrusted tap"). `|| true` on both, not a
-        # pre-check for the `trust` subcommand's existence: `brew commands |
-        # grep -qx trust` looked like a reasonable existence check but
-        # silently returned false on a Homebrew that DOES have `trust` (the
-        # tap/trust calls never ran at all, yet the subsequent install still
-        # failed the same way) — not worth chasing why when tolerating
-        # failure here is already correct behavior either way: older Homebrew
-        # has no trust concept and no such restriction to work around, so a
-        # failed `brew trust` there is harmless to ignore.
-        brew tap olets/tap || true
-        brew trust olets/tap || true
-        echo "📦 Installing zsh-abbr..."
-        brew install olets/tap/zsh-abbr@6
-    else
-        echo "❌ Homebrew not found. Cannot install zsh-abbr automatically."
-        echo "   Please install Homebrew first: https://brew.sh"
+# True (and says so) when NAME is listed in ZSH_TOOLS_SKIP.
+skipped() {
+    [[ " ${ZSH_TOOLS_SKIP:-} " == *" $1 "* ]] || return 1
+    echo "⏭️  skipping $1 (ZSH_TOOLS_SKIP)"
+}
+
+load_local_settings() {
+    local file="${DOTFILES_INSTALL_LOCAL:-${XDG_CONFIG_HOME:-$HOME/.config}/dot_files/install.local.sh}"
+    [[ -r "$file" ]] || return 0
+    local env_skip_set="${ZSH_TOOLS_SKIP+set}" env_skip="${ZSH_TOOLS_SKIP:-}"
+    echo "🏠 Loading machine-local settings: $file"
+    # shellcheck source=/dev/null
+    source "$file"
+    if [[ -n "$env_skip_set" ]]; then
+        ZSH_TOOLS_SKIP="$env_skip"
     fi
+}
+
+# Runs a command as root, via sudo unless already root.
+as_root() {
+    if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then "$@"; else sudo "$@"; fi
+}
+
+# Refreshes apt's package index once per run, and only when something
+# actually needs installing (a re-run with everything present needs no
+# sudo). If that fails (typically: no sudo rights on a managed machine),
+# apt is given up on for the rest of the run instead of asking for a
+# password again for every single package.
+APT_STATE=unknown # unknown | ready | unavailable
+apt_ready() {
+    case "$APT_STATE" in
+        ready) return 0 ;;
+        unavailable) return 1 ;;
+    esac
+    if as_root apt-get update; then
+        APT_STATE=ready
+    else
+        APT_STATE=unavailable
+        warn "apt-get update failed (no sudo rights?): apt installs are skipped for this run"
+        return 1
+    fi
+}
+
+# install_pkg BINARY BREW_PKG APT_PKG
+# Installs a package when BINARY isn't on PATH: Homebrew if present, else
+# apt on Debian/Ubuntu. A package that can't be installed (e.g. eza on an
+# older apt release) is a warning, not a failure: the zsh config checks
+# for each of these with `command -v` and works without it.
+install_pkg() {
+    local binary="$1" brew_pkg="$2" apt_pkg="$3"
+    skipped "$binary" && return 0
+    if have "$binary"; then
+        echo "✅ $binary already installed"
+        return 0
+    fi
+    echo "📦 Installing $binary..."
+    if have brew; then
+        brew install "$brew_pkg" || warn "could not install $brew_pkg via brew"
+    elif have apt-get; then
+        if apt_ready; then
+            as_root apt-get install -y "$apt_pkg" || warn "could not install $apt_pkg via apt"
+        else
+            warn "$binary not installed (apt unavailable)"
+        fi
+    else
+        warn "no supported package manager (brew, apt) found: install $binary manually"
+    fi
+}
+
+# Debian/Ubuntu install fd and bat as `fdfind`/`batcat`; the zsh config
+# looks for the upstream names, so link them into ~/.local/bin (already on
+# PATH via 00-env.zsh) without clobbering a real fd/bat.
+link_renamed_debian_binaries() {
+    mkdir -p "$HOME/.local/bin"
+    if ! have fd && have fdfind; then
+        ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
+    fi
+    if ! have bat && have batcat; then
+        ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"
+    fi
+}
+
+install_base_packages() {
+    install_pkg zsh zsh zsh
+    install_pkg git git git
+    install_pkg curl curl curl
+}
+
+install_runtime_tools() {
+    install_pkg fzf fzf fzf
+    install_pkg fd fd fd-find
+    install_pkg rg ripgrep ripgrep
+    install_pkg bat bat bat
+    install_pkg eza eza eza
+    install_pkg zoxide zoxide zoxide
+    link_renamed_debian_binaries
 }
 
 # install_tool NAME DESCRIPTION FALLBACK_LABEL FALLBACK_FN
@@ -49,56 +142,116 @@ install_zsh_abbr() {
 # FALLBACK_FN; does nothing if NAME is already on PATH.
 install_tool() {
     local name="$1" description="$2" fallback_label="$3" fallback_fn="$4"
+    skipped "$name" && return 0
     if have "$name"; then
         echo "✅ $name already installed"
-        return
+        return 0
     fi
     echo "📦 Installing $description..."
     if have brew; then
-        brew install "$name"
+        brew install "$name" || warn "could not install $name via brew"
     else
         echo "   Using $fallback_label installer..."
-        "$fallback_fn"
+        "$fallback_fn" || warn "could not install $name with the $fallback_label installer"
     fi
 }
 
-install_starship_via_curl() { curl -fsS https://starship.rs/install.sh | sh; }
-install_sheldon_via_cargo() { cargo install sheldon; }
+# Into ~/.local/bin with -y: the installer's defaults (/usr/local/bin, a
+# confirmation read from /dev/tty) need sudo and a terminal, which a
+# managed work machine or an unattended run doesn't have.
+install_starship_via_curl() {
+    mkdir -p "$HOME/.local/bin"
+    curl -fsS https://starship.rs/install.sh | sh -s -- -y -b "$HOME/.local/bin"
+}
+
+# cargo when available, else the project's prebuilt-binary installer into
+# ~/.local/bin (so a machine with no Rust toolchain still gets sheldon).
+install_sheldon_via_cargo_or_curl() {
+    if have cargo; then
+        cargo install sheldon
+    else
+        mkdir -p "$HOME/.local/bin"
+        curl --proto '=https' -fLsS https://rossmacarthur.github.io/install/crate.sh \
+            | bash -s -- --repo rossmacarthur/sheldon --to "$HOME/.local/bin"
+    fi
+}
 
 # Only a first-run fallback for a from-scratch bootstrap: this repo tracks
 # its own customized starship.toml (AWS/GCloud segments, Tokyo Night
 # powerline), which sync_to_host.sh overwrites this with anyway. Skipped
 # once that's in place so this doesn't regenerate a vanilla preset over it.
 setup_starship_config() {
-    if [[ -f ~/.config/starship.toml ]]; then
+    have starship || return 0
+    if [[ -f "$HOME/.config/starship.toml" ]]; then
         echo "✅ starship.toml already configured"
-        return
+        return 0
     fi
     echo "🎨 Setting up a starter Starship config (Tokyo Night preset)..."
     echo "   Run scripts/sync_to_host.sh afterwards to replace it with this repo's own."
-    mkdir -p ~/.config
-    starship preset tokyo-night -o ~/.config/starship.toml
+    mkdir -p "$HOME/.config"
+    starship preset tokyo-night -o "$HOME/.config/starship.toml" \
+        || warn "could not write the starter starship.toml"
 }
 
+# On a machine where sync_to_host.sh hasn't run yet there is no
+# ~/.config/sheldon/plugins.toml, and a plain `sheldon lock` fails outright.
+# Lock against the repo's own copy in that case: the plugins are cloned into
+# sheldon's data dir either way, so they are already there once the config
+# is synced into place.
 install_sheldon_plugins() {
     have sheldon || return 0
+    local host_config="${XDG_CONFIG_HOME:-$HOME/.config}/sheldon/plugins.toml"
+    local -a config_args=()
+    if [[ ! -f "$host_config" && -z "${SHELDON_CONFIG_FILE:-}" && -z "${SHELDON_CONFIG_DIR:-}" ]]; then
+        echo "   No sheldon config on this machine yet, using the repo's plugins.toml"
+        config_args=(--config-file "$REPO_DIR/.config/sheldon/plugins.toml")
+    fi
     echo "📦 Installing sheldon plugins..."
-    sheldon lock
-    echo "✅ Sheldon plugins installed"
+    # ${arr[@]+...}: a bare "${arr[@]}" on an empty array is an unbound
+    # variable error under `set -u` in bash < 4.4 (macOS ships 3.2).
+    if sheldon ${config_args[@]+"${config_args[@]}"} lock; then
+        echo "✅ Sheldon plugins installed"
+    else
+        warn "sheldon could not install its plugins (network?): re-run this script later"
+    fi
+}
+
+run_local_extras() {
+    declare -F install_local_extras >/dev/null || return 0
+    echo "🏠 Running install_local_extras (machine-local)..."
+    install_local_extras || warn "install_local_extras failed"
+}
+
+print_summary() {
+    echo ""
+    if ((${#WARNINGS[@]} > 0)); then
+        echo "⚠️  Finished with ${#WARNINGS[@]} warning(s):"
+        local warning
+        for warning in "${WARNINGS[@]}"; do
+            echo "   - $warning"
+        done
+    else
+        echo "✅ ZSH tools installation complete!"
+    fi
+    if ! have zsh && ! skipped zsh >/dev/null; then
+        echo "❌ zsh itself is not installed: install it, then re-run this script." >&2
+        return 1
+    fi
+    echo "   Please restart your shell or run: exec zsh"
 }
 
 main() {
-    echo "🔧 Installing ZSH tools..."
+    echo "🔧 Installing ZSH and its tools..."
 
-    install_zsh_abbr
+    load_local_settings
+    install_base_packages
+    install_runtime_tools
     install_tool starship "starship prompt" curl install_starship_via_curl
     setup_starship_config
-    install_tool sheldon "sheldon plugin manager" cargo install_sheldon_via_cargo
+    install_tool sheldon "sheldon plugin manager" cargo/curl install_sheldon_via_cargo_or_curl
     install_sheldon_plugins
-
-    echo ""
-    echo "✅ ZSH tools installation complete!"
-    echo "   Please restart your shell or run: exec zsh"
+    run_local_extras
+    print_summary
 }
 
 main "$@"

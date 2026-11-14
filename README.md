@@ -39,25 +39,30 @@ entirely, so it's never overwritten or deleted by a sync in either direction.
 git clone git@github.com:yusukensanta/dot_files.git ~/dot_files
 cd ~/dot_files
 
-# Install base packages, language runtimes (mise), and tools
-./scripts/install_libraries.sh
-
-# Install zsh-abbr, starship, sheldon, and sheldon plugins
+# 1. Install zsh and everything its config needs to start: fzf, fd, ripgrep,
+#    bat, eza, zoxide, starship, sheldon (+ plugins)
 ./scripts/install_zsh_tools.sh
 
-# Copy configs from the repo into $HOME
+# 2. Install the remaining base packages, language runtimes (mise), and tools
+./scripts/install_libraries.sh
+
+# 3. Copy configs from the repo into $HOME
 ./scripts/sync_to_host.sh
 ```
 
-`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing core CLI tools, fish + fisher, mise with several language runtimes, Docker, and a few Rust tools via cargo.
+`install_zsh_tools.sh` runs first and needs only bash. It installs zsh, git and curl; the CLI tools the zsh config uses (fzf, fd, ripgrep, bat, eza, zoxide); and starship and sheldon (plus its plugins). It uses Homebrew when present, otherwise apt on Debian/Ubuntu, with curl/cargo installers for starship and sheldon. Without Homebrew, starship and sheldon go into `~/.local/bin`, so no sudo is needed for them. Re-running skips anything already installed.
 
-`install_zsh_tools.sh` installs zsh-abbr, starship, and sheldon via Homebrew (falling back to curl/cargo installers where possible).
+A step that fails (no sudo rights, a blocked download, a package this distro doesn't have) is a warning, not an abort: the remaining steps still run, the warnings are listed at the end, and the exit status is non-zero only when zsh itself is missing. The zsh config checks each tool with `command -v`, so it starts without the optional ones. Because this runs before `sync_to_host.sh`, sheldon's plugins are installed from the repo's own `plugins.toml` when the machine has none yet.
+
+Per-machine install choices go in an untracked file, `~/.config/dot_files/install.local.sh` (see [Using this on a work machine](#using-this-on-a-work-machine)).
+
+`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing the rest: tmux, neovim, fish + fisher, mise with several language runtimes, Docker, and a few Rust tools via cargo.
 
 ## zsh startup time
 
 Every new shell prints `✨ ZSH loaded in <N>ms ⚡`: the time from the start of
 zsh (stamped in `~/.zshenv`, so system startup files are counted) until the
-prompt can be drawn. Work deferred with `zsh-defer` (mise, zsh-abbr, some
+prompt can be drawn. Work deferred with `zsh-defer` (mise, some
 plugins) finishes just after, so it is not in that number.
 
 Measured on WSL2 Ubuntu 24.04, 90ms -> 12ms average. Two rules keep it there,
@@ -83,10 +88,25 @@ in an untracked local file that the sync scripts never touch.
 | What | Shared (tracked) | Per-machine (untracked) |
 |------|------------------|-------------------------|
 | zsh | `.config/zsh/*.zsh` | `.config/zsh/local.d/*.zsh` |
+| abbreviations | `DOTFILES_ABBRS` in `30-abbreviations.zsh` | `DOTFILES_ABBRS[...]=` in a `local.d` file |
 | Neovim | `.config/nvim` | `lua/local/init.lua`, `lua/local/plugins/*.lua` |
 | tmux | `.tmux.conf` | `~/.tmux.conf.local` |
+| tool install | `scripts/install_zsh_tools.sh` | `~/.config/dot_files/install.local.sh` |
 | git | `.config/git/config` | `~/.gitconfig` (wins over the shared file) |
 | ssh | — | `~/.ssh/config` (never tracked; see below) |
+
+**Abbreviations.** `gs` + Space (or Enter) becomes `git status` on the
+command line; `abbr` lists them all. They are a plain zsh array plus two zle
+widgets in `30-abbreviations.zsh`, with no plugin to install. A word expands
+only in command position (start of the line, or after `;`, `|`, `&&`, ...),
+and a `%` in an expansion is where the cursor lands. To change the list on
+one machine, add a `local.d` file:
+
+```zsh
+DOTFILES_ABBRS[kx]='kubectx'           # add or replace
+unset 'DOTFILES_ABBRS[d]'              # remove
+DOTFILES_ABBRS=(gs 'git status -sb')   # or start over with your own
+```
 
 **Disable personally licensed AI tools (Copilot, CopilotChat, blink-copilot).**
 Create `~/.config/zsh/local.d/work.zsh`:
@@ -117,8 +137,39 @@ never touches `~/.gitconfig`. Put identity, signing, and credential helpers in
 `Include ~/.ssh/config.d/*` at the **top** of it and put work hosts in
 `~/.ssh/config.d/work`.
 
-**Tool install.** `install_libraries.sh` installs Docker, fish, and several
-cargo tools; skim it before running on a managed machine.
+**Tool install.** `install_zsh_tools.sh` sources
+`~/.config/dot_files/install.local.sh` if it exists (it lives outside the
+repo and outside every synced directory, so nothing tracks or overwrites it):
+
+```bash
+# tools this machine must not install (curl installer, not allowed here, ...)
+ZSH_TOOLS_SKIP="starship eza"
+
+# runs last, for anything only this machine needs
+install_local_extras() {
+  brew install some-work-only-tool
+}
+```
+
+Names for `ZSH_TOOLS_SKIP`: `zsh git curl fzf fd rg bat eza zoxide starship
+sheldon`. A value given on the command line
+(`ZSH_TOOLS_SKIP="eza" ./scripts/install_zsh_tools.sh`) wins over the file;
+`DOTFILES_INSTALL_LOCAL=<path>` points at a different file.
+
+`install_libraries.sh` has no such switch: it installs Docker, fish, mise
+runtimes and several cargo tools unconditionally and needs sudo, so skim it
+before running on a managed machine.
+
+**Using this as someone else.** The install and sync scripts read only
+`$HOME`/`$USER`, with no hardcoded user or path. Two tracked files are
+personal, and `sync_to_host.sh` copies them as they are; change them in your
+fork first:
+
+- `claude/CLAUDE.md` replaces `~/.claude/CLAUDE.md` (the old one is backed up).
+- `alacritty/alacritty-wsl.toml` starts WSL as a fixed user (`wsl -u ...`).
+
+The abbreviation list is personal too, but needs no fork: override it from
+`local.d` (below).
 
 ## Claude Code (user scope)
 

@@ -50,12 +50,12 @@ bindkey '^[_' redo
 # === DIRECTORY / GIT / DOCKER SNIPPET SHORTCUTS ===
 # Simple literal-text snippets (`cd ~`, `git status`, `docker ps`, ...)
 # used to live here as bindkey -s chords (Alt+~, Ctrl+G s, Ctrl+X p, ...).
-# Removed: zsh-abbr (30-abbreviations.zsh) already covers this same ground
+# Removed: the abbreviations (30-abbreviations.zsh) already cover this same ground
 # strictly better — `~`, `..`, `gs`, `gps`, `gl`, `dps`, `di`, `dc` expand
 # the same text, but visibly, as you type, with no separate chord
 # vocabulary to remember on top of the abbreviation itself. `gcm` (commit)
-# is a concrete improvement over the old `^Gc`: zsh-abbr's `%` cursor
-# marker (ABBR_SET_EXPANSION_CURSOR=1) lands the cursor *inside* the
+# is a concrete improvement over the old `^Gc`: the `%` cursor
+# marker lands the cursor *inside* the
 # already-closed quotes, where the old chord left an open quote you had to
 # remember to close yourself. `^Xc` used the deprecated `docker-compose`
 # (v1) form; `dc` correctly expands to `docker compose` (v2).
