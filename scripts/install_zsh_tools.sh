@@ -8,9 +8,15 @@
 #   - the prompt/plugin tooling: starship, sheldon (+ its plugins)
 # Safe to re-run: anything already on PATH is skipped.
 #
+# zsh, fzf and sheldon have a minimum version (scripts/lib/min_versions.sh,
+# the one place to change them). An older one is upgraded: through the
+# package manager first, then from the project's own installer into
+# ~/.local/bin, which needs no sudo.
+#
 # A step that fails (no sudo, blocked download, package missing from this
 # distro) is recorded and the script carries on; the warnings are listed at
-# the end. The exit status is non-zero only when zsh itself is missing.
+# the end. The exit status is non-zero only when zsh itself is missing or a
+# tool is still older than its minimum.
 #
 # Per-machine settings (personal, work, someone else's machine) live in an
 # untracked file outside the repo, never in this script:
@@ -27,6 +33,9 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# shellcheck source=lib/min_versions.sh
+source "$REPO_DIR/scripts/lib/min_versions.sh"
+
 # The fallback installers below put binaries here; without this a tool
 # installed a moment ago would still look missing to the next step.
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
@@ -39,9 +48,10 @@ warn() {
     echo "⚠️  $*" >&2
 }
 
-# True (and says so) when NAME is listed in ZSH_TOOLS_SKIP.
+# True when NAME is listed in ZSH_TOOLS_SKIP; skipped() also says so.
+is_skipped() { [[ " ${ZSH_TOOLS_SKIP:-} " == *" $1 "* ]]; }
 skipped() {
-    [[ " ${ZSH_TOOLS_SKIP:-} " == *" $1 "* ]] || return 1
+    is_skipped "$1" || return 1
     echo "⏭️  skipping $1 (ZSH_TOOLS_SKIP)"
 }
 
@@ -166,14 +176,106 @@ install_starship_via_curl() {
 
 # cargo when available, else the project's prebuilt-binary installer into
 # ~/.local/bin (so a machine with no Rust toolchain still gets sheldon).
+# Both install the latest release, and replace an older sheldon when this
+# is used as an upgrade (--force: overwrite the existing binary).
 install_sheldon_via_cargo_or_curl() {
     if have cargo; then
         cargo install sheldon
     else
         mkdir -p "$HOME/.local/bin"
         curl --proto '=https' -fLsS https://rossmacarthur.github.io/install/crate.sh \
-            | bash -s -- --repo rossmacarthur/sheldon --to "$HOME/.local/bin"
+            | bash -s -- --repo rossmacarthur/sheldon --to "$HOME/.local/bin" --force
     fi
+}
+
+# fzf's own install method (https://github.com/junegunn/fzf#using-git): a
+# checkout in ~/.fzf whose install script downloads the matching release
+# binary into ~/.fzf/bin. --bin: the binary only, no edits to shell rc
+# files. Linked into ~/.local/bin, which 00-env.zsh puts ahead of /usr/bin,
+# so it wins over an older distro package without needing sudo.
+install_fzf_from_upstream() {
+    local dir="$HOME/.fzf"
+    if [[ -d "$dir/.git" ]]; then
+        git -C "$dir" pull --ff-only || return 1
+    else
+        git clone --depth 1 https://github.com/junegunn/fzf.git "$dir" || return 1
+    fi
+    "$dir/install" --bin || return 1
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$dir/bin/fzf" "$HOME/.local/bin/fzf"
+}
+
+# upgrade_pkg BREW_PKG APT_PKG: upgrades through whichever package manager
+# is present. `brew install` covers a tool that came from somewhere else.
+upgrade_pkg() {
+    local brew_pkg="$1" apt_pkg="$2"
+    if have brew; then
+        brew upgrade "$brew_pkg" || brew install "$brew_pkg"
+    elif have apt-get && apt_ready; then
+        as_root apt-get install -y --only-upgrade "$apt_pkg"
+    else
+        return 1
+    fi
+}
+
+# meets_min TOOL: true when TOOL reports a version at least its minimum.
+meets_min() {
+    local current
+    current="$(installed_version "$1")"
+    [[ -n "$current" ]] && version_ge "$current" "$(min_version_for "$1")"
+}
+
+# upgrade_tool TOOL: package manager first, then the project's own
+# installer if that wasn't enough (apt on an older release often is not).
+upgrade_tool() {
+    case "$1" in
+        zsh) upgrade_pkg zsh zsh ;;
+        fzf)
+            upgrade_pkg fzf fzf || true
+            hash -r
+            meets_min fzf || install_fzf_from_upstream
+            ;;
+        sheldon)
+            if have brew; then
+                brew upgrade sheldon || brew install sheldon || true
+                hash -r
+            fi
+            meets_min sheldon || install_sheldon_via_cargo_or_curl
+            ;;
+    esac
+}
+
+# Checks every tool that has a minimum version and upgrades the ones that
+# are older. A tool that is skipped or not installed is left alone (a
+# missing one was already reported by the install step).
+UNMET_MINIMUMS=()
+enforce_min_versions() {
+    local tool min current
+    for tool in "${MIN_VERSION_TOOLS[@]}"; do
+        min="$(min_version_for "$tool")"
+        [[ -n "$min" ]] || continue
+        is_skipped "$tool" && continue
+        have "$tool" || continue
+        current="$(installed_version "$tool")"
+        if [[ -z "$current" ]]; then
+            warn "could not read $tool's version: it needs to be $min or newer"
+            continue
+        fi
+        if version_ge "$current" "$min"; then
+            echo "✅ $tool $current (minimum $min)"
+            continue
+        fi
+        echo "⬆️  $tool $current is older than the required $min, upgrading..."
+        upgrade_tool "$tool" || true
+        hash -r
+        current="$(installed_version "$tool")"
+        if meets_min "$tool"; then
+            echo "✅ $tool upgraded to $current"
+        else
+            UNMET_MINIMUMS+=("$tool ${current:-?} is older than the required $min")
+            warn "$tool ${current:-?} is still older than the required $min: update it, then re-run this script"
+        fi
+    done
 }
 
 # Only a first-run fallback for a from-scratch bootstrap: this repo tracks
@@ -233,8 +335,16 @@ print_summary() {
     else
         echo "✅ ZSH tools installation complete!"
     fi
-    if ! have zsh && ! skipped zsh >/dev/null; then
+    if ! have zsh && ! is_skipped zsh; then
         echo "❌ zsh itself is not installed: install it, then re-run this script." >&2
+        return 1
+    fi
+    if ((${#UNMET_MINIMUMS[@]} > 0)); then
+        echo "❌ Too old for this zsh config (minimums: scripts/lib/min_versions.sh):" >&2
+        local unmet
+        for unmet in "${UNMET_MINIMUMS[@]}"; do
+            echo "   - $unmet" >&2
+        done
         return 1
     fi
     echo "   Please restart your shell or run: exec zsh"
@@ -249,6 +359,7 @@ main() {
     install_tool starship "starship prompt" curl install_starship_via_curl
     setup_starship_config
     install_tool sheldon "sheldon plugin manager" cargo/curl install_sheldon_via_cargo_or_curl
+    enforce_min_versions
     install_sheldon_plugins
     run_local_extras
     print_summary

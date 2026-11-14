@@ -150,6 +150,37 @@ else
 fi
 echo
 
+echo "--- an fzf without --zsh (older than the minimum) is refused, not half-used ---"
+# A stand-in that behaves like fzf < 0.48: `--zsh` is an unknown option.
+old_fzf_dir="$WORKDIR/old-fzf"
+mkdir -p "$old_fzf_dir/bin" "$old_fzf_dir/cache"
+cat > "$old_fzf_dir/bin/fzf" <<'OLDFZF'
+#!/bin/sh
+case "$1" in
+    --version) echo "0.44.1 (stand-in)" ;;
+    --zsh) echo "unknown option: --zsh" >&2; exit 2 ;;
+esac
+OLDFZF
+chmod +x "$old_fzf_dir/bin/fzf"
+old_fzf_out="$(PATH="$old_fzf_dir/bin:$PATH" XDG_CACHE_HOME="$old_fzf_dir/cache" \
+    zsh -i -c 'print -r -- "CTRL_R=${$(bindkey "^R")##* } WIDGET=$+widgets[fzf-history-widget] ALT_T=${$(bindkey "^[t")##* }"' 2>&1)"
+if [[ "$old_fzf_out" == *"CTRL_R=history-incremental-search-backward WIDGET=0"* && "$old_fzf_out" != *"ALT_T=fzf-cd-widget"* ]]; then
+    pass "old fzf: fzf widgets left off, Ctrl+R falls back to zsh's own history search"
+else
+    fail "old fzf: expected the built-in Ctrl+R and no fzf widgets, got: $(printf '%s' "$old_fzf_out" | tail -1)"
+fi
+if [[ "$old_fzf_out" == *"too old"*"install_zsh_tools.sh"* && "$old_fzf_out" != *"unknown option"* ]]; then
+    pass "old fzf: the shell says it is too old and how to update, without leaking fzf's own error"
+else
+    fail "old fzf: missing or noisy warning: $(printf '%s' "$old_fzf_out" | grep -a -i 'fzf' | head -3)"
+fi
+if [[ ! -s "$old_fzf_dir/cache/zsh/fzf-init.zsh" ]]; then
+    pass "old fzf: nothing cached, so a newer fzf is picked up on the next start"
+else
+    fail "old fzf: a failed 'fzf --zsh' left a cache behind ($old_fzf_dir/cache/zsh/fzf-init.zsh)"
+fi
+echo
+
 echo "--- interactive session: abbreviations typed for real, starship, fzf (real pty) ---"
 if python3 "$REPO_ROOT/scripts/tests/zsh_pty_check.py" "$WORKDIR/pty-results"; then
     :

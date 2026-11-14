@@ -52,7 +52,9 @@ cd ~/dot_files
 
 `install_zsh_tools.sh` runs first and needs only bash. It installs zsh, git and curl; the CLI tools the zsh config uses (fzf, fd, ripgrep, bat, eza, zoxide); and starship and sheldon (plus its plugins). It uses Homebrew when present, otherwise apt on Debian/Ubuntu, with curl/cargo installers for starship and sheldon. Without Homebrew, starship and sheldon go into `~/.local/bin`, so no sudo is needed for them. Re-running skips anything already installed.
 
-A step that fails (no sudo rights, a blocked download, a package this distro doesn't have) is a warning, not an abort: the remaining steps still run, the warnings are listed at the end, and the exit status is non-zero only when zsh itself is missing. The zsh config checks each tool with `command -v`, so it starts without the optional ones. Because this runs before `sync_to_host.sh`, sheldon's plugins are installed from the repo's own `plugins.toml` when the machine has none yet.
+zsh, fzf and sheldon have a minimum version, set in one place: `scripts/lib/min_versions.sh` (each with the reason for it). The script upgrades an older one, first through the package manager and then, for fzf and sheldon, with the project's own installer into `~/.local/bin`, so an old distro package is not a blocker and no sudo is needed for that step. An fzf below the minimum has no `fzf --zsh`; the zsh config refuses to half-use it (the fzf key bindings stay off and every new shell says to update).
+
+A step that fails (no sudo rights, a blocked download, a package this distro doesn't have) is a warning, not an abort: the remaining steps still run, the warnings are listed at the end, and the exit status is non-zero only when zsh itself is missing or a tool is still older than its minimum. The zsh config checks each tool with `command -v`, so it starts without the optional ones. Because this runs before `sync_to_host.sh`, sheldon's plugins are installed from the repo's own `plugins.toml` when the machine has none yet.
 
 Per-machine install choices go in an untracked file, `~/.config/dot_files/install.local.sh` (see [Using this on a work machine](#using-this-on-a-work-machine)).
 
@@ -64,6 +66,9 @@ Every new shell prints `✨ ZSH loaded in <N>ms ⚡`: the time from the start of
 zsh (stamped in `~/.zshenv`, so system startup files are counted) until the
 prompt can be drawn. Work deferred with `zsh-defer` (mise, some
 plugins) finishes just after, so it is not in that number.
+
+CI runs the bootstrap script and these checks on macOS and, from a bare
+container, on Ubuntu 22.04, 24.04 and 26.04 (`.github/workflows/`).
 
 Measured on WSL2 Ubuntu 24.04, 90ms -> 12ms average. Two rules keep it there,
 and `scripts/tests/test_zsh_startup.sh` fails if either is broken:
@@ -152,7 +157,8 @@ install_local_extras() {
 ```
 
 Names for `ZSH_TOOLS_SKIP`: `zsh git curl fzf fd rg bat eza zoxide starship
-sheldon`. A value given on the command line
+sheldon`. A skipped tool is not version-checked either. The file can also set
+a different minimum for this machine, e.g. `MIN_VERSION_zsh=5.9`. A value given on the command line
 (`ZSH_TOOLS_SKIP="eza" ./scripts/install_zsh_tools.sh`) wins over the file;
 `DOTFILES_INSTALL_LOCAL=<path>` points at a different file.
 

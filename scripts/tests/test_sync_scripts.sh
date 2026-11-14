@@ -511,7 +511,11 @@ test_platform_lib_detects_os() {
 # argv, so the sequence of commands it would run can be asserted without
 # installing anything. $1 = script, $2 = space-separated stub names,
 # remaining args = extra env (FAKE_OS=, FAKE_REL=, FAKE_SUDO_DENIED=1 to
-# make every sudo call fail). Prints the log, then
+# make every sudo call fail; FAKE_ZSH_VERSION=/FAKE_FZF_VERSION=/
+# FAKE_SHELDON_VERSION= for what `<tool> --version` reports, and
+# FAKE_UPGRADE_FIXES="fzf" to make a package-manager upgrade of that tool
+# bring it to a current version). `--version` calls are answered but not
+# logged: the log is the list of actions taken. Prints the log, then
 # "exit=N". With ONLY_STUBS=1 the real /usr/bin and /bin are NOT on PATH
 # (only the few coreutils the scripts need, linked into $work/sys), so a
 # tool the host happens to have installed (zsh, fzf, ...) can't make the
@@ -532,7 +536,27 @@ run_install_script_stubbed() {
     done
     cat > "$stubs/_stub" <<'STUB'
 #!/usr/bin/env bash
-case "$(basename "$0")" in
+me="$(basename "$0")"
+state="$(dirname "$LOG")/versions"
+if [[ "${1:-}" == --version ]]; then
+    case "$me" in
+        zsh) v="${FAKE_ZSH_VERSION:-5.9}" ;;
+        fzf) v="${FAKE_FZF_VERSION:-0.67.0}" ;;
+        sheldon) v="${FAKE_SHELDON_VERSION:-0.8.5}" ;;
+        *) v="1.0.0" ;;
+    esac
+    [[ -f "$state/$me" ]] && v="$(cat "$state/$me")"
+    echo "$me $v (stub)"
+    exit 0
+fi
+# A package-manager upgrade of a tool listed in FAKE_UPGRADE_FIXES makes
+# that tool report a current version from then on.
+if [[ "$*" == *upgrade* ]]; then
+    for fixed in ${FAKE_UPGRADE_FIXES:-}; do
+        if [[ " $* " == *" $fixed "* ]]; then mkdir -p "$state"; echo "99.0.0" > "$state/$fixed"; fi
+    done
+fi
+case "$me" in
     uname) case "${1:-}" in -r) echo "${FAKE_REL:-6.1.0}" ;; *) echo "${FAKE_OS:-Linux}" ;; esac; exit 0 ;;
     brew) [[ "${1:-}" == "--prefix" ]] && { echo "$FAKE_PREFIX"; exit 0; } ;;
     fish) if [[ "$*" == *"type -q fisher"* ]]; then echo "fish $*" >> "$LOG"; exit 1; fi ;;
@@ -626,6 +650,74 @@ test_install_zsh_tools_machine_local_settings() {
     [[ "$out" == *"brew install eza"* && "$out" != *"brew install bat"* && "$out" == *"brew install work-only-tool"* ]] || { good=false; echo "    env over file: $out"; }
     # no file at all is fine, and the file is never looked for inside the repo
     ! git -C "$SCRIPTS_DIR/.." ls-files | grep -q 'install\.local\.sh' || { good=false; echo "    install.local.sh must stay untracked"; }
+    rm -rf "$cfg"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_min_versions_lib() {
+    local desc="min_versions.sh: versions compare number by number; installed_version reads the first dotted number; every listed tool has a minimum"
+    local lib="$SCRIPTS_DIR/lib/min_versions.sh" good=true c a b want got
+    for c in "0.48.0 0.48.0 ge" "0.67.0 0.48.0 ge" "0.9.9 0.48.0 lt" "0.47.9 0.48.0 lt" "5.8.1 5.8 ge" "5.8 5.8.1 lt" \
+             "5.9 5.8.1 ge" "0.48 0.48.0 ge" "1.0 0.99.99 ge" "0.08.0 0.8.0 ge" "10.0 9.9 ge"; do
+        read -r a b want <<< "$c"
+        got="$(source "$lib"; version_ge "$a" "$b" && echo ge || echo lt)"
+        [[ "$got" == "$want" ]] || { good=false; echo "    version_ge $a $b: got $got, want $want"; }
+    done
+    local work; work="$(mktemp -d)"
+    printf '#!/bin/sh\necho "zsh 5.8.1 (x86_64-ubuntu-linux-gnu)"\n' > "$work/zsh"
+    printf '#!/bin/sh\necho "0.44.1 (debian)"\n' > "$work/fzf"
+    printf '#!/bin/sh\necho "sheldon 0.7.4"; echo "rustc 1.86.0 (05f9846f8 2025-03-31)"\n' > "$work/sheldon"
+    printf '#!/bin/sh\necho "no version here"\n' > "$work/odd"
+    chmod +x "$work"/*
+    got="$(source "$lib"; echo "$(installed_version "$work/zsh")|$(installed_version "$work/fzf")|$(installed_version "$work/sheldon")|$(installed_version "$work/odd")|$(installed_version "$work/missing")")"
+    [[ "$got" == "5.8.1|0.44.1|0.7.4||" ]] || { good=false; echo "    installed_version: $got"; }
+    rm -rf "$work"
+    got="$(source "$lib"; for t in "${MIN_VERSION_TOOLS[@]}"; do [[ "$(min_version_for "$t")" =~ ^[0-9]+(\.[0-9]+)+$ ]] || echo "$t"; done; min_version_for starship)"
+    [[ -z "$got" ]] || { good=false; echo "    tools without a usable minimum (or starship has one): $got"; }
+    # the fzf minimum is the one 40-tools.zsh's comment names
+    grep -q "fzf >= $(source "$lib"; min_version_for fzf | cut -d. -f1,2)" "$SCRIPTS_DIR/../.config/zsh/40-tools.zsh" || { good=false; echo "    40-tools.zsh comment and MIN_VERSION_fzf disagree"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_zsh_tools_enforces_min_versions() {
+    local desc="install_zsh_tools.sh: a tool older than its minimum is upgraded (package manager, then the project's own installer); still too old -> non-zero exit; current or skipped tools are left alone"
+    local script="$SCRIPTS_DIR/install_zsh_tools.sh" out good=true
+    local all="brew curl cargo git zsh fzf fd rg bat eza zoxide starship sheldon"
+    # everything current: nothing is upgraded
+    out="$(run_install_script_stubbed "$script" "$all" ONLY_STUBS=1)"
+    [[ "$out" != *"upgrade"* && "$out" != *"junegunn"* && "$out" == *"sheldon"*"lock"* && "$out" == *"exit=0"* ]] || { good=false; echo "    current: $out"; }
+    # old fzf, the package manager has a new enough one: upgraded there, nothing else touched
+    out="$(run_install_script_stubbed "$script" "$all" ONLY_STUBS=1 FAKE_FZF_VERSION=0.44.1 FAKE_UPGRADE_FIXES=fzf)"
+    [[ "$out" == *"brew upgrade fzf"* && "$out" != *"junegunn"* && "$out" == *"exit=0"* ]] || { good=false; echo "    brew upgrade: $out"; }
+    # compared as numbers, not text: 0.9.0 is older than 0.48.0 although "0.9" sorts after "0.48"
+    out="$(run_install_script_stubbed "$script" "$all" ONLY_STUBS=1 FAKE_FZF_VERSION=0.9.0 FAKE_UPGRADE_FIXES=fzf)"
+    [[ "$out" == *"brew upgrade fzf"* && "$out" == *"exit=0"* ]] || { good=false; echo "    0.9.0 must count as older than 0.48.0: $out"; }
+    # old fzf on apt, apt's is too old as well: falls back to fzf's own installer
+    # (the stubbed git clones nothing runnable, so it stays old -> exit 1)
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo git zsh fzf fd rg bat eza zoxide starship sheldon" ONLY_STUBS=1 FAKE_FZF_VERSION=0.44.1)"
+    [[ "$out" == *"sudo apt-get install -y --only-upgrade fzf"*"git clone --depth 1 https://github.com/junegunn/fzf.git TMP/home/.fzf"* \
+        && "$out" == *"exit=1"* ]] || { good=false; echo "    apt + upstream fallback: $out"; }
+    # ...and the remaining steps still ran before it reported the failure
+    [[ "$out" == *"junegunn"*"sheldon"*"lock"* ]] || { good=false; echo "    steps after a failed upgrade should still run: $out"; }
+    # exactly at the minimum is accepted
+    out="$(run_install_script_stubbed "$script" "$all" ONLY_STUBS=1 FAKE_FZF_VERSION=0.48.0 FAKE_SHELDON_VERSION=0.7.4 FAKE_ZSH_VERSION=5.8.1)"
+    [[ "$out" != *"upgrade"* && "$out" == *"exit=0"* ]] || { good=false; echo "    at minimum: $out"; }
+    # old sheldon without brew: reinstalled with its own installer (cargo here), before `sheldon lock`
+    out="$(run_install_script_stubbed "$script" "curl cargo git zsh fzf starship sheldon" ONLY_STUBS=1 FAKE_SHELDON_VERSION=0.6.6)"
+    [[ "$out" == *"cargo install sheldon"*"sheldon"*"lock"* && "$out" == *"exit=1"* ]] || { good=false; echo "    old sheldon: $out"; }
+    # old zsh: upgraded through the package manager; no other way, so still old -> exit 1
+    out="$(run_install_script_stubbed "$script" "$all" ONLY_STUBS=1 FAKE_ZSH_VERSION=5.3)"
+    [[ "$out" == *"brew upgrade zsh"* && "$out" == *"exit=1"* ]] || { good=false; echo "    old zsh: $out"; }
+    out="$(run_install_script_stubbed "$script" "$all" ONLY_STUBS=1 FAKE_ZSH_VERSION=5.3 FAKE_UPGRADE_FIXES=zsh)"
+    [[ "$out" == *"brew upgrade zsh"* && "$out" == *"exit=0"* ]] || { good=false; echo "    old zsh, fixed by upgrade: $out"; }
+    # a skipped tool is not version-checked
+    out="$(run_install_script_stubbed "$script" "$all" ONLY_STUBS=1 FAKE_FZF_VERSION=0.44.1 ZSH_TOOLS_SKIP=fzf)"
+    [[ "$out" != *"upgrade"* && "$out" != *"junegunn"* && "$out" == *"exit=0"* ]] || { good=false; echo "    skipped: $out"; }
+    # one machine can change a minimum from its install.local.sh
+    local cfg; cfg="$(mktemp -d)"; mkdir -p "$cfg/dot_files"
+    echo 'MIN_VERSION_fzf=0.40.0' > "$cfg/dot_files/install.local.sh"
+    out="$(run_install_script_stubbed "$script" "$all" ONLY_STUBS=1 FAKE_FZF_VERSION=0.44.1 XDG_CONFIG_HOME="$cfg")"
+    [[ "$out" != *"upgrade"* && "$out" == *"exit=0"* ]] || { good=false; echo "    local override: $out"; }
     rm -rf "$cfg"
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
@@ -974,6 +1066,8 @@ test_install_zsh_tools_command_sequence
 test_install_zsh_tools_runs_first_on_fresh_machine
 test_install_zsh_tools_survives_restricted_machine
 test_install_zsh_tools_machine_local_settings
+test_min_versions_lib
+test_install_zsh_tools_enforces_min_versions
 test_install_libraries_command_sequence
 test_starship_session_format_lib
 test_shellcheck_clean

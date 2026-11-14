@@ -1,0 +1,89 @@
+name: zsh startup (Linux)
+
+# What the macOS workflow can't cover: the apt path of
+# scripts/install_zsh_tools.sh on a machine that has nothing yet. Each job
+# starts from a bare Ubuntu image (no zsh, git, curl or sudo; running as
+# root), runs the bootstrap script for real, then the same correctness +
+# timing checks as everywhere else.
+#
+# The three releases are chosen for what their apt repositories ship:
+#   22.04  zsh 5.8.1 (the minimum in scripts/lib/min_versions.sh), an fzf
+#          far below the minimum, no eza package
+#   24.04  an fzf still below the minimum
+#   26.04  an fzf above it
+# so both the "apt's fzf is too old, install upstream's" path and the
+# "apt's fzf is fine" path run.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.config/zsh/**'
+      - '.config/sheldon/**'
+      - '.zshrc'
+      - '.zshenv'
+      - 'scripts/install_zsh_tools.sh'
+      - 'scripts/lib/**'
+      - 'scripts/tests/test_zsh_startup.sh'
+      - 'scripts/tests/test_abbr_expand.zsh'
+      - 'scripts/tests/zsh_pty_check.py'
+      - '.github/workflows/zsh-linux.yml'
+  pull_request:
+    paths:
+      - '.config/zsh/**'
+      - '.config/sheldon/**'
+      - '.zshrc'
+      - '.zshenv'
+      - 'scripts/install_zsh_tools.sh'
+      - 'scripts/lib/**'
+      - 'scripts/tests/test_zsh_startup.sh'
+      - 'scripts/tests/test_abbr_expand.zsh'
+      - 'scripts/tests/zsh_pty_check.py'
+      - '.github/workflows/zsh-linux.yml'
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['ubuntu:22.04', 'ubuntu:24.04', 'ubuntu:26.04']
+    container: ${{ matrix.image }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      TERM: xterm-256color
+      LANG: C.UTF-8
+      # sheldon's installer asks the GitHub API for the latest release;
+      # unauthenticated calls from shared runners get rate-limited.
+      GITHUB_TOKEN: ${{ github.token }}
+      # The default 60ms ceiling is tuned for a quiet machine; a shared
+      # runner needs slack, while a real regression (the ~70ms system
+      # compinit, a synchronous plugin load) still shows.
+      ZSH_STARTUP_MAX_MS: '200'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install zsh and its tools with the bootstrap script
+        env:
+          XDG_CONFIG_HOME: ${{ github.workspace }}/.config
+        run: bash scripts/install_zsh_tools.sh
+
+      # The script installs starship, sheldon and (when apt's is too old)
+      # fzf into ~/.local/bin; the zsh config adds that to PATH for a real
+      # user, but the test below runs with a throwaway $HOME.
+      - name: Put ~/.local/bin on PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Versions
+        run: |
+          zsh --version
+          fzf --version
+          sheldon --version
+          starship --version
+
+      # Needed by the test only (it types into a real pty), not by the shell.
+      - name: Install python3 for the pty check
+        run: apt-get install -y python3
+
+      - name: Run correctness + timing checks
+        run: bash scripts/tests/test_zsh_startup.sh

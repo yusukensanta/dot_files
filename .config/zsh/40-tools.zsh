@@ -88,15 +88,30 @@ fi
 # sources at the same point in load order, just from a cached copy of
 # `fzf --zsh`'s output (which, like starship's, only changes with the
 # binary itself — see _dotfiles_cached_source, 00-env.zsh).
+#
+# An fzf older than that has no --zsh and is not supported: the widgets
+# stay off, ^R falls back to zsh's own search, and every new shell says so
+# until fzf is updated (scripts/install_zsh_tools.sh does it, without sudo;
+# the minimum is in scripts/lib/min_versions.sh). Nothing is cached for a
+# failed attempt, so the shell picks up a new fzf as soon as it is there.
+# The check is on the widget, not on a version number: no extra fork.
 if command -v fzf >/dev/null; then
+    _dotfiles_fzf_zsh() { fzf --zsh 2>/dev/null }
     _dotfiles_cached_source \
         "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/fzf-init.zsh" \
         "$(command -v fzf)" \
-        fzf --zsh
+        _dotfiles_fzf_zsh
+    unfunction _dotfiles_fzf_zsh
+fi
+if (( $+widgets[fzf-history-widget] )); then
     # This config's own aliases for the widgets fzf just defined, kept
     # alongside fzf's defaults (^T, Alt-C, ^R) above.
     bindkey '^[t' fzf-cd-widget
     bindkey '^[h' fzf-history-widget
 else
     bindkey '^R' history-incremental-search-backward
+    if command -v fzf >/dev/null; then
+        print -u2 -- "dot_files: $(command -v fzf) is too old for this config (no \`fzf --zsh\`), so Ctrl+T, Alt+C and fuzzy Ctrl+R are off."
+        print -u2 -- "           Update it: run scripts/install_zsh_tools.sh from the dot_files repo."
+    fi
 fi
