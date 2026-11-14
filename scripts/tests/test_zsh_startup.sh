@@ -150,6 +150,32 @@ else
 fi
 echo
 
+echo "--- command lookup order: Homebrew, ~/.cargo/bin, ~/.local/bin, then the rest ---"
+# install_zsh_tools.sh uses the same order, so the versions it checks are
+# those of the binaries this shell runs; test_sync_scripts.sh has its half.
+mkdir -p "$HOME/.cargo/bin" "$HOME/.local/bin"
+# shellcheck disable=SC2016  # expanded by zsh
+order_out="$(zsh -i -c '
+    brew=0
+    for p in $DOTFILES_BREW_PREFIXES; do
+        [[ -x $p/bin/brew ]] && { brew=${path[(Ie)$p/bin]}; break }
+    done
+    print -r -- "ORDER $brew ${path[(Ie)$HOME/.cargo/bin]} ${path[(Ie)$HOME/.local/bin]} ${path[(Ie)/usr/bin]}"' 2>/dev/null | grep -a '^ORDER ' | tail -1)"
+read -r _ order_brew order_cargo order_local order_usr <<< "$order_out"
+if [[ "${order_cargo:-0}" -gt 0 && "$order_cargo" -lt "${order_local:-0}" && "$order_local" -lt "${order_usr:-0}" ]]; then
+    pass "PATH has ~/.cargo/bin (#$order_cargo) ahead of ~/.local/bin (#$order_local), which is ahead of /usr/bin (#$order_usr)"
+else
+    fail "expected ~/.cargo/bin, ~/.local/bin, /usr/bin in that order, got positions: ${order_out:-<nothing>}"
+fi
+if [[ "${order_brew:-0}" -eq 0 ]]; then
+    echo "NOTE: no Homebrew on this machine, so its position is not checked here"
+elif [[ "$order_brew" -lt "${order_cargo:-0}" ]]; then
+    pass "Homebrew's bin (#$order_brew) is ahead of ~/.cargo/bin and ~/.local/bin"
+else
+    fail "expected Homebrew's bin ahead of ~/.cargo/bin, got positions: $order_out"
+fi
+echo
+
 echo "--- an fzf without --zsh (older than the minimum) is refused, not half-used ---"
 # A stand-in that behaves like fzf < 0.48: `--zsh` is an unknown option.
 old_fzf_dir="$WORKDIR/old-fzf"

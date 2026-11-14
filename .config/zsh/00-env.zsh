@@ -37,6 +37,11 @@ typeset -U PATH
 # machine just pollutes $PATH (and costs every external-command lookup a
 # useless stat down the line) for no benefit — same OS on two machines can
 # easily have a different subset of these actually installed.
+#
+# scripts/install_zsh_tools.sh looks commands up in the same order (Homebrew,
+# ~/.cargo/bin, ~/.local/bin, the rest) so that the versions it checks are
+# those of the binaries this shell runs. Change the order or the Homebrew
+# prefixes here and there together; the tests compare them.
 [[ -d "$HOME/.local/bin" ]] && export PATH="$HOME/.local/bin:$PATH"
 [[ -d "$HOME/.cargo/bin" ]] && export PATH="$HOME/.cargo/bin:$PATH"
 [[ -d "$HOME/.google-cloud-sdk/bin" ]] && export PATH="$HOME/.google-cloud-sdk/bin:$PATH"

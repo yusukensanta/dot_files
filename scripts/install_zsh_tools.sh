@@ -36,9 +36,26 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/min_versions.sh
 source "$REPO_DIR/scripts/lib/min_versions.sh"
 
-# The fallback installers below put binaries here; without this a tool
-# installed a moment ago would still look missing to the next step.
-export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+# Look commands up in the order the zsh config will (00-env.zsh): Homebrew's
+# bin, then ~/.cargo/bin, then ~/.local/bin, then whatever was inherited.
+# The version checks below are only worth something if they judge the binary
+# zsh is going to run; with a different order this script could approve a
+# new fzf in ~/.local/bin while zsh picks up an old one from Homebrew.
+# ~/.cargo/bin and ~/.local/bin are also where the fallback installers put
+# binaries, so a tool installed a moment ago is found by the next step.
+# Homebrew is added even when it is not on PATH yet (a Mac where its "next
+# steps" were skipped), because 00-env.zsh will add it too.
+# The prefixes must match DOTFILES_BREW_PREFIXES in 00-env.zsh; a test
+# compares the two. ZSH_TOOLS_BREW_PREFIXES replaces the list (the tests set
+# it so the machine's real Homebrew stays out of a stubbed run).
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+for brew_prefix in ${ZSH_TOOLS_BREW_PREFIXES-/opt/homebrew /usr/local /home/linuxbrew/.linuxbrew}; do
+    if [[ -x "$brew_prefix/bin/brew" ]]; then
+        export PATH="$brew_prefix/bin:$PATH"
+        break
+    fi
+done
+unset brew_prefix
 
 have() { command -v "$1" &>/dev/null; }
 
@@ -191,8 +208,10 @@ install_sheldon_via_cargo_or_curl() {
 # fzf's own install method (https://github.com/junegunn/fzf#using-git): a
 # checkout in ~/.fzf whose install script downloads the matching release
 # binary into ~/.fzf/bin. --bin: the binary only, no edits to shell rc
-# files. Linked into ~/.local/bin, which 00-env.zsh puts ahead of /usr/bin,
-# so it wins over an older distro package without needing sudo.
+# files. Linked into ~/.local/bin, which is ahead of /usr/bin on PATH (here
+# and in 00-env.zsh), so it wins over an older distro package without
+# needing sudo. It does not win over a fzf from Homebrew, which is ahead of
+# ~/.local/bin; there `brew upgrade` is what has to work.
 install_fzf_from_upstream() {
     local dir="$HOME/.fzf"
     if [[ -d "$dir/.git" ]]; then
@@ -272,8 +291,10 @@ enforce_min_versions() {
         if meets_min "$tool"; then
             echo "✅ $tool upgraded to $current"
         else
-            UNMET_MINIMUMS+=("$tool ${current:-?} is older than the required $min")
-            warn "$tool ${current:-?} is still older than the required $min: update it, then re-run this script"
+            # Name the file: when a newer copy exists elsewhere, this shows
+            # which one is ahead of it on PATH.
+            UNMET_MINIMUMS+=("$tool ${current:-?} ($(command -v "$tool")) is older than the required $min")
+            warn "$tool ${current:-?} at $(command -v "$tool") is still older than the required $min: update it, then re-run this script"
         fi
     done
 }

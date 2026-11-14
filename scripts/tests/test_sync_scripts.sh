@@ -570,7 +570,7 @@ STUB
     for name in $names; do ln -s _stub "$stubs/$name"; done
     : > "$work/log"
     ( cd "$work" && env -i PATH="$stubs:$path_tail" HOME="$work/home" USER=tester \
-        LOG="$work/log" FAKE_PREFIX="$work/prefix" "$@" bash "$script" >/dev/null 2>&1
+        LOG="$work/log" FAKE_PREFIX="$work/prefix" ZSH_TOOLS_BREW_PREFIXES= "$@" bash "$script" >/dev/null 2>&1
       rc=$?; sed "s#$work#TMP#g" "$work/log"; echo "exit=$rc" )
     rm -rf "$work"
 }
@@ -651,6 +651,58 @@ test_install_zsh_tools_machine_local_settings() {
     # no file at all is fine, and the file is never looked for inside the repo
     ! git -C "$SCRIPTS_DIR/.." ls-files | grep -q 'install\.local\.sh' || { good=false; echo "    install.local.sh must stay untracked"; }
     rm -rf "$cfg"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+# _version_probe FILE NAME VERSION: a stand-in command that reports VERSION and
+# logs any other call, for tests that need two copies of one tool in
+# different directories to report different versions.
+_version_probe() {
+    # shellcheck disable=SC2016  # $1, $* and $LOG are for the generated script
+    printf '#!/bin/sh\nif [ "$1" = --version ]; then echo "%s %s"; else echo "%s $*" >> "$LOG"; fi\n' "$2" "$3" "$2" > "$1"
+    chmod +x "$1"
+}
+
+test_install_zsh_tools_path_order_matches_zsh() {
+    local desc="install_zsh_tools.sh: looks commands up in zsh's order (Homebrew, ~/.cargo/bin, ~/.local/bin, the rest), so it judges the binary zsh will run"
+    local script="$SCRIPTS_DIR/install_zsh_tools.sh" zsh_env="$SCRIPTS_DIR/../.config/zsh/00-env.zsh" out good=true
+    local work; work="$(mktemp -d)"
+    local home brew="$work/brew"
+
+    # Homebrew has an old fzf, ~/.local/bin a new one. zsh would run
+    # Homebrew's, so that is the one to judge: it gets upgraded, and when
+    # that doesn't help the run fails instead of approving the other copy.
+    home="$work/a"; mkdir -p "$home/.local/bin" "$home/.cargo/bin" "$home/.config/dot_files" "$brew/bin"
+    _version_probe "$brew/bin/brew" brew 4.0.0
+    _version_probe "$brew/bin/fzf" fzf 0.40.0
+    _version_probe "$home/.local/bin/fzf" fzf 0.75.0
+    # shellcheck disable=SC2016  # expanded when the installer sources the file
+    echo 'install_local_extras() { echo "PATH=$PATH" >> "$LOG"; }' > "$home/.config/dot_files/install.local.sh"
+    out="$(run_install_script_stubbed "$script" "curl cargo git zsh fd rg bat eza zoxide starship sheldon" ONLY_STUBS=1 HOME="$home" ZSH_TOOLS_BREW_PREFIXES="$work/missing $brew")"
+    [[ "$out" == *"brew upgrade fzf"* && "$out" == *"exit=1"* ]] || { good=false; echo "    Homebrew's old fzf should be the one judged: $out"; }
+    [[ "$out" == *"PATH=$brew/bin:$home/.cargo/bin:$home/.local/bin:"* ]] || { good=false; echo "    PATH order: $out"; }
+
+    # No Homebrew: ~/.local/bin is ahead of the inherited PATH, so a new fzf
+    # there is accepted although the distro's is old.
+    home="$work/b"; mkdir -p "$home/.local/bin"
+    _version_probe "$home/.local/bin/fzf" fzf 0.75.0
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo git zsh fzf fd rg bat eza zoxide starship sheldon" ONLY_STUBS=1 HOME="$home" FAKE_FZF_VERSION=0.44.1)"
+    [[ "$out" != *"only-upgrade"* && "$out" != *"junegunn"* && "$out" == *"exit=0"* ]] || { good=false; echo "    ~/.local/bin should win over the inherited PATH: $out"; }
+
+    # ~/.cargo/bin is ahead of ~/.local/bin, as in zsh.
+    home="$work/c"; mkdir -p "$home/.local/bin" "$home/.cargo/bin"
+    _version_probe "$home/.local/bin/sheldon" sheldon 0.6.0
+    _version_probe "$home/.cargo/bin/sheldon" sheldon 0.8.5
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo git zsh fzf fd rg bat eza zoxide starship" ONLY_STUBS=1 HOME="$home")"
+    [[ "$out" != *"cargo install sheldon"* && "$out" == *"exit=0"* ]] || { good=false; echo "    ~/.cargo/bin should win over ~/.local/bin: $out"; }
+
+    # Both files must know the same Homebrew prefixes, in the same order.
+    local zsh_prefixes sh_prefixes
+    zsh_prefixes="$(sed -n 's/^typeset -ga DOTFILES_BREW_PREFIXES=(\(.*\))$/\1/p' "$zsh_env")"
+    sh_prefixes="$(sed -n 's/.*ZSH_TOOLS_BREW_PREFIXES-\([^}]*\)}.*/\1/p' "$script")"
+    [[ -n "$zsh_prefixes" && "$zsh_prefixes" == "$sh_prefixes" ]] || { good=false; echo "    Homebrew prefixes differ: 00-env.zsh='$zsh_prefixes' install_zsh_tools.sh='$sh_prefixes'"; }
+
+    rm -rf "$work"
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
@@ -1068,6 +1120,7 @@ test_install_zsh_tools_survives_restricted_machine
 test_install_zsh_tools_machine_local_settings
 test_min_versions_lib
 test_install_zsh_tools_enforces_min_versions
+test_install_zsh_tools_path_order_matches_zsh
 test_install_libraries_command_sequence
 test_starship_session_format_lib
 test_shellcheck_clean
