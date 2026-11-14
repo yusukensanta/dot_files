@@ -1,9 +1,5 @@
 # dot_files
 
-<!-- portfolio-badge -->
-[![Portfolio Docs](https://img.shields.io/badge/docs-yusukensanta.github.io-blue?style=flat-square)](https://yusukensanta.github.io/projects/dot_files/)
-<!-- portfolio-badge -->
-
 Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared across WSL, native Linux, and macOS dev machines.
 
 ## Contents
@@ -14,7 +10,9 @@ Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared acro
 .config/zsh/local.d/ Host-specific/private zsh extensions, auto-loaded, untracked (gitignored)
 .config/sheldon/     Sheldon zsh plugin manager config
 .config/starship/    Starship prompt config (Tokyo Night preset) + AWS/GCloud session segments
+.config/git/         Shared, identity-free git settings (delta, pull.rebase, ...)
 .tmux.conf           tmux config
+claude/              Claude Code user-scope config: CLAUDE.md, statusline script, statusLine setting
 .zshrc               zsh entrypoint, sources .config/zsh/*
 alacritty/           Alacritty terminal config (synced to the Windows-native path under WSL, ~/.config/alacritty elsewhere)
 scripts/             Install and sync helper scripts
@@ -53,6 +51,64 @@ cd ~/dot_files
 `install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing core CLI tools, fish + fisher, mise with several language runtimes, Docker, and a few Rust tools via cargo.
 
 `install_zsh_tools.sh` installs zsh-abbr, starship, and sheldon via Homebrew (falling back to curl/cargo installers where possible).
+
+## Using this on a work machine
+
+Everything shared is identity-free; everything that differs per machine goes
+in an untracked local file that the sync scripts never touch.
+
+| What | Shared (tracked) | Per-machine (untracked) |
+|------|------------------|-------------------------|
+| zsh | `.config/zsh/*.zsh` | `.config/zsh/local.d/*.zsh` |
+| Neovim | `.config/nvim` | `lua/local/init.lua`, `lua/local/plugins/*.lua` |
+| tmux | `.tmux.conf` | `~/.tmux.conf.local` |
+| git | `.config/git/config` | `~/.gitconfig` (wins over the shared file) |
+| ssh | — | `~/.ssh/config` (never tracked; see below) |
+
+**Disable personally licensed AI tools (Copilot, CopilotChat, blink-copilot).**
+Create `~/.config/zsh/local.d/work.zsh`:
+
+```zsh
+export DOTFILES_NO_PERSONAL_AI=1
+```
+
+Neovim reads it at startup (`lua/helpers/ai.lua`); restart the shell and nvim.
+To drop any other plugin on one machine, add a spec to
+`~/.config/nvim/lua/local/plugins/work.lua`, e.g.
+`return { { "folke/flash.nvim", enabled = false } }` (merged by plugin name).
+
+**Git identity.** `sync_to_host.sh` writes only `~/.config/git/config` and
+never touches `~/.gitconfig`. Put identity, signing, and credential helpers in
+`~/.gitconfig`; to split work and personal by directory:
+
+```gitconfig
+[user]
+  name = Your Name
+  email = personal@example.com
+[includeIf "gitdir:~/work-repos/"]
+  path = ~/.gitconfig-work   # user.email, user.signingkey, ...
+```
+
+**ssh.** Host entries, IPs, and keys are deliberately not in this repo. Keep
+`~/.ssh/config` per machine; to keep work hosts separate, add
+`Include ~/.ssh/config.d/*` at the **top** of it and put work hosts in
+`~/.ssh/config.d/work`.
+
+**Tool install.** `install_libraries.sh` installs Docker, fish, and several
+cargo tools; skim it before running on a managed machine.
+
+## Claude Code (user scope)
+
+`claude/` holds the parts of `~/.claude` worth sharing across machines:
+`CLAUDE.md`, `statusline-command.sh`, and `statusline.json` (just the
+`statusLine` key of `settings.json`). `sync_to_host.sh` copies the first two
+and **merges** the key into `~/.claude/settings.json` with `jq`; everything
+else in that file (permissions, plugins, model, ...) is left exactly as it is,
+and the previous file is backed up first. `sync_here.sh` does the reverse and
+only ever reads the `statusLine` key out of `settings.json`. Requires `jq`.
+
+This repo is public: keep anything private (tokens, internal hostnames,
+employer details) out of `claude/CLAUDE.md`.
 
 ## Syncing changes
 

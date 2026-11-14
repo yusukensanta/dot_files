@@ -158,6 +158,25 @@ pull_windows_alacritty() {
     fi
 }
 
+# Claude Code user-scope config, the reverse of sync_to_host.sh's
+# sync_claude_config. Each piece is optional: a host that has no
+# ~/.claude/CLAUDE.md or no statusLine configured is skipped, not a failure.
+pull_claude_config() {
+    local claude_dir="$HOME/.claude" rc=0
+    [[ -f "$claude_dir/CLAUDE.md" ]] && sync_file "$claude_dir/CLAUDE.md" "$REPO_DIR/claude/CLAUDE.md"
+    [[ -f "$claude_dir/statusline-command.sh" ]] && sync_file "$claude_dir/statusline-command.sh" "$REPO_DIR/claude/statusline-command.sh"
+    # The host copy's mode (often 777/600) must not leak into the repo.
+    if ! $DRY_RUN; then
+        [[ -f "$REPO_DIR/claude/CLAUDE.md" ]] && chmod 644 "$REPO_DIR/claude/CLAUDE.md"
+        [[ -f "$REPO_DIR/claude/statusline-command.sh" ]] && chmod 755 "$REPO_DIR/claude/statusline-command.sh"
+    fi
+    echo ""
+    echo "📄 Syncing: $claude_dir/settings.json statusLine -> claude/statusline.json"
+    extract_claude_statusline "$claude_dir/settings.json" "$REPO_DIR/claude/statusline.json" || rc=$?
+    [[ "$rc" -eq 1 ]] && FAILURES=$((FAILURES + 1))
+    return 0
+}
+
 # Everything below actually performs the sync, wrapped in main() so this
 # file can also be sourced (e.g. by scripts/tests/) to reuse the functions
 # above — backup_opts_for, manual_backup_if_openrsync, sync_file,
@@ -181,6 +200,10 @@ done
 sync_file "$HOME/.zshrc" "$REPO_DIR/.zshrc"
 sync_file "$HOME/.tmux.conf" "$REPO_DIR/.tmux.conf"
 sync_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
+# Optional: absent until sync_to_host.sh has run once (or on a host that keeps
+# all git config in ~/.gitconfig), which is not a failure.
+[[ -f "$HOME/.config/git/config" ]] && sync_file "$HOME/.config/git/config" "$REPO_DIR/.config/git/config"
+pull_claude_config
 
 # Sync alacritty
 if $IS_WSL; then

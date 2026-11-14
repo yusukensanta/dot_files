@@ -365,21 +365,66 @@ test_starship_separator_independent_of_sessions() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
+# Polls until $1 exists and is non-empty, up to ~10s.
+wait_for_file() {
+    local _
+    for _ in $(seq 100); do [[ -s "$1" ]] && return 0; sleep 0.1; done
+    return 1
+}
+
 test_starship_first_render_shows_everything() {
-    local desc="with a cold cache and all three modules run in parallel, the first render shows AWS, separator and gcloud"
+    local desc="cold cache: first render is a non-empty placeholder for AWS/gcloud (separator intact); once refreshed, real values show"
     local root; root="$(mktemp -d)"
     local home="$root/home" tmp="$root/tmp" d="$SCRIPTS_DIR/../.config/starship"
     mkdir -p "$home/.aws" "$home/.config/gcloud/configurations" "$tmp"
     printf '[dev]\nx_security_token_expires = 2099-01-01T00:00:00Z\n' > "$home/.aws/credentials"
     echo default > "$home/.config/gcloud/active_config"
-    printf '[core]\nproject = p\naccount = a@b.c\n' > "$home/.config/gcloud/configurations/config_default"
+    printf '[core]\nproject = myproj\naccount = a@b.c\n' > "$home/.config/gcloud/configurations/config_default"
     local e=(env -i PATH="$PATH" HOME="$home" TMPDIR="$tmp" AWS_PROFILE=dev)
+    local good=true
     "${e[@]}" "$d/aws_session.sh" > "$root/a" &
     "${e[@]}" "$d/aws_gcloud_separator.sh" > "$root/s" &
     "${e[@]}" "$d/gcloud_session.sh" > "$root/g" &
     wait
-    if [[ -s "$root/a" && "$(<"$root/s")" == " │" && -s "$root/g" ]]; then ok "$desc"; else fail "$desc"; fi
+    [[ -s "$root/a" && "$(<"$root/s")" == " │" && -s "$root/g" ]] || { good=false; echo "    cold render had an empty segment"; }
+    # Background refresh fills the cache; the next render shows real values.
+    wait_for_file "$tmp/starship-aws-session-$(id -u)-dev.cache" || { good=false; echo "    aws cache never appeared"; }
+    wait_for_file "$tmp/starship-gcloud-session-$(id -u).cache" || { good=false; echo "    gcloud cache never appeared"; }
+    "${e[@]}" "$d/aws_session.sh" 2>/dev/null | grep -q 'dev .*H' || { good=false; echo "    aws real value missing after refresh"; }
+    "${e[@]}" "$d/gcloud_session.sh" 2>/dev/null | grep -q 'myproj' || { good=false; echo "    gcloud real value missing after refresh"; }
+    sleep 0.3  # let any in-flight refresh release its lock before cleanup
     rm -rf "$root"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_session_cache_cold_render_never_blocks() {
+    local desc="session_cache_serve returns a placeholder immediately on a cold cache even when compute is slow, then serves the computed value"
+    local root; root="$(mktemp -d)"
+    local lib="$SCRIPTS_DIR/../.config/starship/lib/session_cache.sh" good=true
+    local cache="$root/c.cache" out t0 t1 ms
+    t0=$(date +%s%N)
+    out="$(
+        compute() { sleep 2; printf ' real'; }
+        source "$lib"
+        session_cache_serve "$cache" 5 compute
+    )"
+    t1=$(date +%s%N); ms=$(( (t1 - t0) / 1000000 ))
+    [[ "$out" == " …" ]] || { good=false; echo "    cold output: '$out'"; }
+    [[ "$ms" -lt 800 ]] || { good=false; echo "    cold render took ${ms}ms"; }
+    # Custom placeholder is honored.
+    out="$(
+        compute() { sleep 1; printf ' x'; }
+        source "$lib"
+        session_cache_serve "$root/d.cache" 5 compute " …!"
+    )"
+    [[ "$out" == " …!" ]] || { good=false; echo "    custom placeholder: '$out'"; }
+    # After the background compute finishes, the real value is served.
+    wait_for_file "$cache" || { good=false; echo "    cache never written"; }
+    out="$(compute() { printf ' unused'; }; source "$lib"; session_cache_serve "$cache" 5 compute)"
+    [[ "$out" == " real" ]] || { good=false; echo "    warm output: '$out'"; }
+    sleep 1.2  # the second slow compute above is still releasing its lock
+    rm -rf "$root"
+    if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
 # Runs pull_windows_alacritty in a subshell against fixtures; prints the
@@ -532,11 +577,232 @@ test_shellcheck_clean() {
     local desc="shellcheck reports no warnings or errors across the repo's bash scripts"
     if ! command -v shellcheck >/dev/null 2>&1; then ok "$desc (skipped: shellcheck not installed)"; return; fi
     local root="$SCRIPTS_DIR/.." out
-    if out="$(cd "$root" && shellcheck -S warning scripts/*.sh scripts/lib/*.sh scripts/tests/*.sh .config/starship/*.sh .config/starship/lib/*.sh 2>&1)"; then
+    if out="$(cd "$root" && shellcheck -S warning scripts/*.sh scripts/lib/*.sh scripts/tests/*.sh claude/*.sh .config/starship/*.sh .config/starship/lib/*.sh 2>&1)"; then
         ok "$desc"
     else
         fail "$desc"; echo "$out" | head -20
     fi
+}
+
+
+# --- work/personal portability ---
+
+test_git_config_is_identity_free() {
+    local desc="shared git config carries no identity, signing, or credential-helper settings"
+    local f="$SCRIPTS_DIR/../.config/git/config" good=true
+    [[ -f "$f" ]] || { fail "$desc (missing $f)"; return; }
+    grep -qE '^[[:space:]]*(name|email|signingkey|gpgsign|helper|format)[[:space:]]*=' "$f" && good=false
+    grep -qE '^\[(user|gpg|credential|commit)' "$f" && good=false
+    grep -qE '/home/|/Users/' "$f" && good=false
+    git config --file "$f" --list >/dev/null 2>&1 || good=false
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_git_config_loses_to_home_gitconfig() {
+    local desc="HOME/.gitconfig identity coexists with the shared XDG git config (identity from .gitconfig, shared settings from XDG)"
+    local work; work="$(mktemp -d)"
+    mkdir -p "$work/home/.config/git"
+    cp "$SCRIPTS_DIR/../.config/git/config" "$work/home/.config/git/config"
+    printf '[user]\n  email = work@example.com\n[pull]\n  rebase = false\n' > "$work/home/.gitconfig"
+    local email rebase branch
+    email="$(HOME="$work/home" XDG_CONFIG_HOME="$work/home/.config" GIT_CONFIG_NOSYSTEM=1 git -C "$work" config user.email)"
+    rebase="$(HOME="$work/home" XDG_CONFIG_HOME="$work/home/.config" GIT_CONFIG_NOSYSTEM=1 git -C "$work" config pull.rebase)"
+    branch="$(HOME="$work/home" XDG_CONFIG_HOME="$work/home/.config" GIT_CONFIG_NOSYSTEM=1 git -C "$work" config init.defaultBranch)"
+    if [[ "$email" == "work@example.com" && "$rebase" == "false" && "$branch" == "main" ]]; then
+        ok "$desc"
+    else
+        fail "$desc (email=$email rebase=$rebase branch=$branch)"
+    fi
+    rm -rf "$work"
+}
+
+test_git_config_synced_both_ways() {
+    local desc="git/config is synced by both scripts, and sync_here tolerates it being absent"
+    local good=true
+    grep -q '\.config/git/config' "$SCRIPTS_DIR/sync_to_host.sh" || good=false
+    grep -qF '[[ -f "$HOME/.config/git/config" ]] && sync_file' "$SCRIPTS_DIR/sync_here.sh" || good=false
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_tmux_local_include() {
+    local desc=".tmux.conf sources ~/.tmux.conf.local quietly before TPM, and it is gitignored"
+    local f="$SCRIPTS_DIR/../.tmux.conf" good=true
+    local l_inc l_tpm
+    l_inc="$(grep -n '^source-file -q ~/.tmux.conf.local$' "$f" | cut -d: -f1)"
+    l_tpm="$(grep -n "^run '~/.tmux/plugins/tpm/tpm'" "$f" | cut -d: -f1)"
+    [[ -n "$l_inc" && -n "$l_tpm" && "$l_inc" -lt "$l_tpm" ]] || good=false
+    grep -q '^\.tmux\.conf\.local$' "$SCRIPTS_DIR/../.gitignore" || good=false
+    if command -v tmux >/dev/null 2>&1; then
+        local work; work="$(mktemp -d)"
+        # Absent local file: must parse cleanly. Present: its setting must apply.
+        grep -v '^run ' "$f" > "$work/t.conf"
+        if HOME="$work" tmux -L "dfltest$$" -f "$work/t.conf" start-server \; show -g history-limit >/dev/null 2>&1; then :; else good=false; fi
+        echo 'set -g history-limit 4242' > "$work/.tmux.conf.local"
+        local got
+        got="$(HOME="$work" tmux -L "dfltest$$" -f "$work/t.conf" start-server \; show -gv history-limit 2>/dev/null)"
+        [[ "$got" == "4242" ]] || good=false
+        tmux -L "dfltest$$" kill-server >/dev/null 2>&1
+        rm -rf "$work"
+    fi
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_nvim_personal_ai_switch() {
+    local desc="DOTFILES_NO_PERSONAL_AI=1 disables Copilot plugins; local.plugins import is optional and works"
+    if ! command -v nvim >/dev/null 2>&1; then ok "$desc (skipped: nvim not installed)"; return; fi
+    local work; work="$(mktemp -d)"
+    mkdir -p "$work/cfg/nvim"
+    rsync -a --exclude=lazy-lock.json "$SCRIPTS_DIR/../.config/nvim/" "$work/cfg/nvim/"
+    local probe='lua local c=require("lazy.core.config"); local o={}; for _,n in ipairs({"copilot.lua","CopilotChat.nvim","blink-copilot"}) do local p=c.plugins[n]; o[#o+1]=tostring(p~=nil and p._.cond~=false and p.enabled~=false) end; io.stdout:write(table.concat(o,","))'
+    local on off good=true
+    on="$(XDG_CONFIG_HOME="$work/cfg" DOTFILES_NO_PERSONAL_AI="" timeout 90 nvim --headless -c "$probe" -c qa 2>&1 | tail -1)"
+    off="$(XDG_CONFIG_HOME="$work/cfg" DOTFILES_NO_PERSONAL_AI=1 timeout 90 nvim --headless -c "$probe" -c qa 2>&1 | tail -1)"
+    [[ "$on" == *"true,true,true" ]] || good=false
+    [[ "$off" == *"false,false,false" ]] || good=false
+    # local.plugins present -> imported and merged by name.
+    mkdir -p "$work/cfg/nvim/lua/local/plugins"
+    echo 'return {{ "folke/flash.nvim", enabled = false }}' > "$work/cfg/nvim/lua/local/plugins/w.lua"
+    local flash
+    flash="$(XDG_CONFIG_HOME="$work/cfg" timeout 90 nvim --headless -c 'lua local p=require("lazy.core.config").plugins["flash.nvim"]; io.stdout:write(tostring(p~=nil and p.enabled~=false))' -c qa 2>&1 | tail -1)"
+    [[ "$flash" == *false ]] || good=false
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc (on=$on off=$off flash=$flash)"; fi
+}
+
+
+# --- Claude Code user-scope sync + portfolio opt-out ---
+
+# Octal file mode, GNU or BSD stat.
+fmode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
+
+test_claude_statusline_merge() {
+    local desc="merge_claude_statusline sets only statusLine: other keys kept, mode kept, backup made, idempotent, safe on bad input"
+    local work; work="$(mktemp -d)"
+    local lib="$SCRIPTS_DIR/lib/sync_common.sh" frag="$SCRIPTS_DIR/../claude/statusline.json" good=true
+    local s="$work/home/.claude/settings.json"
+    mkdir -p "$work/home/.claude"
+    printf '{"permissions":{"allow":["Bash(ls:*)"]},"model":"x","statusLine":{"type":"command","command":"old"},"enabledPlugins":{"a":true}}\n' > "$s"
+    chmod 600 "$s"
+    local out
+    out="$(HOME="$work/home" bash -c 'source "$1"; merge_claude_statusline "$2" "$3"' _ "$lib" "$frag" "$s" 2>&1)" || { good=false; echo "    merge failed: $out"; }
+    jq -e '.statusLine.command == "bash ~/.claude/statusline-command.sh" and .permissions.allow[0] == "Bash(ls:*)" and .model == "x" and .enabledPlugins.a == true' "$s" >/dev/null 2>&1 || { good=false; echo "    merged content wrong"; }
+    [[ "$(fmode "$s")" == "600" ]] || { good=false; echo "    mode changed to $(fmode "$s")"; }
+    local bk; bk="$(find "$work/home/.dotfiles-sync-backup" -name settings.json 2>/dev/null | head -1)"
+    [[ -n "$bk" && "$(jq -r .statusLine.command "$bk")" == "old" ]] || { good=false; echo "    backup missing/wrong"; }
+    # Second run: no rewrite.
+    local before; before="$(cksum < "$s")"
+    out="$(HOME="$work/home" bash -c 'source "$1"; merge_claude_statusline "$2" "$3"' _ "$lib" "$frag" "$s" 2>&1)"
+    [[ "$out" == *"already up to date"* && "$(cksum < "$s")" == "$before" ]] || { good=false; echo "    not idempotent: $out"; }
+
+    # Missing settings.json: created with statusLine only, private mode.
+    local s2="$work/new/.claude/settings.json"
+    HOME="$work/home" bash -c 'source "$1"; merge_claude_statusline "$2" "$3"' _ "$lib" "$frag" "$s2" >/dev/null 2>&1
+    [[ "$(jq -c 'keys' "$s2" 2>/dev/null)" == '["statusLine"]' && "$(fmode "$s2")" == "600" ]] || { good=false; echo "    create-from-scratch wrong"; }
+
+    # Invalid JSON: refused, file untouched.
+    local s3="$work/bad.json"; printf '{oops' > "$s3"
+    if HOME="$work/home" bash -c 'source "$1"; merge_claude_statusline "$2" "$3"' _ "$lib" "$frag" "$s3" >/dev/null 2>&1 || [[ "$(<"$s3")" != "{oops" ]]; then good=false; echo "    invalid JSON not refused"; fi
+
+    # Dry-run: nothing written.
+    local s4="$work/dry.json"; printf '{"model":"x"}\n' > "$s4"
+    HOME="$work/home" bash -c 'source "$1"; DRY_RUN=true; merge_claude_statusline "$2" "$3"' _ "$lib" "$frag" "$s4" >/dev/null 2>&1
+    [[ "$(jq -c . "$s4")" == '{"model":"x"}' ]] || { good=false; echo "    dry-run modified the file"; }
+
+    # No jq on PATH: fails cleanly, file untouched.
+    if HOME="$work/home" PATH=/nonexistent bash -c 'source "$1"; merge_claude_statusline "$2" "$3"' _ "$lib" "$frag" "$s4" >/dev/null 2>&1; then good=false; echo "    expected failure without jq"; fi
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_claude_statusline_extract() {
+    local desc="extract_claude_statusline copies only statusLine into the repo (no other settings.json content can leak); skips when absent"
+    local work; work="$(mktemp -d)"
+    local lib="$SCRIPTS_DIR/lib/sync_common.sh" good=true
+    local s="$work/settings.json" f="$work/statusline.json"
+    printf '{"statusLine":{"type":"command","command":"c"},"env":{"TOKEN":"supersecret"},"permissions":{"allow":["x"]}}\n' > "$s"
+    HOME="$work" bash -c 'source "$1"; extract_claude_statusline "$2" "$3"' _ "$lib" "$s" "$f" >/dev/null 2>&1
+    [[ "$(jq -c 'keys' "$f" 2>/dev/null)" == '["statusLine"]' && "$(jq -r .statusLine.command "$f")" == "c" ]] || { good=false; echo "    fragment wrong"; }
+    ! grep -q 'supersecret\|permissions' "$f" || { good=false; echo "    non-statusLine content leaked"; }
+    local out
+    out="$(HOME="$work" bash -c 'source "$1"; extract_claude_statusline "$2" "$3"' _ "$lib" "$s" "$f" 2>&1)"
+    [[ "$out" == *"already up to date"* ]] || { good=false; echo "    not idempotent: $out"; }
+    # No statusLine / no file: rc 2 (skip), fragment untouched.
+    printf '{"model":"x"}\n' > "$s"
+    local before rc; before="$(cksum < "$f")"
+    HOME="$work" bash -c 'source "$1"; extract_claude_statusline "$2" "$3"' _ "$lib" "$s" "$f" >/dev/null 2>&1; rc=$?
+    [[ "$rc" -eq 2 && "$(cksum < "$f")" == "$before" ]] || { good=false; echo "    absent statusLine not skipped (rc=$rc)"; }
+    HOME="$work" bash -c 'source "$1"; extract_claude_statusline "$2" "$3"' _ "$lib" "$work/none.json" "$f" >/dev/null 2>&1; rc=$?
+    [[ "$rc" -eq 2 ]] || { good=false; echo "    missing settings.json not skipped (rc=$rc)"; }
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_claude_sync_round_trip() {
+    local desc="sync_to_host.sh -> \$HOME/.claude and sync_here.sh -> repo round-trip CLAUDE.md, statusline script and statusLine; modes pinned; settings.json otherwise untouched"
+    local work; work="$(mktemp -d)"
+    local repo="$work/repo" good=true
+    mkdir -p "$repo" "$work/home/.claude"
+    cp -R "$SCRIPTS_DIR/../claude" "$repo/claude"
+    printf '{"permissions":{"allow":["keep-me"]}}\n' > "$work/home/.claude/settings.json"
+
+    local out
+    out="$(
+        export HOME="$work/home"
+        cd "$SCRIPTS_DIR" || exit 1
+        source ./sync_to_host.sh --yes >/dev/null
+        # shellcheck disable=SC2034  # read by sync_claude_config
+        REPO_DIR="$repo"
+        sync_claude_config >/dev/null 2>&1
+        echo "$FAILURES"
+    )"
+    [[ "$out" == "0" ]] || { good=false; echo "    sync_to_host reported failures: $out"; }
+    cmp -s "$repo/claude/CLAUDE.md" "$work/home/.claude/CLAUDE.md" || { good=false; echo "    CLAUDE.md not copied"; }
+    [[ "$(fmode "$work/home/.claude/statusline-command.sh")" == "755" && "$(fmode "$work/home/.claude/CLAUDE.md")" == "644" ]] || { good=false; echo "    host modes not pinned"; }
+    jq -e '.permissions.allow[0] == "keep-me" and (.statusLine.command | test("statusline-command.sh"))' "$work/home/.claude/settings.json" >/dev/null 2>&1 || { good=false; echo "    settings.json merge wrong"; }
+
+    # Host-side edits (with sloppy modes) come back into a different repo copy.
+    local repo2="$work/repo2"; cp -R "$repo" "$repo2"
+    echo "# edited on host" >> "$work/home/.claude/CLAUDE.md"; chmod 777 "$work/home/.claude/CLAUDE.md"
+    jq '.statusLine.command = "bash ~/.claude/statusline-command.sh --v2" | .env.TOKEN = "supersecret"' "$work/home/.claude/settings.json" > "$work/t" && mv "$work/t" "$work/home/.claude/settings.json"
+    out="$(
+        export HOME="$work/home"
+        cd "$SCRIPTS_DIR" || exit 1
+        source ./sync_here.sh --yes >/dev/null
+        # shellcheck disable=SC2034  # read by pull_claude_config
+        REPO_DIR="$repo2"
+        pull_claude_config >/dev/null 2>&1
+        echo "$FAILURES"
+    )"
+    [[ "$out" == "0" ]] || { good=false; echo "    sync_here reported failures: $out"; }
+    grep -q '# edited on host' "$repo2/claude/CLAUDE.md" || { good=false; echo "    CLAUDE.md not pulled"; }
+    [[ "$(fmode "$repo2/claude/CLAUDE.md")" == "644" && "$(fmode "$repo2/claude/statusline-command.sh")" == "755" ]] || { good=false; echo "    repo modes leaked from host"; }
+    grep -q -- '--v2' "$repo2/claude/statusline.json" || { good=false; echo "    statusLine not pulled"; }
+    ! grep -rq 'supersecret\|keep-me' "$repo2/claude" || { good=false; echo "    settings.json content leaked into repo"; }
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_claude_repo_files_publishable() {
+    local desc="claude/ files exist, are not gitignored, contain no obvious secrets, and the fragment holds only statusLine"
+    local root="$SCRIPTS_DIR/.." good=true f
+    for f in CLAUDE.md statusline-command.sh statusline.json; do
+        [[ -s "$root/claude/$f" ]] || { good=false; echo "    missing claude/$f"; continue; }
+        if git -C "$root" rev-parse --git-dir >/dev/null 2>&1 && git -C "$root" check-ignore -q "claude/$f"; then good=false; echo "    claude/$f is gitignored"; fi
+        ! grep -qE 'sk-ant-|ghp_[A-Za-z0-9]|AKIA[0-9A-Z]{12}|xox[bp]-|BEGIN [A-Z ]*PRIVATE KEY' "$root/claude/$f" || { good=false; echo "    secret-like string in claude/$f"; }
+    done
+    [[ "$(jq -c 'keys' "$root/claude/statusline.json" 2>/dev/null)" == '["statusLine"]' ]] || { good=false; echo "    statusline.json has keys other than statusLine"; }
+    [[ -x "$root/claude/statusline-command.sh" ]] || { good=false; echo "    statusline-command.sh not executable"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_portfolio_opt_out() {
+    local desc="this repo is not published to the portfolio site: no opt-in .github/portfolio.yml (or enabled: false) and no portfolio badge in README"
+    local root="$SCRIPTS_DIR/.." good=true
+    if [[ -f "$root/.github/portfolio.yml" ]]; then
+        grep -qE '^enabled:[[:space:]]*false[[:space:]]*$' "$root/.github/portfolio.yml" || { good=false; echo "    portfolio.yml is still opted in"; }
+    fi
+    ! grep -qE 'portfolio-badge|yusukensanta\.github\.io' "$root/README.md" || { good=false; echo "    README still links the portfolio site"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
 echo "== sync_to_host.sh / sync_here.sh / nvim / starship fixes =="
@@ -556,6 +822,16 @@ test_install_zsh_tools_command_sequence
 test_install_libraries_command_sequence
 test_starship_session_format_lib
 test_shellcheck_clean
+test_git_config_is_identity_free
+test_git_config_loses_to_home_gitconfig
+test_git_config_synced_both_ways
+test_tmux_local_include
+test_nvim_personal_ai_switch
+test_claude_statusline_merge
+test_claude_statusline_extract
+test_claude_sync_round_trip
+test_claude_repo_files_publishable
+test_portfolio_opt_out
 test_starship_command_timeout
 test_pull_alacritty_strips_wsl_fragment
 test_pull_alacritty_refuses_unsplittable_file
@@ -570,6 +846,7 @@ test_zsh_history_permissions_hardened
 test_starship_cache_files_created_private
 test_starship_separator_independent_of_sessions
 test_starship_first_render_shows_everything
+test_session_cache_cold_render_never_blocks
 
 echo ""
 echo "$PASS passed, $FAIL failed"

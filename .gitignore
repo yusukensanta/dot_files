@@ -45,7 +45,10 @@ __pycache__/
 !.config/nvim/doc/plugin-development.md
 !.config/nvim/doc/plugin-templates.md
 
+.tmux.conf.local
+
 .config/nvim/lua/local/*
 !.config/nvim/lua/local/.gitkeep
 
 !.config/zsh/ZLE-WIDGETS-REFERENCE.md
+!claude/CLAUDE.md

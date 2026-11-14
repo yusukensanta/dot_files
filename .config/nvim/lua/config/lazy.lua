@@ -23,7 +23,17 @@ if not ok then
   return
 end
 
-lazy.setup("plugins", {
+-- `local.plugins` (lua/local/plugins/*.lua) is gitignored, host-specific,
+-- and not synced — drop specs there to add or override (e.g. enabled = false)
+-- plugins on one machine. lazy merges specs by plugin name. Imported only
+-- when the directory exists: lazy raises "No specs found" for an empty or
+-- missing module, which is the normal state on a fresh machine.
+local spec = { { import = "plugins" } }
+if vim.uv.fs_stat(vim.fn.stdpath("config") .. "/lua/local/plugins") then
+  table.insert(spec, { import = "local.plugins" })
+end
+
+lazy.setup(spec, {
   rocks = { enabled = false },
 })
 

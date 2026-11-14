@@ -15,7 +15,14 @@
 #
 #   compute() { ...; printf '%s' "$result"; }   # empty output = nothing to show
 #   source "$(dirname "${BASH_SOURCE[0]}")/lib/session_cache.sh"
-#   session_cache_serve "$cache_file" "$ttl_seconds" compute
+#   session_cache_serve "$cache_file" "$ttl_seconds" compute [placeholder]
+#
+# A cold cache (the first render for a cache key) does NOT run compute()
+# in the foreground: it prints the placeholder (default " …") and fills
+# the cache in the background, so this never takes longer than a cache
+# read — even when compute() is slow (huge ~/.aws/cli/cache, a stalled
+# machine) — and starship's command_timeout can't fire and print a
+# "[WARN] ... timed out" over the prompt. The next render has the value.
 #
 # Requires: bash (BASH_SOURCE), find, mkdir, mv — no GNU-only flags, so
 # portable to macOS too.
@@ -78,10 +85,11 @@ session_cache_refresh_in_background() {
   ) >/dev/null 2>&1 &
 }
 
-# $1=cache_file $2=ttl_seconds $3=compute_fn_name -> print the value to
-# serve for this render; see the file header for the full behavior.
+# $1=cache_file $2=ttl_seconds $3=compute_fn_name [$4=placeholder] -> print
+# the value to serve for this render; see the file header for the full
+# behavior.
 session_cache_serve() {
-  local cache_file="$1" ttl="$2" compute_fn="$3"
+  local cache_file="$1" ttl="$2" compute_fn="$3" placeholder="${4:- …}"
 
   if [[ -f "$cache_file" ]]; then
     local cached_output
@@ -95,10 +103,10 @@ session_cache_serve() {
     return 0
   fi
 
-  # Only the first-ever render for this cache key reaches this point, so
-  # the synchronous compute() call here doesn't recur once a cache exists.
-  local output
-  output="$("$compute_fn")"
-  session_cache_write "$cache_file" "$output"
-  printf '%s' "$output"
+  # Cold cache: never compute in the foreground (see the file header). The
+  # background refresh creates the cache file, so this branch is reached
+  # again only while that first refresh is still in flight (or its lock is
+  # held by another render), and prints the same placeholder.
+  session_cache_refresh_in_background "$cache_file" "$compute_fn"
+  printf '%s' "$placeholder"
 }

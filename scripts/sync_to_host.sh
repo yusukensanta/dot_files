@@ -140,6 +140,24 @@ sync_file() {
     fi
 }
 
+# Claude Code user-scope config: CLAUDE.md, the statusline script, and the
+# statusLine key of settings.json (merged with jq — see "CLAUDE CODE" in
+# lib/sync_common.sh; the rest of settings.json is never touched).
+sync_claude_config() {
+    local claude_dir="$HOME/.claude"
+    sync_file "$REPO_DIR/claude/CLAUDE.md" "$claude_dir/CLAUDE.md" "claude/CLAUDE.md"
+    sync_file "$REPO_DIR/claude/statusline-command.sh" "$claude_dir/statusline-command.sh" "claude/statusline-command.sh"
+    # rsync -a carries the source's mode over; pin the intended ones.
+    if ! $DRY_RUN; then
+        [[ -f "$claude_dir/CLAUDE.md" ]] && chmod 644 "$claude_dir/CLAUDE.md"
+        [[ -f "$claude_dir/statusline-command.sh" ]] && chmod 755 "$claude_dir/statusline-command.sh"
+    fi
+    echo ""
+    echo "📄 Syncing: statusLine -> $claude_dir/settings.json"
+    merge_claude_statusline "$REPO_DIR/claude/statusline.json" "$claude_dir/settings.json" \
+        || FAILURES=$((FAILURES + 1))
+}
+
 # Everything below actually performs the sync, wrapped in main() so this
 # file can also be sourced (e.g. by scripts/tests/) to reuse the functions
 # above — backup_opts_for, manual_backup_if_openrsync, sync_directory,
@@ -168,6 +186,9 @@ done
 sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
 sync_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf" ".tmux.conf"
 sync_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml" "starship.toml"
+# Identity-free shared git settings; ~/.gitconfig (identity, signing) is never touched.
+sync_file "$REPO_DIR/.config/git/config" "$HOME/.config/git/config" "git/config"
+sync_claude_config
 
 if $IS_WSL; then
     # Alacritty and Neovim run as Windows-native binaries even under WSL,

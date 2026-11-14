@@ -1,18 +1,14 @@
 # custom.aws_session/gcloud_session (and the separator between them) are
 # stale-while-revalidate: they serve a cached value immediately and refresh
-# it in the background, so in normal use they return in low single-digit
-# ms and essentially never approach this. The one case that can still take
-# real time is the very first render ever for a given AWS profile (no
-# cache yet) — bounded now (SSO cache files grep-prefiltered before jq ever
-# touches them, sqlite3 given a 200ms busy_timeout) but not instant. 1000ms
-# covers that
-# plus headroom for the rest of the prompt (git status on a large repo,
-# language version detectors, etc.) without letting a genuinely stuck
-# command hang the prompt indefinitely (that's what ignore_timeout would
-# do — avoid it). On timeout starship drops the module silently rather
-# than erroring, so a valid session would look identical to no session —
-# see aws_session.sh/gcloud_session.sh for why that should no longer
-# actually happen in practice.
+# it in the background, including the very first render for a profile
+# (a "…" placeholder, filled in on a later render — see
+# lib/session_cache.sh), so in normal use they return in low single-digit
+# ms and never approach this limit. 1000ms is headroom for the rest of the
+# prompt (git status on a large repo, language version detectors, etc.)
+# without letting a genuinely stuck command hang the prompt indefinitely
+# (that's what ignore_timeout would do — avoid it). When a command does hit
+# this limit, starship prints "[WARN] ... timed out" above the prompt and
+# drops that module; if you see that, run `starship timings`.
 command_timeout = 1000
 
 format = """

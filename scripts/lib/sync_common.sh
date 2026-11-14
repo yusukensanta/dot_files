@@ -139,3 +139,105 @@ detect_win_userprofile() {
         fi
     fi
 }
+
+# === CLAUDE CODE (user scope) ===
+# Only three things are synced: ~/.claude/CLAUDE.md, the statusline script,
+# and the "statusLine" key of ~/.claude/settings.json (kept in the repo as
+# claude/statusline.json). The rest of settings.json — permissions, enabled
+# plugins, marketplaces, model — is per-machine and may be sensitive, so it
+# is never copied; the key is merged in/out with jq instead.
+#
+# Both functions need jq, honour $DRY_RUN, and write atomically (temp file
+# + mv). Return: 0 = done / already up to date, 1 = failed, 2 = nothing to
+# do (source absent). They print their own progress lines.
+
+# merge_claude_statusline FRAGMENT SETTINGS
+# Sets SETTINGS' .statusLine from FRAGMENT's, keeping every other key. An
+# unparseable SETTINGS is refused, never overwritten. The previous file is
+# backed up to $BACKUP_ROOT/claude/ first.
+merge_claude_statusline() {
+    local fragment="$1" settings="$2"
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "   ✗ jq not found — cannot merge statusLine into $settings"
+        return 1
+    fi
+    [[ -f "$fragment" ]] || { echo "   ⚠️  $fragment not found — skipping"; return 2; }
+    if ! jq -e '.statusLine | type == "object"' "$fragment" >/dev/null 2>&1; then
+        echo "   ✗ $fragment has no statusLine object"
+        return 1
+    fi
+
+    local tmp="${settings}.tmp.$$"
+    if [[ -f "$settings" ]]; then
+        if ! jq -e . "$settings" >/dev/null 2>&1; then
+            echo "   ✗ $settings is not valid JSON — refusing to touch it"
+            return 1
+        fi
+        if jq -e --slurpfile f "$fragment" '.statusLine == $f[0].statusLine' "$settings" >/dev/null 2>&1; then
+            echo "   ✓ statusLine already up to date"
+            return 0
+        fi
+        if $DRY_RUN; then
+            echo "   ✓ Dry-run: would set statusLine in $settings"
+            return 0
+        fi
+        mkdir -p "$BACKUP_ROOT/claude" 2>/dev/null || true
+        cp -p "$settings" "$BACKUP_ROOT/claude/settings.json" 2>/dev/null || true
+        # cp -p first so the temp file carries the original's mode/owner.
+        if cp -p "$settings" "$tmp" \
+            && jq --slurpfile f "$fragment" '. + {statusLine: $f[0].statusLine}' "$settings" > "$tmp" \
+            && mv -f "$tmp" "$settings"; then
+            echo "   ✓ statusLine merged (other settings untouched)"
+        else
+            rm -f "$tmp"; echo "   ✗ merge failed"; return 1
+        fi
+    else
+        if $DRY_RUN; then
+            echo "   ✓ Dry-run: would create $settings with statusLine only"
+            return 0
+        fi
+        mkdir -p "$(dirname "$settings")"
+        # umask 077: settings.json is private (Claude Code itself uses 600).
+        if ( umask 077 && jq '{statusLine: .statusLine}' "$fragment" > "$tmp" ) && mv -f "$tmp" "$settings"; then
+            echo "   ✓ Created $settings with statusLine only"
+        else
+            rm -f "$tmp"; echo "   ✗ create failed"; return 1
+        fi
+    fi
+}
+
+# extract_claude_statusline SETTINGS FRAGMENT
+# Writes {"statusLine": ...} taken from SETTINGS into FRAGMENT — nothing
+# else from SETTINGS can reach the repo. No statusLine in SETTINGS = skip.
+extract_claude_statusline() {
+    local settings="$1" fragment="$2"
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "   ✗ jq not found — cannot read statusLine from $settings"
+        return 1
+    fi
+    [[ -f "$settings" ]] || { echo "   ⚠️  $settings not found — skipping"; return 2; }
+    if ! jq -e '.statusLine | type == "object"' "$settings" >/dev/null 2>&1; then
+        echo "   ⚠️  no statusLine in $settings — skipping"
+        return 2
+    fi
+
+    local tmp="${fragment}.tmp.$$"
+    jq '{statusLine: .statusLine}' "$settings" > "$tmp" || { rm -f "$tmp"; echo "   ✗ extract failed"; return 1; }
+    if [[ -f "$fragment" ]] && cmp -s "$tmp" "$fragment"; then
+        rm -f "$tmp"; echo "   ✓ statusLine already up to date"
+        return 0
+    fi
+    if $DRY_RUN; then
+        rm -f "$tmp"; echo "   ✓ Dry-run: would update $fragment"
+        return 0
+    fi
+    if [[ -f "$fragment" ]]; then
+        mkdir -p "$BACKUP_ROOT/claude_repo" 2>/dev/null || true
+        cp -p "$fragment" "$BACKUP_ROOT/claude_repo/statusline.json" 2>/dev/null || true
+    fi
+    if mv -f "$tmp" "$fragment"; then
+        echo "   ✓ statusLine saved to $fragment"
+    else
+        rm -f "$tmp"; echo "   ✗ save failed"; return 1
+    fi
+}
