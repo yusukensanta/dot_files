@@ -260,9 +260,8 @@ test_starship_command_timeout() {
 test_brew_prefix_checks_binary_not_dir() {
     local desc="00-env.zsh's brew-prefix loop checks for the brew binary, not just the bin dir"
     local f="$SCRIPTS_DIR/../.config/zsh/00-env.zsh"
-    # The old bug used `-d "$brew_prefix/bin"` — true for plain /usr/local on
-    # stock Linux/WSL (no Homebrew there), which broke the loop before it
-    # ever reached /home/linuxbrew/.linuxbrew.
+    # `-d "$brew_prefix/bin"` would be true for plain /usr/local on a machine
+    # without Homebrew there (stock Linux/WSL, Apple Silicon Macs).
     if grep -q -- '-x "\$brew_prefix/bin/brew"' "$f" && ! grep -q -- '-d "\$brew_prefix/bin"' "$f"; then
         ok "$desc"
     else
@@ -568,6 +567,9 @@ exit 0
 STUB
     chmod +x "$stubs/_stub"
     for name in $names; do ln -s _stub "$stubs/$name"; done
+    # With the real /usr/bin off PATH, `uname` has to be a stub too: the
+    # scripts ask it which OS they are on (FAKE_OS, default Linux).
+    if [[ "$path_tail" == "$work/sys" && ! -e "$stubs/uname" ]]; then ln -s _stub "$stubs/uname"; fi
     : > "$work/log"
     ( cd "$work" && env -i PATH="$stubs:$path_tail" HOME="$work/home" USER=tester \
         LOG="$work/log" FAKE_PREFIX="$work/prefix" ZSH_TOOLS_BREW_PREFIXES= "$@" bash "$script" >/dev/null 2>&1
@@ -651,6 +653,33 @@ test_install_zsh_tools_machine_local_settings() {
     # no file at all is fine, and the file is never looked for inside the repo
     ! git -C "$SCRIPTS_DIR/.." ls-files | grep -q 'install\.local\.sh' || { good=false; echo "    install.local.sh must stay untracked"; }
     rm -rf "$cfg"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_zsh_tools_linux_uses_apt_not_brew() {
+    local desc="install_zsh_tools.sh: Linux with apt never uses a Homebrew that is also installed; macOS uses Homebrew"
+    local script="$SCRIPTS_DIR/install_zsh_tools.sh" zsh_env="$SCRIPTS_DIR/../.config/zsh/00-env.zsh" out good=true
+    # Linux, both present, nothing installed: packages via apt, starship and
+    # sheldon via their own installers, brew never called
+    out="$(run_install_script_stubbed "$script" "brew sudo apt-get curl cargo" ONLY_STUBS=1)"
+    [[ "$out" == *"sudo apt-get install -y zsh"* && "$out" == *"sudo apt-get install -y fzf"* \
+        && "$out" == *"starship.rs/install.sh"* && "$out" == *"cargo install sheldon"* ]] || { good=false; echo "    Linux install: $out"; }
+    ! grep -q '^brew ' <<< "$out" || { good=false; echo "    brew must not be called on Linux with apt: $out"; }
+    # ...and an old tool is upgraded through apt, not brew
+    out="$(run_install_script_stubbed "$script" "brew sudo apt-get curl cargo git zsh fzf fd rg bat eza zoxide starship sheldon" ONLY_STUBS=1 FAKE_FZF_VERSION=0.44.1)"
+    [[ "$out" == *"sudo apt-get install -y --only-upgrade fzf"* ]] || { good=false; echo "    Linux upgrade: $out"; }
+    ! grep -q '^brew ' <<< "$out" || { good=false; echo "    brew must not be called for a Linux upgrade: $out"; }
+    # macOS: Homebrew, also when an apt-get happens to exist
+    out="$(run_install_script_stubbed "$script" "brew sudo apt-get curl cargo" ONLY_STUBS=1 FAKE_OS=Darwin)"
+    [[ "$out" == *"brew install zsh"* && "$out" == *"brew install fzf"* && "$out" == *"brew install starship"* \
+        && "$out" == *"brew install sheldon"* && "$out" != *"apt-get"* ]] || { good=false; echo "    macOS install: $out"; }
+    # a Linux distro without apt still gets to use a Homebrew that is on PATH
+    out="$(run_install_script_stubbed "$script" "brew curl cargo" ONLY_STUBS=1)"
+    [[ "$out" == *"brew install zsh"* && "$out" == *"brew install starship"* ]] || { good=false; echo "    Linux without apt: $out"; }
+    # neither file puts Homebrew-on-Linux's directory on PATH
+    # (one grep, no pipe: `grep -q` closing a pipe early can fail the writer
+    # under pipefail and hide a match; comments may mention it, code may not)
+    ! grep -qE '^[^#]*linuxbrew' "$zsh_env" "$script" || { good=false; echo "    linuxbrew is still referenced in code"; }
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
@@ -1121,6 +1150,7 @@ test_install_zsh_tools_machine_local_settings
 test_min_versions_lib
 test_install_zsh_tools_enforces_min_versions
 test_install_zsh_tools_path_order_matches_zsh
+test_install_zsh_tools_linux_uses_apt_not_brew
 test_install_libraries_command_sequence
 test_starship_session_format_lib
 test_shellcheck_clean

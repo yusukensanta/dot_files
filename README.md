@@ -50,7 +50,7 @@ cd ~/dot_files
 ./scripts/sync_to_host.sh
 ```
 
-`install_zsh_tools.sh` runs first and needs only bash. It installs zsh, git and curl; the CLI tools the zsh config uses (fzf, fd, ripgrep, bat, eza, zoxide); and starship and sheldon (plus its plugins). It uses Homebrew when present, otherwise apt on Debian/Ubuntu, with curl/cargo installers for starship and sheldon. Without Homebrew, starship and sheldon go into `~/.local/bin`, so no sudo is needed for them. Re-running skips anything already installed.
+`install_zsh_tools.sh` runs first and needs only bash. It installs zsh, git and curl; the CLI tools the zsh config uses (fzf, fd, ripgrep, bat, eza, zoxide); and starship and sheldon (plus its plugins). It uses Homebrew on macOS and apt on Debian/Ubuntu, with curl/cargo installers for starship and sheldon where apt is used; those go into `~/.local/bin`, so no sudo is needed for them. Linux does not need Homebrew: one that is installed next to apt is not used, and the zsh config does not put it on `PATH` (on a distro without apt, a Homebrew already on `PATH` is used). Re-running skips anything already installed.
 
 zsh, fzf and sheldon have a minimum version, set in one place: `scripts/lib/min_versions.sh` (each with the reason for it). The script upgrades an older one, first through the package manager and then, for fzf and sheldon, with the project's own installer into `~/.local/bin`, so an old distro package is not a blocker and no sudo is needed for that step. The script looks commands up in the same order as the zsh config (Homebrew, `~/.cargo/bin`, `~/.local/bin`, then the rest of `PATH`), so the version it checks is that of the binary zsh will run. An fzf below the minimum has no `fzf --zsh`; the zsh config refuses to half-use it (the fzf key bindings stay off and every new shell says to update).
 
@@ -152,7 +152,7 @@ ZSH_TOOLS_SKIP="starship eza"
 
 # runs last, for anything only this machine needs
 install_local_extras() {
-  brew install some-work-only-tool
+  sudo apt-get install -y some-work-only-tool
 }
 ```
 

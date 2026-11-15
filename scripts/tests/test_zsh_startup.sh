@@ -176,6 +176,22 @@ else
 fi
 echo
 
+if [[ "$(uname -s)" == Linux ]]; then
+    echo "--- Homebrew on Linux is not put on PATH by the config ---"
+    # Whatever the caller's PATH has is taken out first, so an entry that
+    # shows up afterwards was added by the config.
+    stripped_path="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '^/home/linuxbrew/' | paste -sd: -)"
+    # shellcheck disable=SC2016  # expanded by zsh
+    linuxbrew_out="$(PATH="$stripped_path" zsh -i -c 'print -r -- "LINUXBREW=${path[(I)/home/linuxbrew/*]}"' 2>/dev/null | grep -a '^LINUXBREW=' | tail -1)"
+    if [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then linuxbrew_here="one is installed here"; else linuxbrew_here="none is installed here"; fi
+    if [[ "$linuxbrew_out" == "LINUXBREW=0" ]]; then
+        pass "no /home/linuxbrew entry on PATH ($linuxbrew_here)"
+    else
+        fail "the config put Homebrew on Linux on PATH: ${linuxbrew_out:-<no output>}"
+    fi
+    echo
+fi
+
 echo "--- an fzf without --zsh (older than the minimum) is refused, not half-used ---"
 # A stand-in that behaves like fzf < 0.48: `--zsh` is an unknown option.
 old_fzf_dir="$WORKDIR/old-fzf"

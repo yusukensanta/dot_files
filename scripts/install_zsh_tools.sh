@@ -43,13 +43,14 @@ source "$REPO_DIR/scripts/lib/min_versions.sh"
 # new fzf in ~/.local/bin while zsh picks up an old one from Homebrew.
 # ~/.cargo/bin and ~/.local/bin are also where the fallback installers put
 # binaries, so a tool installed a moment ago is found by the next step.
-# Homebrew is added even when it is not on PATH yet (a Mac where its "next
-# steps" were skipped), because 00-env.zsh will add it too.
+# Homebrew (macOS prefixes only, as in 00-env.zsh) is added even when it is
+# not on PATH yet (a Mac where its "next steps" were skipped), because
+# 00-env.zsh will add it too.
 # The prefixes must match DOTFILES_BREW_PREFIXES in 00-env.zsh; a test
 # compares the two. ZSH_TOOLS_BREW_PREFIXES replaces the list (the tests set
 # it so the machine's real Homebrew stays out of a stubbed run).
 export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
-for brew_prefix in ${ZSH_TOOLS_BREW_PREFIXES-/opt/homebrew /usr/local /home/linuxbrew/.linuxbrew}; do
+for brew_prefix in ${ZSH_TOOLS_BREW_PREFIXES-/opt/homebrew /usr/local}; do
     if [[ -x "$brew_prefix/bin/brew" ]]; then
         export PATH="$brew_prefix/bin:$PATH"
         break
@@ -58,6 +59,14 @@ done
 unset brew_prefix
 
 have() { command -v "$1" &>/dev/null; }
+
+# Which package manager this run uses: Homebrew on macOS; on Linux apt
+# wherever the distro has it, and Homebrew only on a distro without apt.
+# A Homebrew that happens to be installed on Debian/Ubuntu is not used: its
+# packages would sit next to the distro's own copies of the same tools.
+OS_NAME="$(uname -s)"
+uses_apt() { have apt-get && { [[ "$OS_NAME" == Linux ]] || ! have brew; }; }
+uses_brew() { have brew && ! uses_apt; }
 
 WARNINGS=()
 warn() {
@@ -110,8 +119,8 @@ apt_ready() {
 }
 
 # install_pkg BINARY BREW_PKG APT_PKG
-# Installs a package when BINARY isn't on PATH: Homebrew if present, else
-# apt on Debian/Ubuntu. A package that can't be installed (e.g. eza on an
+# Installs a package when BINARY isn't on PATH, with Homebrew or apt (see
+# uses_brew/uses_apt). A package that can't be installed (e.g. eza on an
 # older apt release) is a warning, not a failure: the zsh config checks
 # for each of these with `command -v` and works without it.
 install_pkg() {
@@ -122,9 +131,9 @@ install_pkg() {
         return 0
     fi
     echo "📦 Installing $binary..."
-    if have brew; then
+    if uses_brew; then
         brew install "$brew_pkg" || warn "could not install $brew_pkg via brew"
-    elif have apt-get; then
+    elif uses_apt; then
         if apt_ready; then
             as_root apt-get install -y "$apt_pkg" || warn "could not install $apt_pkg via apt"
         else
@@ -165,8 +174,8 @@ install_runtime_tools() {
 }
 
 # install_tool NAME DESCRIPTION FALLBACK_LABEL FALLBACK_FN
-# Installs NAME with Homebrew when available, otherwise by running
-# FALLBACK_FN; does nothing if NAME is already on PATH.
+# Installs NAME with Homebrew where that is the package manager, otherwise
+# by running FALLBACK_FN; does nothing if NAME is already on PATH.
 install_tool() {
     local name="$1" description="$2" fallback_label="$3" fallback_fn="$4"
     skipped "$name" && return 0
@@ -175,7 +184,7 @@ install_tool() {
         return 0
     fi
     echo "📦 Installing $description..."
-    if have brew; then
+    if uses_brew; then
         brew install "$name" || warn "could not install $name via brew"
     else
         echo "   Using $fallback_label installer..."
@@ -210,8 +219,8 @@ install_sheldon_via_cargo_or_curl() {
 # binary into ~/.fzf/bin. --bin: the binary only, no edits to shell rc
 # files. Linked into ~/.local/bin, which is ahead of /usr/bin on PATH (here
 # and in 00-env.zsh), so it wins over an older distro package without
-# needing sudo. It does not win over a fzf from Homebrew, which is ahead of
-# ~/.local/bin; there `brew upgrade` is what has to work.
+# needing sudo. It does not win over a fzf from Homebrew on macOS, which is
+# ahead of ~/.local/bin; there `brew upgrade` is what has to work.
 install_fzf_from_upstream() {
     local dir="$HOME/.fzf"
     if [[ -d "$dir/.git" ]]; then
@@ -224,13 +233,13 @@ install_fzf_from_upstream() {
     ln -sf "$dir/bin/fzf" "$HOME/.local/bin/fzf"
 }
 
-# upgrade_pkg BREW_PKG APT_PKG: upgrades through whichever package manager
-# is present. `brew install` covers a tool that came from somewhere else.
+# upgrade_pkg BREW_PKG APT_PKG: upgrades through the package manager in
+# use. `brew install` covers a tool that came from somewhere else.
 upgrade_pkg() {
     local brew_pkg="$1" apt_pkg="$2"
-    if have brew; then
+    if uses_brew; then
         brew upgrade "$brew_pkg" || brew install "$brew_pkg"
-    elif have apt-get && apt_ready; then
+    elif uses_apt && apt_ready; then
         as_root apt-get install -y --only-upgrade "$apt_pkg"
     else
         return 1
@@ -255,7 +264,7 @@ upgrade_tool() {
             meets_min fzf || install_fzf_from_upstream
             ;;
         sheldon)
-            if have brew; then
+            if uses_brew; then
                 brew upgrade sheldon || brew install sheldon || true
                 hash -r
             fi

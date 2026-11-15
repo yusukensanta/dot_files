@@ -46,12 +46,15 @@ typeset -U PATH
 [[ -d "$HOME/.cargo/bin" ]] && export PATH="$HOME/.cargo/bin:$PATH"
 [[ -d "$HOME/.google-cloud-sdk/bin" ]] && export PATH="$HOME/.google-cloud-sdk/bin:$PATH"
 
-# Homebrew: check known prefixes directly (fast, no subprocess) rather than
-# hardcoding one — covers Apple Silicon, Intel macOS, and Linuxbrew.
-# Check for the `brew` binary itself, not just the bin dir: /usr/local/bin
-# exists on stock Linux (Debian/Ubuntu, WSL) without Homebrew installed,
-# so a dir-only check stops at /usr/local and never reaches Linuxbrew.
-typeset -ga DOTFILES_BREW_PREFIXES=(/opt/homebrew /usr/local /home/linuxbrew/.linuxbrew)
+# Homebrew on macOS: check its two prefixes directly (fast, no subprocess),
+# Apple Silicon first, then Intel. Check for the `brew` binary itself, not
+# just the bin dir: /usr/local/bin exists on machines without Homebrew too
+# (stock Linux, Apple Silicon Macs).
+# Homebrew on Linux (/home/linuxbrew/.linuxbrew) is deliberately not in the
+# list. Its packages pull in their own copies of basic tools (clear, column,
+# getopt, bzip2, ...), and at the front of PATH those replace the distro's.
+# Someone who does want it there adds it in their own shell profile.
+typeset -ga DOTFILES_BREW_PREFIXES=(/opt/homebrew /usr/local)
 for brew_prefix in "${DOTFILES_BREW_PREFIXES[@]}"; do
     if [[ -x "$brew_prefix/bin/brew" ]]; then
         export PATH="$brew_prefix/bin:$PATH"
