@@ -537,6 +537,9 @@ run_install_script_stubbed() {
 #!/usr/bin/env bash
 me="$(basename "$0")"
 state="$(dirname "$LOG")/versions"
+# Read what is piped in, as the real command would (`echo ... | sudo tee`):
+# a stub that left it unread could fail the writer with SIGPIPE.
+if [[ -p /dev/stdin ]]; then cat > /dev/null; fi
 if [[ "${1:-}" == --version ]]; then
     case "$me" in
         zsh) v="${FAKE_ZSH_VERSION:-5.9}" ;;
@@ -572,7 +575,7 @@ STUB
     if [[ "$path_tail" == "$work/sys" && ! -e "$stubs/uname" ]]; then ln -s _stub "$stubs/uname"; fi
     : > "$work/log"
     ( cd "$work" && env -i PATH="$stubs:$path_tail" HOME="$work/home" USER=tester \
-        LOG="$work/log" FAKE_PREFIX="$work/prefix" ZSH_TOOLS_BREW_PREFIXES= "$@" bash "$script" >/dev/null 2>&1
+        LOG="$work/log" FAKE_PREFIX="$work/prefix" ZSH_TOOLS_BREW_PREFIXES= "$@" bash "$script" </dev/null >/dev/null 2>&1
       rc=$?; sed "s#$work#TMP#g" "$work/log"; echo "exit=$rc" )
     rm -rf "$work"
 }
@@ -876,7 +879,7 @@ test_git_config_synced_both_ways() {
     local desc="git/config is synced by both scripts, and sync_here tolerates it being absent"
     local good=true
     grep -q '\.config/git/config' "$SCRIPTS_DIR/sync_to_host.sh" || good=false
-    grep -qF '[[ -f "$HOME/.config/git/config" ]] && sync_file' "$SCRIPTS_DIR/sync_here.sh" || good=false
+    grep -qF '[[ -f "$HOME/.config/git/config" ]]; then' "$SCRIPTS_DIR/sync_here.sh" || good=false
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
@@ -1130,6 +1133,157 @@ test_zshenv_block_content() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
+# --- machine-local settings (work / personal) ---
+
+test_local_settings_lib() {
+    local desc="local_settings.sh: loads the untracked file (default path or DOTFILES_INSTALL_LOCAL); a variable set in the environment wins even when empty; no file is fine; check_names rejects an unknown name"
+    local lib="$SCRIPTS_DIR/lib/local_settings.sh" good=true work got
+    work="$(mktemp -d)"; mkdir -p "$work/cfg/dot_files"
+    printf 'A_SKIP="x y"\nB_SKIP="z"\n' > "$work/cfg/dot_files/install.local.sh"
+    got="$(unset A_SKIP B_SKIP; XDG_CONFIG_HOME="$work/cfg"; source "$lib"; load_local_settings A_SKIP B_SKIP >/dev/null; echo "$A_SKIP|$B_SKIP")"
+    [[ "$got" == "x y|z" ]] || { good=false; echo "    file not loaded: $got"; }
+    got="$(unset B_SKIP; A_SKIP=""; XDG_CONFIG_HOME="$work/cfg"; source "$lib"; load_local_settings A_SKIP B_SKIP >/dev/null; echo "$A_SKIP|$B_SKIP")"
+    [[ "$got" == "|z" ]] || { good=false; echo "    empty env value should win: $got"; }
+    got="$(unset A_SKIP; export DOTFILES_INSTALL_LOCAL="$work/cfg/dot_files/install.local.sh" XDG_CONFIG_HOME="$work/none"; source "$lib"; load_local_settings A_SKIP >/dev/null; echo "$A_SKIP")"
+    [[ "$got" == "x y" ]] || { good=false; echo "    DOTFILES_INSTALL_LOCAL not used: $got"; }
+    got="$(unset A_SKIP DOTFILES_INSTALL_LOCAL; export XDG_CONFIG_HOME="$work/none"; source "$lib"; load_local_settings A_SKIP && echo "ok:${A_SKIP:-unset}")"
+    [[ "$got" == "ok:unset" ]] || { good=false; echo "    missing file: $got"; }
+    (source "$lib"; check_names X_SKIP "b a" "a b c") || { good=false; echo "    known names rejected"; }
+    if got="$(source "$lib"; check_names X_SKIP "a dockr" "a b c" 2>&1)"; then good=false; echo "    unknown name accepted"; fi
+    [[ "$got" == *"Unknown name in X_SKIP: dockr"* ]] || { good=false; echo "    message: $got"; }
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_libraries_steps() {
+    local desc="install_libraries.sh: LIBRARIES_SKIP leaves steps out (env or install.local.sh); an unknown step name installs nothing; a failed step stops at its failing command, later steps still run, exit 1; LIBRARIES_MISE_RUNTIMES picks the runtimes"
+    local script="$SCRIPTS_DIR/install_libraries.sh" out good=true
+    local stubs="sudo apt-get apt-add-repository apt-cache curl unzip git fish mise cargo pip nvim gpg dpkg lsb_release uname"
+    # everything: docker's apt repo is set up, runtimes are the default list
+    out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1)"
+    [[ "$out" == *"sudo apt-get install -y docker-ce"* && "$out" == *"sudo apt-get install -y fish"* \
+        && "$out" == *"mise use --global go@latest"* && "$out" == *"mise use --global poetry@latest"* && "$out" == *"exit=0"* ]] || { good=false; echo "    full run: $out"; }
+    # skipped from the environment
+    out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1 LIBRARIES_SKIP="docker fish")"
+    [[ "$out" != *"docker"* && "$out" != *"fish"* && "$out" == *"pip install pynvim"* && "$out" == *"exit=0"* ]] || { good=false; echo "    env skip: $out"; }
+    # skipped from the machine-local file, with a shorter runtime list
+    local cfg; cfg="$(mktemp -d)"; mkdir -p "$cfg/dot_files"
+    printf 'LIBRARIES_SKIP="docker"\nLIBRARIES_MISE_RUNTIMES="node python"\n' > "$cfg/dot_files/install.local.sh"
+    out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1 XDG_CONFIG_HOME="$cfg")"
+    [[ "$out" != *"docker"* && "$out" == *"mise use --global node@latest"* && "$out" == *"mise use --global python@latest"* \
+        && "$out" != *"go@latest"* && "$out" == *"exit=0"* ]] || { good=false; echo "    file skip/runtimes: $out"; }
+    # the environment wins over the file; an empty runtime list installs none
+    out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1 XDG_CONFIG_HOME="$cfg" LIBRARIES_SKIP= LIBRARIES_MISE_RUNTIMES=)"
+    [[ "$out" == *"docker-ce"* && "$out" != *"mise use"* ]] || { good=false; echo "    env over file: $out"; }
+    rm -rf "$cfg"
+    # a misspelt step name stops the run before anything is installed
+    out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1 LIBRARIES_SKIP="dockr")"
+    [[ "$out" == "exit=1" ]] || { good=false; echo "    unknown name: $out"; }
+    # sudo denied: the packages step stops at its first command (no
+    # `apt-get install` after the failed update), the later steps still run
+    out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1 FAKE_SUDO_DENIED=1)"
+    [[ "$out" == "sudo apt-get update"$'\n'* && "$out" != *"sudo apt-get install -y"*"curl"* \
+        && "$out" == *"mise use --global go@latest"* && "$out" == *"pip install pynvim"* && "$out" == *"exit=1"* ]] || { good=false; echo "    failed step: $out"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_zsh_tools_installs_delta() {
+    local desc="install_zsh_tools.sh: installs delta (git's pager) via brew or apt, falls back to cargo when apt has none, skippable, and a missing delta is a warning, not a failure"
+    local script="$SCRIPTS_DIR/install_zsh_tools.sh" out good=true
+    out="$(run_install_script_stubbed "$script" "brew curl cargo zsh starship sheldon" ONLY_STUBS=1 FAKE_OS=Darwin)"
+    [[ "$out" == *"brew install git-delta"* && "$out" == *"exit=0"* ]] || { good=false; echo "    brew: $out"; }
+    # apt (the stubbed apt-get installs nothing), so cargo builds it
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo zsh starship sheldon" ONLY_STUBS=1)"
+    [[ "$out" == *"sudo apt-get install -y git-delta"*"cargo install git-delta"* && "$out" == *"exit=0"* ]] || { good=false; echo "    apt + cargo: $out"; }
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl zsh starship sheldon" ONLY_STUBS=1)"
+    [[ "$out" == *"exit=0"* ]] || { good=false; echo "    no delta and no cargo must not fail: $out"; }
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo zsh starship sheldon" ONLY_STUBS=1 ZSH_TOOLS_SKIP=delta)"
+    [[ "$out" != *"git-delta"* ]] || { good=false; echo "    skipped: $out"; }
+    out="$(run_install_script_stubbed "$script" "sudo apt-get curl cargo zsh starship sheldon delta" ONLY_STUBS=1)"
+    [[ "$out" != *"git-delta"* ]] || { good=false; echo "    already installed: $out"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+# _sync_fake_linux WORK: WORK/bin gets a uname that reports plain Linux, so a
+# sync run from a test is never treated as WSL and can't write to the real
+# Windows profile; WORK/home is the HOME to sync into.
+_sync_fake_linux() {
+    mkdir -p "$1/bin" "$1/home"
+    printf '#!/bin/sh\ncase "$1" in -r) echo 6.1.0-generic ;; *) echo Linux ;; esac\n' > "$1/bin/uname"
+    chmod +x "$1/bin/uname"
+}
+
+test_sync_skip() {
+    local desc="SYNC_SKIP (env or install.local.sh) keeps things out of both sync directions; an unknown name copies nothing; a work machine's CLAUDE.md never reaches the repo"
+    local work good=true rc; work="$(mktemp -d)"
+    _sync_fake_linux "$work"
+    mkdir -p "$work/cfg/dot_files"
+    echo 'SYNC_SKIP="claude nvim"' > "$work/cfg/dot_files/install.local.sh"
+    # repo -> HOME with the file's SYNC_SKIP
+    env -u SYNC_SKIP PATH="$work/bin:$PATH" HOME="$work/home" XDG_CONFIG_HOME="$work/cfg" bash "$SCRIPTS_DIR/sync_to_host.sh" --yes >/dev/null 2>&1
+    [[ -f "$work/home/.config/zsh/00-env.zsh" && -f "$work/home/.zshrc" ]] || { good=false; echo "    zsh not synced"; }
+    [[ ! -e "$work/home/.claude" && ! -e "$work/home/.config/nvim" ]] || { good=false; echo "    skipped claude/nvim were synced"; }
+    # the environment wins: an empty SYNC_SKIP syncs claude
+    env PATH="$work/bin:$PATH" HOME="$work/home" XDG_CONFIG_HOME="$work/cfg" SYNC_SKIP= bash "$SCRIPTS_DIR/sync_to_host.sh" --yes >/dev/null 2>&1
+    [[ -f "$work/home/.claude/CLAUDE.md" ]] || { good=false; echo "    empty env SYNC_SKIP should win over the file"; }
+    # a typo stops the run before anything is copied
+    mkdir -p "$work/home2"
+    env PATH="$work/bin:$PATH" HOME="$work/home2" XDG_CONFIG_HOME="$work/cfg" SYNC_SKIP="cluade" bash "$SCRIPTS_DIR/sync_to_host.sh" --yes >/dev/null 2>&1; rc=$?
+    [[ "$rc" == 1 && -z "$(ls -A "$work/home2")" ]] || { good=false; echo "    unknown name: rc=$rc, home2: $(ls -A "$work/home2")"; }
+
+    # HOME -> repo, on a copy of the repo: a work CLAUDE.md stays out of it
+    local repo="$work/repo"; mkdir -p "$repo"
+    cp -R "$SCRIPTS_DIR" "$repo/scripts"; cp -R "$SCRIPTS_DIR/../claude" "$repo/claude"
+    local before; before="$(cksum < "$repo/claude/CLAUDE.md")"
+    echo "WORK-ONLY INSTRUCTIONS" > "$work/home/.claude/CLAUDE.md"
+    env -u SYNC_SKIP PATH="$work/bin:$PATH" HOME="$work/home" XDG_CONFIG_HOME="$work/cfg" bash "$repo/scripts/sync_here.sh" --yes >/dev/null 2>&1
+    [[ "$(cksum < "$repo/claude/CLAUDE.md")" == "$before" ]] || { good=false; echo "    sync_here copied a skipped CLAUDE.md into the repo"; }
+    # control: without the skip it is copied, so the check above can fail
+    env PATH="$work/bin:$PATH" HOME="$work/home" XDG_CONFIG_HOME="$work/cfg" SYNC_SKIP= bash "$repo/scripts/sync_here.sh" --yes >/dev/null 2>&1
+    grep -q 'WORK-ONLY' "$repo/claude/CLAUDE.md" || { good=false; echo "    control: sync_here did not copy CLAUDE.md without the skip"; }
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_wsl_alacritty_fragment_has_no_user() {
+    local desc="alacritty-wsl.toml names no user: sync_to_host writes the syncing user into the Windows config, and sync_here strips exactly that fragment back off"
+    local root="$SCRIPTS_DIR/.." work good=true out; work="$(mktemp -d)"
+    grep -qx 'program = "wsl -u {{USER}}"' "$root/alacritty/alacritty-wsl.toml" || { good=false; echo "    fragment should use {{USER}}"; }
+    mkdir -p "$work/profile" "$work/home"
+    out="$(
+        export HOME="$work/home" USER=someone
+        cd "$SCRIPTS_DIR" || exit 1
+        source ./sync_to_host.sh --yes >/dev/null
+        # shellcheck disable=SC2034  # read by sync_windows_alacritty
+        BACKUP_ROOT="$work/backup"
+        sync_windows_alacritty "$work/profile" >/dev/null
+        echo "$FAILURES"
+    )"
+    local win="$work/profile/AppData/Roaming/alacritty/alacritty.toml"
+    if [[ "$out" != 0 ]] || ! grep -qx 'program = "wsl -u someone"' "$win" || grep -q '{{USER}}' "$win" \
+        || [[ "$(grep -c someone "$win")" != 1 ]]; then
+        good=false; echo "    Windows config: failures=$out, $(grep program "$win" 2>/dev/null)"
+    fi
+    cmp -s <(head -c "$(wc -c < "$root/alacritty/alacritty.toml")" "$win") "$root/alacritty/alacritty.toml" || { good=false; echo "    base not at the start of the Windows config"; }
+    # back again: edit the base part on "Windows", then pull it into a repo copy
+    { cat "$root/alacritty/alacritty.toml"; echo '# edited on Windows'; } > "$work/expected.toml"
+    { cat "$work/expected.toml"; tail -c "$(( $(wc -c < "$win") - $(wc -c < "$root/alacritty/alacritty.toml") ))" "$win"; } > "$work/win.toml"
+    cp "$root/alacritty/alacritty.toml" "$work/base.toml"
+    out="$(
+        export HOME="$work/home" USER=someone
+        cd "$SCRIPTS_DIR" || exit 1
+        source ./sync_here.sh --yes >/dev/null
+        # shellcheck disable=SC2034  # read by pull_windows_alacritty
+        BACKUP_ROOT="$work/backup2"
+        render_wsl_alacritty_fragment "$root/alacritty/alacritty-wsl.toml" "$work/frag"
+        pull_windows_alacritty "$work/win.toml" "$work/base.toml" "$work/frag" >/dev/null
+        echo "$FAILURES"
+    )"
+    [[ "$out" == 0 ]] && cmp -s "$work/base.toml" "$work/expected.toml" || { good=false; echo "    round trip: failures=$out"; }
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
 echo "== sync_to_host.sh / sync_here.sh / nvim / starship fixes =="
 test_openrsync_detection_and_delete_still_works
 test_manual_backup_runs_under_openrsync
@@ -1152,6 +1306,11 @@ test_install_zsh_tools_enforces_min_versions
 test_install_zsh_tools_path_order_matches_zsh
 test_install_zsh_tools_linux_uses_apt_not_brew
 test_install_libraries_command_sequence
+test_install_libraries_steps
+test_install_zsh_tools_installs_delta
+test_local_settings_lib
+test_sync_skip
+test_wsl_alacritty_fragment_has_no_user
 test_starship_session_format_lib
 test_shellcheck_clean
 test_git_config_is_identity_free

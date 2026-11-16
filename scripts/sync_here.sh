@@ -9,6 +9,9 @@
 # A missing/failed individual sync is reported and skipped rather than
 # aborting the whole run; the script still exits non-zero overall if
 # anything failed (see FAILURES below).
+# SYNC_SKIP (see sync_to_host.sh) leaves the same things out in this
+# direction, so e.g. a work machine's ~/.claude/CLAUDE.md never reaches the
+# repo.
 
 set -uo pipefail
 
@@ -184,6 +187,8 @@ pull_claude_config() {
 # of sourcing it.
 main() {
 
+load_sync_settings
+
 confirm_sync "in the repo" "in \$HOME"
 
 echo "🔄 Syncing configurations from HOME to repository..."
@@ -192,30 +197,43 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
+    sync_skipped "$dir" && continue
     exclude="$(target_dir_exclude "$dir")"
     sync_file "$HOME/.config/$dir" "$REPO_DIR/.config/$dir" ${exclude:+"$exclude"}
 done
 
 # Sync individual files
-sync_file "$HOME/.zshrc" "$REPO_DIR/.zshrc"
-sync_file "$HOME/.tmux.conf" "$REPO_DIR/.tmux.conf"
-sync_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
+sync_skipped zshrc || sync_file "$HOME/.zshrc" "$REPO_DIR/.zshrc"
+sync_skipped tmux || sync_file "$HOME/.tmux.conf" "$REPO_DIR/.tmux.conf"
+is_sync_skipped starship || sync_file "$HOME/.config/starship.toml" "$REPO_DIR/.config/starship.toml"
 # Optional: absent until sync_to_host.sh has run once (or on a host that keeps
 # all git config in ~/.gitconfig), which is not a failure.
-[[ -f "$HOME/.config/git/config" ]] && sync_file "$HOME/.config/git/config" "$REPO_DIR/.config/git/config"
-pull_claude_config
+if ! sync_skipped git && [[ -f "$HOME/.config/git/config" ]]; then
+    sync_file "$HOME/.config/git/config" "$REPO_DIR/.config/git/config"
+fi
+sync_skipped claude || pull_claude_config
 
 # Sync alacritty
-if $IS_WSL; then
+if sync_skipped alacritty; then
+    :
+elif $IS_WSL; then
     # The Windows-native file is base + alacritty-wsl.toml concatenated by
     # sync_to_host.sh; split the fragment back off before writing the repo's
     # base file (see pull_windows_alacritty).
     WIN_USERPROFILE="$(detect_win_userprofile)"
     if [[ -n "$WIN_USERPROFILE" && -d "$WIN_USERPROFILE" ]]; then
+        # The fragment as sync_to_host.sh wrote it, with the user filled in.
+        rendered_frag="$(mktemp)"
+        if [[ -f "$REPO_DIR/alacritty/alacritty-wsl.toml" ]]; then
+            render_wsl_alacritty_fragment "$REPO_DIR/alacritty/alacritty-wsl.toml" "$rendered_frag"
+        else
+            rm -f "$rendered_frag"   # pull_windows_alacritty reports it missing
+        fi
         pull_windows_alacritty \
             "$WIN_USERPROFILE/AppData/Roaming/alacritty/alacritty.toml" \
             "$REPO_DIR/alacritty/alacritty.toml" \
-            "$REPO_DIR/alacritty/alacritty-wsl.toml"
+            "$rendered_frag"
+        rm -f "$rendered_frag"
     else
         echo ""
         echo "⚠️  Could not detect Windows user profile (needs cmd.exe/wslpath interop)."

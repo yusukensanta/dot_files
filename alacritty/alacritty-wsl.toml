@@ -5,5 +5,7 @@
 # `program` value would try to exec a `wsl` binary that doesn't exist,
 # breaking Alacritty entirely (this is what previously happened when the
 # base file carried this unconditionally).
+# The placeholder in `program` is replaced by the user running
+# sync_to_host.sh (the Linux user inside WSL), so this file names no user.
 [terminal.shell]
-program = "wsl -u yusuken"
+program = "wsl -u {{USER}}"

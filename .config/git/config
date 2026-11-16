@@ -7,8 +7,9 @@
 #   credential helpers (their paths differ per machine).
 # See README.md "Git identity" for a work/personal split with includeIf.
 #
-# core.pager/delta.* assume `delta` is installed (scripts/install_libraries.sh
-# does that); without it, git log/diff would fail to page.
+# core.pager/delta.* assume `delta` is installed (scripts/install_zsh_tools.sh
+# does that). Without it git log/diff still print, unpaged, but
+# `git add -p` fails on interactive.diffFilter.
 
 [core]
   pager = delta

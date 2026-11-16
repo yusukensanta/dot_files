@@ -26,6 +26,43 @@ target_dir_exclude() {
 # === PLATFORM DETECTION === (sets OS, IS_WSL)
 # shellcheck source=platform.sh
 source "$(dirname "${BASH_SOURCE[0]}")/platform.sh"
+# shellcheck source=local_settings.sh
+source "$(dirname "${BASH_SOURCE[0]}")/local_settings.sh"
+
+# === SKIPPING PARTS OF THE SYNC ===
+# SYNC_SKIP, from the environment or the machine-local settings file (see
+# local_settings.sh), names things this machine keeps out of both
+# directions, e.g. SYNC_SKIP="claude" on a work machine whose
+# ~/.claude/CLAUDE.md must neither be replaced by this repo's nor be copied
+# into it. One name per thing the scripts copy:
+SYNC_UNITS="nvim zsh sheldon starship zshrc zshenv tmux git claude alacritty"
+
+# Reads SYNC_SKIP; an unknown name stops the run before anything is copied.
+load_sync_settings() {
+    load_local_settings SYNC_SKIP
+    check_names SYNC_SKIP "${SYNC_SKIP:-}" "$SYNC_UNITS" || exit 1
+}
+
+# is_sync_skipped NAME: true when NAME is in SYNC_SKIP.
+is_sync_skipped() { in_list "$1" "${SYNC_SKIP:-}"; }
+
+# sync_skipped NAME: the same, and says so.
+sync_skipped() {
+    is_sync_skipped "$1" || return 1
+    echo ""
+    echo "⏭️  Skipping $1 (SYNC_SKIP)"
+}
+
+# render_wsl_alacritty_fragment SRC DEST: writes alacritty-wsl.toml with
+# {{USER}} replaced by the user running the sync, the Linux user WSL should
+# start the shell as. Both sync scripts use it, so the fragment that
+# sync_here.sh strips off is byte for byte the one sync_to_host.sh appended.
+render_wsl_alacritty_fragment() {
+    local user="${USER:-$(id -un)}"
+    # Escape what sed treats specially in a replacement: \ / &
+    user="$(printf '%s' "$user" | sed 's/[\\/&]/\\&/g')"
+    sed "s/{{USER}}/$user/g" "$1" > "$2"
+}
 
 # macOS ships openrsync (BSD), not GNU rsync, under the name `rsync`. When
 # given --backup and --backup-dir together, openrsync silently does neither

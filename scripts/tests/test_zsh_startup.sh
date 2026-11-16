@@ -15,10 +15,24 @@ trap 'rm -rf "$WORKDIR"' EXIT
 
 export XDG_CONFIG_HOME="$REPO_ROOT/.config"
 export XDG_CACHE_HOME="$WORKDIR/cache"
-# Real, not $WORKDIR: sheldon's already-cloned plugin repos live under the
-# real $HOME/.local/share/sheldon — pointing this at a fresh dir would
-# force a slow re-clone instead of testing against what's actually there.
+# Real, not $WORKDIR: mise's installed runtimes and sheldon's already-cloned
+# plugin repos live under the real $HOME/.local/share — pointing this at a
+# fresh dir would force slow re-installs instead of testing against what's
+# actually there.
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$REAL_HOME/.local/share}"
+# sheldon writes its lock file into its data dir, and the lock this test's
+# config produces differs from the user's (the config is the repo's), so
+# sheldon gets a data dir of its own: the lock is written there and the
+# plugin repos are borrowed from the real one through a symlink.
+REAL_SHELDON_DATA="${SHELDON_DATA_DIR:-$XDG_DATA_HOME/sheldon}"
+export SHELDON_DATA_DIR="$WORKDIR/sheldon-data"
+mkdir -p "$SHELDON_DATA_DIR"
+if [[ -d "$REAL_SHELDON_DATA/repos" ]]; then
+    ln -s "$REAL_SHELDON_DATA/repos" "$SHELDON_DATA_DIR/repos"
+fi
+# Checked at the end: the user's own lock file must come out unchanged.
+lock_state() { cksum < "$REAL_SHELDON_DATA/plugins.lock" 2>/dev/null || echo absent; }
+real_lock_before="$(lock_state)"
 # mise asks "config files in <dir> are not trusted. Trust them?" on stdin the
 # first time it activates in a directory it hasn't seen. In the pty check
 # below that prompt swallowed the commands the test types, making a healthy
@@ -274,6 +288,14 @@ if [[ "$(uname -s)" == Linux ]]; then
         fail "average startup ${avg_ms}ms > ${max_ms}ms — something slow is back (compare with: zsh -i -c exit under ZDOTDIR=empty)"
     fi
 fi
+
+echo "--- the user's own sheldon lock file is left alone ---"
+if [[ "$(lock_state)" == "$real_lock_before" ]]; then
+    pass "$REAL_SHELDON_DATA/plugins.lock unchanged (the test locks into $SHELDON_DATA_DIR)"
+else
+    fail "the test rewrote $REAL_SHELDON_DATA/plugins.lock"
+fi
+echo
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     {

@@ -40,7 +40,7 @@ git clone git@github.com:yusukensanta/dot_files.git ~/dot_files
 cd ~/dot_files
 
 # 1. Install zsh and everything its config needs to start: fzf, fd, ripgrep,
-#    bat, eza, zoxide, starship, sheldon (+ plugins)
+#    bat, eza, zoxide, starship, sheldon (+ plugins), and delta for git
 ./scripts/install_zsh_tools.sh
 
 # 2. Install the remaining base packages, language runtimes (mise), and tools
@@ -50,15 +50,15 @@ cd ~/dot_files
 ./scripts/sync_to_host.sh
 ```
 
-`install_zsh_tools.sh` runs first and needs only bash. It installs zsh, git and curl; the CLI tools the zsh config uses (fzf, fd, ripgrep, bat, eza, zoxide); and starship and sheldon (plus its plugins). It uses Homebrew on macOS and apt on Debian/Ubuntu, with curl/cargo installers for starship and sheldon where apt is used; those go into `~/.local/bin`, so no sudo is needed for them. Linux does not need Homebrew: one that is installed next to apt is not used, and the zsh config does not put it on `PATH` (on a distro without apt, a Homebrew already on `PATH` is used). Re-running skips anything already installed.
+`install_zsh_tools.sh` runs first and needs only bash. It installs zsh, git and curl; delta, the pager the shared git config uses (from cargo where apt has none, as on Ubuntu 22.04 and Debian 12); the CLI tools the zsh config uses (fzf, fd, ripgrep, bat, eza, zoxide); and starship and sheldon (plus its plugins). It uses Homebrew on macOS and apt on Debian/Ubuntu, with curl/cargo installers for starship and sheldon where apt is used; those go into `~/.local/bin`, so no sudo is needed for them. Linux does not need Homebrew: one that is installed next to apt is not used, and the zsh config does not put it on `PATH` (on a distro without apt, a Homebrew already on `PATH` is used). Re-running skips anything already installed.
 
 zsh, fzf and sheldon have a minimum version, set in one place: `scripts/lib/min_versions.sh` (each with the reason for it). The script upgrades an older one, first through the package manager and then, for fzf and sheldon, with the project's own installer into `~/.local/bin`, so an old distro package is not a blocker and no sudo is needed for that step. The script looks commands up in the same order as the zsh config (Homebrew, `~/.cargo/bin`, `~/.local/bin`, then the rest of `PATH`), so the version it checks is that of the binary zsh will run. An fzf below the minimum has no `fzf --zsh`; the zsh config refuses to half-use it (the fzf key bindings stay off and every new shell says to update).
 
 A step that fails (no sudo rights, a blocked download, a package this distro doesn't have) is a warning, not an abort: the remaining steps still run, the warnings are listed at the end, and the exit status is non-zero only when zsh itself is missing or a tool is still older than its minimum. The zsh config checks each tool with `command -v`, so it starts without the optional ones. Because this runs before `sync_to_host.sh`, sheldon's plugins are installed from the repo's own `plugins.toml` when the machine has none yet.
 
-Per-machine install choices go in an untracked file, `~/.config/dot_files/install.local.sh` (see [Using this on a work machine](#using-this-on-a-work-machine)).
+Per-machine choices for the install and sync scripts go in one untracked file, `~/.config/dot_files/install.local.sh` (see [Using this on a work machine](#using-this-on-a-work-machine)).
 
-`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing the rest: tmux, neovim, fish + fisher, mise with several language runtimes, Docker, and a few Rust tools via cargo.
+`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing the rest in steps: `packages` (tmux, neovim, ...), `fish` (+ fisher), `mise` (with several language runtimes), `tpm`, `docker`, `cargo` (a few Rust tools) and `neovim` (its plugins). A step that fails does not stop the others; the failed steps are listed at the end and the exit status is non-zero.
 
 ## zsh startup time
 
@@ -68,7 +68,8 @@ prompt can be drawn. Work deferred with `zsh-defer` (mise, some
 plugins) finishes just after, so it is not in that number.
 
 CI runs the bootstrap script and these checks on macOS and, from a bare
-container, on Ubuntu 22.04, 24.04 and 26.04 (`.github/workflows/`).
+container, on Ubuntu 22.04, 24.04 and 26.04, plus the install/sync scripts'
+own test suite and shellcheck (`.github/workflows/`).
 
 Measured on WSL2 Ubuntu 24.04, 90ms -> 12ms average. Two rules keep it there,
 and `scripts/tests/test_zsh_startup.sh` fails if either is broken:
@@ -96,7 +97,8 @@ in an untracked local file that the sync scripts never touch.
 | abbreviations | `DOTFILES_ABBRS` in `30-abbreviations.zsh` | `DOTFILES_ABBRS[...]=` in a `local.d` file |
 | Neovim | `.config/nvim` | `lua/local/init.lua`, `lua/local/plugins/*.lua` |
 | tmux | `.tmux.conf` | `~/.tmux.conf.local` |
-| tool install | `scripts/install_zsh_tools.sh` | `~/.config/dot_files/install.local.sh` |
+| tool install | `scripts/install_*.sh` | `~/.config/dot_files/install.local.sh` |
+| what gets synced | `scripts/sync_*.sh` | `SYNC_SKIP` in the same file |
 | git | `.config/git/config` | `~/.gitconfig` (wins over the shared file) |
 | ssh | — | `~/.ssh/config` (never tracked; see below) |
 
@@ -156,26 +158,44 @@ install_local_extras() {
 }
 ```
 
-Names for `ZSH_TOOLS_SKIP`: `zsh git curl fzf fd rg bat eza zoxide starship
-sheldon`. A skipped tool is not version-checked either. The file can also set
+Names for `ZSH_TOOLS_SKIP`: `zsh git curl delta fzf fd rg bat eza zoxide
+starship sheldon`. A skipped tool is not version-checked either. The file can also set
 a different minimum for this machine, e.g. `MIN_VERSION_zsh=5.9`. A value given on the command line
 (`ZSH_TOOLS_SKIP="eza" ./scripts/install_zsh_tools.sh`) wins over the file;
 `DOTFILES_INSTALL_LOCAL=<path>` points at a different file.
 
-`install_libraries.sh` has no such switch: it installs Docker, fish, mise
-runtimes and several cargo tools unconditionally and needs sudo, so skim it
-before running on a managed machine.
+`install_libraries.sh` reads the same file. It needs sudo on Linux, and two
+of its steps are worth a thought on a managed machine: `docker` adds you to
+the `docker` group (as good as root on that machine) and, on macOS, installs
+Docker Desktop, whose license terms cover use at a company; `mise` installs
+language runtimes globally. To leave steps out or pick the runtimes:
+
+```bash
+LIBRARIES_SKIP="docker"                 # steps: packages fish mise tpm docker cargo neovim
+LIBRARIES_MISE_RUNTIMES="node python"   # default: go java node python ruby rust terraform sbt poetry
+```
+
+**Sync.** `SYNC_SKIP` in the same file keeps things out of both
+`sync_to_host.sh` and `sync_here.sh`, e.g. on a work machine whose
+`~/.claude/CLAUDE.md` comes from the employer:
+
+```bash
+SYNC_SKIP="claude"   # names: nvim zsh sheldon starship zshrc zshenv tmux git claude alacritty
+```
+
+As with `ZSH_TOOLS_SKIP`, a value given on the command line wins over the
+file. A name that isn't on the list in `LIBRARIES_SKIP` or `SYNC_SKIP` stops
+the run before anything is installed or copied, so a typo can't let through
+the very thing it was meant to keep out.
 
 **Using this as someone else.** The install and sync scripts read only
-`$HOME`/`$USER`, with no hardcoded user or path. Two tracked files are
-personal, and `sync_to_host.sh` copies them as they are; change them in your
-fork first:
-
-- `claude/CLAUDE.md` replaces `~/.claude/CLAUDE.md` (the old one is backed up).
-- `alacritty/alacritty-wsl.toml` starts WSL as a fixed user (`wsl -u ...`).
+`$HOME`/`$USER`, with no hardcoded user or path (the WSL Alacritty config gets
+the syncing user filled in). One tracked file is personal:
+`claude/CLAUDE.md`, which replaces `~/.claude/CLAUDE.md` (the old one is
+backed up). Change it in your fork, or keep it off with `SYNC_SKIP="claude"`.
 
 The abbreviation list is personal too, but needs no fork: override it from
-`local.d` (below).
+`local.d` (see Abbreviations above).
 
 ## Claude Code (user scope)
 

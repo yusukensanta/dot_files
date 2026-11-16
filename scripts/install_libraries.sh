@@ -1,11 +1,33 @@
 #!/usr/bin/env bash
+# Install the rest of the toolchain, after install_zsh_tools.sh: base
+# packages (tmux, neovim, ...), fish + fisher, mise with several language
+# runtimes, tpm, Docker, a few cargo tools, and Neovim's plugins. Uses
+# Homebrew on macOS and apt (with sudo) on Debian/Ubuntu.
+#
+# Each step can be left out on one machine, e.g. a work machine where Docker
+# or globally installed language runtimes are not wanted, from the untracked
+# machine-local settings file (scripts/lib/local_settings.sh):
+#   LIBRARIES_SKIP="docker fish"            steps not to run
+#   LIBRARIES_MISE_RUNTIMES="node python"   what mise installs (empty: none)
+# Step names: packages fish mise tpm docker cargo neovim. A value given in
+# the environment wins over the file; an unknown step name stops the run
+# before anything is installed.
+#
+# A step that fails is reported and the remaining steps still run; the
+# failed steps are listed at the end and the exit status is then non-zero.
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/platform.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib/platform.sh"
+source "$SCRIPT_DIR/lib/platform.sh"
+# shellcheck source=lib/local_settings.sh
+source "$SCRIPT_DIR/lib/local_settings.sh"
 
 have() { command -v "$1" &>/dev/null; }
+
+LIBRARIES_STEPS="packages fish mise tpm docker cargo neovim"
+DEFAULT_MISE_RUNTIMES="go java node python ruby rust terraform sbt poetry"
 
 # === SYSTEM PACKAGES ===
 
@@ -13,7 +35,7 @@ install_packages_darwin() {
   if ! have brew; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   fi
-  brew install curl unzip git zsh fzf fd bat ripgrep tmux fish jq sqlite3 eza zoxide neovim
+  brew install curl unzip git zsh fzf fd bat ripgrep tmux jq sqlite3 eza zoxide neovim
 }
 
 # Debian/Ubuntu install fd and bat under collision-avoiding names
@@ -68,18 +90,6 @@ install_packages_linux() {
     neovim \
     software-properties-common
 
-  # Debian ships fish in its own repos (10+); Ubuntu needs the upstream
-  # PPA for a current version. `. /etc/os-release` is the portable way
-  # to tell them apart (both report `Linux` from `uname -s`) — $ID from
-  # it is reused later for the Docker apt repo too.
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  if [[ "${ID:-}" == "ubuntu" ]]; then
-    sudo apt-add-repository -y ppa:fish-shell/release-4
-    sudo apt-get update
-  fi
-  sudo apt-get install -y fish
-
   link_renamed_debian_binaries
   install_win32yank
 }
@@ -88,18 +98,33 @@ install_system_packages() {
   case "$OS" in
     Darwin) install_packages_darwin ;;
     Linux) install_packages_linux ;;
-    *)
-      echo "Unsupported OS: $OS" >&2
-      exit 1
-      ;;
   esac
 }
 
 # === FISH ===
 
+install_fish() {
+  case "$OS" in
+    Darwin) brew install fish ;;
+    Linux)
+      # Debian ships fish in its own repos (10+); Ubuntu needs the upstream
+      # PPA for a current version. `. /etc/os-release` is the portable way
+      # to tell them apart (both report `Linux` from `uname -s`).
+      # shellcheck disable=SC1091
+      . /etc/os-release
+      if [[ "${ID:-}" == "ubuntu" ]]; then
+        sudo apt-add-repository -y ppa:fish-shell/release-4
+        sudo apt-get update
+      fi
+      sudo apt-get install -y fish
+      ;;
+  esac
+}
+
 # Fisher only understands fish syntax, so it must run inside `fish -c`,
 # not this bash script's own shell. Guarded so re-running is a no-op.
 install_fisher_and_plugins() {
+  install_fish
   if ! fish -c 'type -q fisher' &>/dev/null; then
     fish -c 'curl -fsSL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher'
   fi
@@ -127,20 +152,32 @@ install_mise_and_runtimes() {
     esac
   fi
 
-  # Make mise-managed tools available for the rest of *this* script (PATH
-  # from a fresh install isn't picked up automatically otherwise).
+  # A fresh install puts mise in ~/.local/bin.
   export PATH="$HOME/.local/bin:$PATH"
-  eval "$(mise activate bash)"
 
   mkdir -p ~/.config/fish
   grep -qxF 'mise activate fish | source' ~/.config/fish/config.fish 2>/dev/null \
     || echo 'mise activate fish | source' >> ~/.config/fish/config.fish
 
-  local runtimes=(go java node python ruby rust terraform sbt poetry)
+  # Unset: the default list. Set but empty: no runtimes at all.
   local runtime
-  for runtime in "${runtimes[@]}"; do
+  for runtime in ${LIBRARIES_MISE_RUNTIMES-$DEFAULT_MISE_RUNTIMES}; do
     mise use --global "${runtime}@latest"
   done
+}
+
+# Each step runs in a subshell (see run_step), so PATH changes made inside
+# the mise step are gone afterwards. Put mise and its tools (cargo from its
+# rust, pip from its python) on PATH here, for the steps that follow.
+use_mise_tools() {
+  export PATH="$HOME/.local/bin:$PATH"
+  have mise || return 0
+  local mise_env
+  if mise_env="$(mise env -s bash)"; then
+    eval "$mise_env"
+  else
+    echo "⚠️  could not read mise's environment: later steps may not find cargo/pip" >&2
+  fi
 }
 
 # === TMUX ===
@@ -160,6 +197,9 @@ install_docker_darwin() {
   echo "Docker Desktop installed. Launch it once from Applications to finish setup."
 }
 
+# Note for a work machine: this adds you to the `docker` group, which is
+# as good as root on this machine; Docker Desktop (macOS) has license terms
+# for use at a company. LIBRARIES_SKIP=docker leaves the step out.
 install_docker_linux() {
   # Only runs when docker isn't already installed (see install_docker) —
   # `apt-get remove containerd runc` would otherwise cascade into removing
@@ -167,9 +207,10 @@ install_docker_linux() {
   sudo apt-get remove -y docker docker-engine docker.io containerd runc
   sudo apt-get update
   sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-  # $ID (ubuntu/debian) from /etc/os-release, sourced in
-  # install_packages_linux — Docker publishes separate apt repos per
-  # distro, not just per codename.
+  # $ID (ubuntu/debian) from /etc/os-release: Docker publishes separate
+  # apt repos per distro, not just per codename.
+  # shellcheck disable=SC1091
+  . /etc/os-release
   local docker_repo_os="${ID:-ubuntu}"
   curl -fsSL "https://download.docker.com/linux/${docker_repo_os}/gpg" | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/${docker_repo_os} $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
@@ -192,7 +233,9 @@ install_docker() {
 
 # === CARGO TOOLS ===
 
-# crate name vs installed binary name differ for git-delta. eza/zoxide
+# crate name vs installed binary name differ for git-delta (normally
+# already installed by install_zsh_tools.sh; this covers a release whose
+# apt has no git-delta and a machine that had no cargo then). eza/zoxide
 # land here too rather than the OS package managers above: eza isn't in
 # Ubuntu/Debian's own repos (would need yet another third-party apt
 # repo), and this keeps both on one portable, distro-version-independent
@@ -223,14 +266,69 @@ setup_neovim() {
   nvim --headless "+Lazy! sync" +qa
 }
 
-main() {
-  install_system_packages
-  install_fisher_and_plugins
-  install_mise_and_runtimes
-  install_tpm
-  install_docker
-  install_cargo_tools
-  setup_neovim
+# === RUNNING THE STEPS ===
+
+FAILED_STEPS=()
+
+# run_step NAME FUNCTION: runs FUNCTION unless NAME is in LIBRARIES_SKIP. A
+# failure is recorded and the run carries on. The step runs as a plain
+# statement in a subshell with errexit on, not as `FUNCTION || ...`: inside
+# a function called from an `||` list bash ignores `set -e`, so a failing
+# command would not stop the step and its later commands would still run.
+run_step() {
+  local name="$1" fn="$2" rc
+  if in_list "$name" "${LIBRARIES_SKIP:-}"; then
+    echo "⏭️  skipping $name (LIBRARIES_SKIP)"
+    return 0
+  fi
+  echo ""
+  echo "==> $name"
+  set +e
+  (
+    set -e
+    "$fn"
+  )
+  rc=$?
+  set -e
+  if ((rc != 0)); then
+    FAILED_STEPS+=("$name (exit $rc)")
+    echo "⚠️  step $name failed (exit $rc); carrying on with the rest" >&2
+  fi
 }
 
-main "$@"
+main() {
+  case "$OS" in
+    Darwin | Linux) ;;
+    *)
+      echo "Unsupported OS: $OS" >&2
+      exit 1
+      ;;
+  esac
+  load_local_settings LIBRARIES_SKIP LIBRARIES_MISE_RUNTIMES
+  check_names LIBRARIES_SKIP "${LIBRARIES_SKIP:-}" "$LIBRARIES_STEPS" || exit 1
+
+  run_step packages install_system_packages
+  run_step fish install_fisher_and_plugins
+  run_step mise install_mise_and_runtimes
+  use_mise_tools
+  run_step tpm install_tpm
+  run_step docker install_docker
+  run_step cargo install_cargo_tools
+  run_step neovim setup_neovim
+
+  echo ""
+  if ((${#FAILED_STEPS[@]} > 0)); then
+    echo "⚠️  Finished with ${#FAILED_STEPS[@]} failed step(s):" >&2
+    local step
+    for step in "${FAILED_STEPS[@]}"; do
+      echo "   - $step" >&2
+    done
+    exit 1
+  fi
+  echo "✅ Libraries installation complete!"
+}
+
+# Only run main() when executed, not when sourced by the tests.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

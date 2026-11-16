@@ -1,0 +1,38 @@
+name: install and sync scripts
+
+# The test suite for the install and sync scripts
+# (scripts/tests/test_sync_scripts.sh): installer runs with every external
+# command stubbed, sync runs into throwaway directories, and shellcheck over
+# every bash script. Nothing is installed for real and no real $HOME is
+# touched, so it runs on the plain runner, as an ordinary user.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # zsh is used by a few checks (they skip themselves without it); the
+      # rest normally ships with the runner image, listed so a change of
+      # image can't quietly turn a check into a skip.
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh shellcheck rsync jq
+
+      - name: Versions
+        run: |
+          bash --version | head -1
+          shellcheck --version | sed -n 2p
+          rsync --version | head -1
+
+      - name: Run the script tests
+        run: bash scripts/tests/test_sync_scripts.sh

@@ -6,6 +6,7 @@
 #   - the CLI tools .config/zsh calls at startup: fzf, fd, ripgrep, bat,
 #     eza, zoxide
 #   - the prompt/plugin tooling: starship, sheldon (+ its plugins)
+#   - delta, the pager .config/git/config sets for git
 # Safe to re-run: anything already on PATH is skipped.
 #
 # zsh, fzf and sheldon have a minimum version (scripts/lib/min_versions.sh,
@@ -19,15 +20,13 @@
 # tool is still older than its minimum.
 #
 # Per-machine settings (personal, work, someone else's machine) live in an
-# untracked file outside the repo, never in this script:
-#   ${XDG_CONFIG_HOME:-~/.config}/dot_files/install.local.sh
-# (DOTFILES_INSTALL_LOCAL=<path> points at a different file). It is sourced
-# as bash and may
+# untracked file outside the repo, never in this script (where it is and
+# who reads it: scripts/lib/local_settings.sh). For this script it may
 #   - set ZSH_TOOLS_SKIP="starship eza"       tools this machine must not install
 #   - define install_local_extras() { ... }   runs last, for machine-only extras
 # ZSH_TOOLS_SKIP given in the environment wins over the file. Names are the
-# ones this script prints: zsh git curl fzf fd rg bat eza zoxide starship
-# sheldon.
+# ones this script prints: zsh git curl delta fzf fd rg bat eza zoxide
+# starship sheldon.
 
 set -euo pipefail
 
@@ -35,6 +34,8 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # shellcheck source=lib/min_versions.sh
 source "$REPO_DIR/scripts/lib/min_versions.sh"
+# shellcheck source=lib/local_settings.sh
+source "$REPO_DIR/scripts/lib/local_settings.sh"
 
 # Look commands up in the order the zsh config will (00-env.zsh): Homebrew's
 # bin, then ~/.cargo/bin, then ~/.local/bin, then whatever was inherited.
@@ -79,18 +80,6 @@ is_skipped() { [[ " ${ZSH_TOOLS_SKIP:-} " == *" $1 "* ]]; }
 skipped() {
     is_skipped "$1" || return 1
     echo "⏭️  skipping $1 (ZSH_TOOLS_SKIP)"
-}
-
-load_local_settings() {
-    local file="${DOTFILES_INSTALL_LOCAL:-${XDG_CONFIG_HOME:-$HOME/.config}/dot_files/install.local.sh}"
-    [[ -r "$file" ]] || return 0
-    local env_skip_set="${ZSH_TOOLS_SKIP+set}" env_skip="${ZSH_TOOLS_SKIP:-}"
-    echo "🏠 Loading machine-local settings: $file"
-    # shellcheck source=/dev/null
-    source "$file"
-    if [[ -n "$env_skip_set" ]]; then
-        ZSH_TOOLS_SKIP="$env_skip"
-    fi
 }
 
 # Runs a command as root, via sudo unless already root.
@@ -161,6 +150,25 @@ install_base_packages() {
     install_pkg zsh zsh zsh
     install_pkg git git git
     install_pkg curl curl curl
+}
+
+# delta is the pager .config/git/config sets for git log/diff/show and the
+# filter for `git add -p`. Without it git log and diff still print, unpaged,
+# but `git add -p` fails ("mismatched output from interactive.diffFilter").
+# apt has it from Ubuntu 24.04 on, not in 22.04 or Debian 12; there cargo
+# builds it when there is one, and install_libraries.sh's cargo step does
+# otherwise.
+install_git_pager() {
+    install_pkg delta git-delta git-delta
+    is_skipped delta && return 0
+    hash -r
+    have delta && return 0
+    if have cargo; then
+        echo "   Building delta with cargo..."
+        cargo install git-delta || warn "could not install delta with cargo"
+    else
+        warn "delta not installed: \`git add -p\` fails until it is (install_libraries.sh installs it with cargo)"
+    fi
 }
 
 install_runtime_tools() {
@@ -383,8 +391,9 @@ print_summary() {
 main() {
     echo "🔧 Installing ZSH and its tools..."
 
-    load_local_settings
+    load_local_settings ZSH_TOOLS_SKIP
     install_base_packages
+    install_git_pager
     install_runtime_tools
     install_tool starship "starship prompt" curl install_starship_via_curl
     setup_starship_config

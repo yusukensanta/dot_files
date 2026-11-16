@@ -10,6 +10,9 @@
 #   run as Windows binaries even when the shell is WSL
 # - On native Linux/macOS, syncs Alacritty's config to the XDG path instead
 #
+# Machine-local: SYNC_SKIP (environment, or the settings file described in
+# lib/local_settings.sh) leaves things out, e.g. SYNC_SKIP="claude".
+#
 # Safety:
 # - Uses rsync --delete to converge $HOME onto the repo, so it prompts for
 #   confirmation before touching anything (skip with --yes for automation)
@@ -158,12 +161,60 @@ sync_claude_config() {
         || FAILURES=$((FAILURES + 1))
 }
 
+# Windows-native Alacritty (WSL only) needs the WSL-only shell override
+# (alacritty-wsl.toml) that the base file deliberately omits — see the
+# comment in that file for why. Concatenated by hand instead of via rsync
+# since this is the one destination that needs base + fragment merged into
+# a single file. Both inputs are checked (a missing fragment must NOT
+# silently produce a base-only config — that's exactly the breakage
+# alacritty-wsl.toml exists to prevent), the write goes to a temp file first
+# so an interrupted run can't leave a half-written config, and the existing
+# dest is backed up first like every other write in this script.
+sync_windows_alacritty() {
+    local win_userprofile="$1"
+    local base="$REPO_DIR/alacritty/alacritty.toml" frag="$REPO_DIR/alacritty/alacritty-wsl.toml"
+    if [[ ! -f "$base" || ! -f "$frag" ]]; then
+        echo ""
+        echo "⚠️  alacritty.toml and/or alacritty-wsl.toml missing in the repo — skipping Windows-native Alacritty sync."
+        FAILURES=$((FAILURES + 1))
+        return
+    fi
+    local dest_dir="$win_userprofile/AppData/Roaming/alacritty"
+    local dest_file="$dest_dir/alacritty.toml"
+    echo ""
+    echo "📄 Syncing: alacritty.toml (Windows, base + WSL shell override)"
+    echo "   Target: $dest_file"
+    if $DRY_RUN; then
+        echo "   ✓ Dry-run completed"
+        return
+    fi
+    mkdir -p "$dest_dir" 2>/dev/null || true
+    if [[ -f "$dest_file" ]]; then
+        mkdir -p "$BACKUP_ROOT/alacritty_windows" 2>/dev/null || true
+        cp -p "$dest_file" "$BACKUP_ROOT/alacritty_windows/alacritty.toml" 2>/dev/null || true
+    fi
+    local tmp_file="$dest_file.tmp.$$" rendered_frag
+    rendered_frag="$(mktemp)"
+    if render_wsl_alacritty_fragment "$frag" "$rendered_frag" \
+            && cat "$base" "$rendered_frag" > "$tmp_file" 2>/dev/null \
+            && mv -f "$tmp_file" "$dest_file" 2>/dev/null; then
+        echo "   ✓ Synced successfully"
+    else
+        echo "   ✗ Sync failed"
+        rm -f "$tmp_file" 2>/dev/null
+        FAILURES=$((FAILURES + 1))
+    fi
+    rm -f "$rendered_frag"
+}
+
 # Everything below actually performs the sync, wrapped in main() so this
 # file can also be sourced (e.g. by scripts/tests/) to reuse the functions
 # above — backup_opts_for, manual_backup_if_openrsync, sync_directory,
 # sync_file, detect_win_userprofile — without triggering a real sync as a
 # side effect of sourcing it.
 main() {
+
+load_sync_settings
 
 echo "🔄 Syncing configurations from repository to HOME..."
 echo "Repository: $REPO_DIR"
@@ -175,6 +226,7 @@ confirm_sync "under \$HOME" "in the repo"
 
 # Sync .config directories
 for dir in "${TARGET_DIRS[@]}"; do
+    sync_skipped "$dir" && continue
     exclude="$(target_dir_exclude "$dir")"
     sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" ${exclude:+"$exclude"}
 done
@@ -183,80 +235,50 @@ done
 # already lives inside .config/nvim, which the loop above just synced
 # wholesale; a second pass was pure redundant work (and a second,
 # pointless backup-dir entry).
-sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
+sync_skipped zshrc || sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
 # ~/.zshenv is shared with whatever else the host keeps there (rustup,
 # employer setup), so only a marked block is merged in — never a whole-file
 # replace. One-way: the repo's .zshenv is the source of truth for the block.
-echo ""
-echo "📄 Syncing: .zshenv (managed block)"
-echo "   Target: $HOME/.zshenv"
-merge_managed_block "$REPO_DIR/.zshenv" "$HOME/.zshenv" || FAILURES=$((FAILURES + 1))
-sync_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf" ".tmux.conf"
-sync_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml" "starship.toml"
+if ! sync_skipped zshenv; then
+    echo ""
+    echo "📄 Syncing: .zshenv (managed block)"
+    echo "   Target: $HOME/.zshenv"
+    merge_managed_block "$REPO_DIR/.zshenv" "$HOME/.zshenv" || FAILURES=$((FAILURES + 1))
+fi
+sync_skipped tmux || sync_file "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf" ".tmux.conf"
+# starship.toml belongs to the same `starship` name as .config/starship above.
+is_sync_skipped starship || sync_file "$REPO_DIR/.config/starship.toml" "$HOME/.config/starship.toml" "starship.toml"
 # Identity-free shared git settings; ~/.gitconfig (identity, signing) is never touched.
-sync_file "$REPO_DIR/.config/git/config" "$HOME/.config/git/config" "git/config"
-sync_claude_config
+sync_skipped git || sync_file "$REPO_DIR/.config/git/config" "$HOME/.config/git/config" "git/config"
+sync_skipped claude || sync_claude_config
 
 if $IS_WSL; then
     # Alacritty and Neovim run as Windows-native binaries even under WSL,
     # so they read from the Windows user profile, not $HOME.
-    WIN_USERPROFILE="$(detect_win_userprofile)"
-
-    if [[ -n "$WIN_USERPROFILE" && -d "$WIN_USERPROFILE" ]]; then
-        # Windows-native Alacritty needs the WSL-only shell override
-        # (alacritty-wsl.toml) that the base file deliberately omits — see
-        # the comment in that file for why. Concatenated by hand instead of
-        # via rsync since this is the one destination that needs base +
-        # fragment merged into a single file. Both inputs are checked (a
-        # missing fragment must NOT silently produce a base-only config —
-        # that's exactly the breakage alacritty-wsl.toml exists to
-        # prevent), the write goes to a temp file first so an interrupted
-        # run can't leave a half-written config, and the existing dest is
-        # backed up first like every other write in this script.
-        if [[ -f "$REPO_DIR/alacritty/alacritty.toml" && -f "$REPO_DIR/alacritty/alacritty-wsl.toml" ]]; then
-            dest_dir="$WIN_USERPROFILE/AppData/Roaming/alacritty"
-            dest_file="$dest_dir/alacritty.toml"
-            echo ""
-            echo "📄 Syncing: alacritty.toml (Windows, base + WSL shell override)"
-            echo "   Target: $dest_file"
-            if ! $DRY_RUN; then
-                mkdir -p "$dest_dir" 2>/dev/null || true
-                if [[ -f "$dest_file" ]]; then
-                    mkdir -p "$BACKUP_ROOT/alacritty_windows" 2>/dev/null || true
-                    cp -p "$dest_file" "$BACKUP_ROOT/alacritty_windows/alacritty.toml" 2>/dev/null || true
-                fi
-                tmp_file="$dest_file.tmp.$$"
-                if cat "$REPO_DIR/alacritty/alacritty.toml" "$REPO_DIR/alacritty/alacritty-wsl.toml" > "$tmp_file" 2>/dev/null \
-                        && mv -f "$tmp_file" "$dest_file" 2>/dev/null; then
-                    echo "   ✓ Synced successfully"
-                else
-                    echo "   ✗ Sync failed"
-                    rm -f "$tmp_file" 2>/dev/null
-                    FAILURES=$((FAILURES + 1))
-                fi
-            else
-                echo "   ✓ Dry-run completed"
+    sync_win_alacritty=true sync_win_nvim=true
+    sync_skipped alacritty && sync_win_alacritty=false
+    is_sync_skipped nvim && sync_win_nvim=false   # announced in the loop above
+    if $sync_win_alacritty || $sync_win_nvim; then
+        WIN_USERPROFILE="$(detect_win_userprofile)"
+        if [[ -n "$WIN_USERPROFILE" && -d "$WIN_USERPROFILE" ]]; then
+            $sync_win_alacritty && sync_windows_alacritty "$WIN_USERPROFILE"
+            if $sync_win_nvim; then
+                sync_directory "$REPO_DIR/.config/nvim" \
+                    "$WIN_USERPROFILE/AppData/Local/nvim" \
+                    ".config/nvim (Windows native)" --no-perms --no-owner --no-group --no-times "$(target_dir_exclude nvim)"
             fi
         else
             echo ""
-            echo "⚠️  alacritty.toml and/or alacritty-wsl.toml missing in the repo — skipping Windows-native Alacritty sync."
+            echo "⚠️  Could not detect Windows user profile (needs cmd.exe/wslpath interop)."
+            echo "   Skipping Windows-native Alacritty/Neovim sync."
             FAILURES=$((FAILURES + 1))
         fi
-
-        sync_directory "$REPO_DIR/.config/nvim" \
-            "$WIN_USERPROFILE/AppData/Local/nvim" \
-            ".config/nvim (Windows native)" --no-perms --no-owner --no-group --no-times "$(target_dir_exclude nvim)"
-    else
-        echo ""
-        echo "⚠️  Could not detect Windows user profile (needs cmd.exe/wslpath interop)."
-        echo "   Skipping Windows-native Alacritty/Neovim sync."
-        FAILURES=$((FAILURES + 1))
     fi
 else
     # Native Linux/macOS: Alacritty reads its config from the XDG path, and
     # (unlike WSL) needs no shell override — it already runs directly as
     # a native binary under the user's normal login shell.
-    sync_file "$REPO_DIR/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml" "alacritty.toml"
+    sync_skipped alacritty || sync_file "$REPO_DIR/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml" "alacritty.toml"
 fi
 
 echo ""

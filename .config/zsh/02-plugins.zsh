@@ -15,11 +15,12 @@
 # the same until the lock changes, so cache it instead of forking sheldon
 # every shell start (see _dotfiles_cached_source in 00-env.zsh). Sheldon
 # regenerates the lock itself whenever plugins.toml changes, so gating on
-# the lock's mtime also catches toml edits.
+# the lock's mtime also catches toml edits. The lock is in sheldon's data
+# dir: $SHELDON_DATA_DIR when that is set, as sheldon itself does.
 if command -v sheldon &> /dev/null; then
     _dotfiles_cached_source \
         "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/sheldon-source.zsh" \
-        "${XDG_DATA_HOME:-$HOME/.local/share}/sheldon/plugins.lock" \
+        "${SHELDON_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sheldon}/plugins.lock" \
         sheldon source
 fi
 
