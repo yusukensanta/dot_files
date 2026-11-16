@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code statusLine command
 # Line 1: hostname | directory | git branch / PR | time
-# Line 2: model (max context) | context % | cost / lines changed | session time / AI share | prompt cache | rate limits
+# Line 2: model (max context) effort | context % | cost / lines changed | session time / AI share | prompt cache | rate limits
 
 input=$(cat)
 
@@ -122,6 +122,12 @@ time_val=$(date +%H:%M)
 
 # Model display name
 model=$(echo "$input" | jq -r '.model.display_name // ""')
+
+# Reasoning effort set for the session: low, medium, high, xhigh or max.
+# Absent when the model has no effort setting. Only letters, digits, _ and -
+# are kept, so nothing in the input can reach the terminal as an escape code.
+effort=$(echo "$input" | jq -r '.effort.level // empty')
+effort="${effort//[^a-zA-Z0-9_-]/}"
 
 # Context usage percentage
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
@@ -250,12 +256,24 @@ add1 "$g_where"
 add1 "$g_git"
 add1 "${dim}${time_val}${rst}"
 
-# ── Line 2: Claude metadata  (model (max) │ ctx │ cost +lines -lines │ time ai │ cache │ limits)
+# ── Line 2: Claude metadata  (model (max) effort │ ctx │ cost +lines -lines │ time ai │ cache │ limits)
+g_model=""
 if [ -n "$model" ]; then
     g_model="${ESC}[35m${model}${rst}"
     [ -n "$ctx_size_fmt" ] && g_model="$g_model ${dim}(${ctx_size_fmt})${rst}"
-    add2 "$g_model"
 fi
+# Effort, colored by how much it spends: the higher, the louder.
+if [ -n "$effort" ]; then
+    case "$effort" in
+        low | medium) effort_color="$dim" ;;
+        high) effort_color="${ESC}[36m" ;;    # cyan
+        xhigh) effort_color="${ESC}[33m" ;;   # yellow
+        max) effort_color="${ESC}[1;31m" ;;   # bold red
+        *) effort_color="$val" ;;
+    esac
+    g_model="${g_model:+$g_model }${effort_color}${effort}${rst}"
+fi
+add2 "$g_model"
 
 g_ctx=""
 [ -n "$used_pct" ] && g_ctx="🧠$(pct_color "$used_pct")$(printf '%.0f%%' "$used_pct")${rst}"

@@ -1041,6 +1041,28 @@ test_claude_sync_round_trip() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
+test_claude_statusline_shows_effort() {
+    local desc="statusline-command.sh: shows the session's effort level after the model (line 2), nothing when the input has none, and no escape codes from the input"
+    local script="$SCRIPTS_DIR/../claude/statusline-command.sh" good=true work out plain
+    work="$(mktemp -d)"
+    # render JSON: line 2 with the color codes taken out
+    render() { HOME="$work" XDG_CACHE_HOME="$work/cache" bash "$script" <<< "$1" | tail -1; }
+    strip() { sed $'s/\033\\[[0-9;]*m//g'; }
+    local base='"model":{"display_name":"Opus 5.5"},"context_window":{"context_window_size":1000000,"used_percentage":12},"workspace":{"current_dir":"'"$work"'"}'
+    local lv
+    for lv in low medium high xhigh max; do
+        plain="$(render "{$base,\"effort\":{\"level\":\"$lv\"}}" | strip)"
+        [[ "$plain" == "Opus 5.5 (1M) $lv │ "* ]] || { good=false; echo "    $lv: $plain"; }
+    done
+    plain="$(render "{$base}" | strip)"
+    [[ "$plain" == "Opus 5.5 (1M) │ "* ]] || { good=false; echo "    no effort: $plain"; }
+    # an escape sequence inside the value is dropped, not passed to the terminal
+    out="$(render "{$base,\"effort\":{\"level\":\"hi\\u001b]0;owned\\u0007gh\"}}")"
+    [[ "$out" != *$'\033]0;'* && "$(strip <<< "$out")" == *"(1M) hi0ownedgh │"* ]] || { good=false; echo "    escape in the value: $(cat -v <<< "$out")"; }
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
 test_claude_repo_files_publishable() {
     local desc="claude/ files exist, are not gitignored, contain no obvious secrets, and the fragment holds only statusLine"
     local root="$SCRIPTS_DIR/.." good=true f
@@ -1321,6 +1343,7 @@ test_nvim_personal_ai_switch
 test_claude_statusline_merge
 test_claude_statusline_extract
 test_claude_sync_round_trip
+test_claude_statusline_shows_effort
 test_claude_repo_files_publishable
 test_portfolio_opt_out
 test_managed_block_merge
