@@ -58,7 +58,7 @@ A step that fails (no sudo rights, a blocked download, a package this distro doe
 
 Per-machine choices for the install and sync scripts go in one untracked file, `~/.config/dot_files/install.local.sh` (see [Using this on a work machine](#using-this-on-a-work-machine)).
 
-`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing the rest in steps: `packages` (tmux, neovim, ...), `fish` (+ fisher), `mise` (with several language runtimes), `tpm`, `docker`, `cargo` (a few Rust tools) and `neovim` (its plugins). A step that fails does not stop the others; the failed steps are listed at the end and the exit status is non-zero.
+`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing the rest in steps: `packages` (tmux, neovim, ...), `fish` (+ fisher), `mise` (with several language runtimes; with Rust it also makes mise follow a project's `rust-toolchain.toml` and adds rust-analyzer + rust-src to the toolchain, see [Neovim: Scala and Rust](#neovim-scala-and-rust)), `tpm`, `docker`, `cargo` (a few Rust tools) and `neovim` (its plugins). A step that fails does not stop the others; the failed steps are listed at the end and the exit status is non-zero.
 
 ## zsh startup time
 
@@ -210,6 +210,42 @@ only ever reads the `statusLine` key out of `settings.json`. Requires `jq`.
 This repo is public: keep anything private (tokens, internal hostnames,
 employer details) out of `claude/CLAUDE.md`.
 
+## Neovim: Scala and Rust
+
+Each language server comes from the same toolchain the project builds with,
+so the editor and `sbt`/`cargo` agree on compiler and library versions.
+
+**Rust** (`lua/plugins/rustacean.lua`, rustaceanvim). rust-analyzer is the one
+in the project's rustup toolchain, never Mason's. That keeps the server, its
+proc-macro server and the std sources (`rust-src`) on the same version as the
+compiler the project pins in `rust-toolchain.toml`. Two settings make that hold,
+and `install_libraries.sh` applies both:
+
+- mise reads `rust-toolchain.toml` (`idiomatic_version_file_enable_tools`
+  includes `rust`). Without it, the global `rust` sets `RUSTUP_TOOLCHAIN`,
+  which overrides the project's pin.
+- The toolchain has `rust-analyzer` and `rust-src`. For a project pinned to
+  another toolchain, run `rustup component add rust-analyzer rust-src` once
+  inside it. Neovim says so when the component is missing.
+
+On save, rust-analyzer runs `cargo clippy --workspace --all-targets --all-features`.
+Lint levels come only from the project's `[lints]` tables, so the editor and a
+CI running the same command agree. It builds into `target/rust-analyzer/`, so it
+never waits on, or invalidates, a `cargo build` running in a terminal.
+`<leader>n…` runs tests through neotest (`cargo nextest` when installed).
+
+**Scala** (`lua/plugins/metals.lua`, nvim-metals). Metals is installed by
+`:MetalsInstall` with coursier (a mise runtime here) and runs on the project's
+`JAVA_HOME`.
+
+- Run `:MetalsUpdate` after a Scala release. An older Metals can't fully
+  support a newer Scala 3.
+- After the build changes (a Scala version bump, a new sbt plugin), run
+  `:MetalsImportBuild`. Bloop's exported build otherwise keeps compiling
+  with the old settings.
+- In Scala buffers, `<leader>nr` and `<leader>nf` pick a test case or suite
+  and run it through Metals' already-warm build server.
+
 ## Syncing changes
 
 - `scripts/sync_to_host.sh [--dry-run] [--yes]` — copy configs **from this repo to `$HOME`**. Works on WSL, native Linux, and macOS: on WSL it additionally mirrors Alacritty/Neovim configs out to the Windows-native locations (auto-detected, no hardcoded paths); on native Linux/macOS it syncs Alacritty's config to the XDG path instead. Use this after pulling changes.
@@ -222,6 +258,20 @@ destination not present in the source gets removed). To keep that safe:
 - Anything they would delete or overwrite is moved into a timestamped backup dir
   first (`$HOME/.dotfiles-sync-backup/<timestamp>/`) instead of being destroyed —
   printed at the end of the run if anything was actually backed up.
+
+After copying, `sync_to_host.sh` deletes the caches that were built from the
+files it replaced, so nothing keeps serving the old version: the zsh init caches
+in `~/.cache/zsh/` and the completion dump, sheldon's `plugins.lock`, and Neovim's
+Lua bytecode cache. All of these are rebuilt by the next shell or Neovim start,
+so they are not backed up. This is needed because `rsync -a` keeps the repo's
+timestamps: a replaced file can look older than a cache built from the file it
+replaced, so a timestamp check would not notice the change. It then brings the
+installed Neovim plugins in line with the synced `lazy-lock.json` (`:Lazy restore`,
+then `:Lazy clean`). All of this happens only for the parts whose content
+actually changed (zsh, `.zshrc`, sheldon, Neovim; compared by checksum before
+copying), so a sync that replaces nothing triggers no rebuild. Parts skipped with
+`SYNC_SKIP` keep their caches, and `--dry-run` lists what it would clear without
+deleting anything.
 
 ## Notes
 

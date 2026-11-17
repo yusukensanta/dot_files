@@ -1,19 +1,30 @@
 -- rustaceanvim - Modern Rust development with rust-analyzer
 -- Replaces rust-tools.nvim with better LSP integration
 --
+-- rust-analyzer comes from the project's own toolchain (rustup component),
+-- never from Mason: the server then always matches the compiler, std
+-- sources (rust-src) and proc-macro ABI the project pins in
+-- rust-toolchain.toml. mise must read that file for this to hold — see the
+-- `idiomatic_version_file_enable_tools` setting in scripts/install_libraries.sh.
+-- lsp/init.lua keeps mason-lspconfig from starting a second rust_analyzer.
+--
 -- Missing guard, inherent to rust-analyzer itself (not specific to this
--- config): cargo.buildScripts.enable + procMacro.enable below mean opening
+-- config): build scripts and proc-macros are enabled by default, so opening
 -- or saving any .rs file compiles and runs that crate's build.rs and
 -- proc-macros automatically — i.e. arbitrary code execution from project
--- content, with no trust prompt. checkOnSave.command = "clippy" (below)
--- likewise runs on every save. Left enabled because disabling either breaks
--- normal Rust editing (macro-heavy code needs proc-macro expansion to
--- resolve correctly) — worth knowing before opening an unfamiliar Rust repo.
+-- content, with no trust prompt. check.command = "clippy" (below) likewise
+-- runs on every save. Left enabled because disabling either breaks normal
+-- Rust editing (macro-heavy code needs proc-macro expansion to resolve
+-- correctly) — worth knowing before opening an unfamiliar Rust repo.
+--
+-- Debugging: rustaceanvim finds codelldb on its own (Mason's, installed by
+-- dap.lua), so no adapter is configured here.
+local warned_missing_ra = false
+
 return {
   "mrcjkb/rustaceanvim",
-  version = "^6", -- Recommended to use a version tag
-  lazy = false, -- This plugin is already lazy
-  ft = { "rust" },
+  version = "^9", -- v9 requires Neovim 0.12+
+  lazy = false, -- The plugin lazy-loads itself on rust buffers
   config = function()
     vim.g.rustaceanvim = {
       tools = {
@@ -21,6 +32,26 @@ return {
       },
 
       server = {
+        -- Same command rustaceanvim would run, plus an actionable message
+        -- when the active toolchain has no rust-analyzer: rustup's proxy
+        -- otherwise fails with a bare "unavailable for the active
+        -- toolchain" that only shows up in the LSP log. rustaceanvim may
+        -- call this more than once per start, hence the once-only flag.
+        cmd = function()
+          if not warned_missing_ra and vim.fn.executable("rustup") == 1 then
+            local res = vim.system({ "rustup", "which", "rust-analyzer" }, { text = true }):wait()
+            if res.code ~= 0 then
+              warned_missing_ra = true
+              vim.notify(
+                "rust-analyzer is not installed for this toolchain. Run:\n"
+                  .. "  rustup component add rust-analyzer rust-src",
+                vim.log.levels.ERROR
+              )
+            end
+          end
+          return { "rust-analyzer" }
+        end,
+
         on_attach = function(client, bufnr)
           -- Common LSP keymaps are set via the global LspAttach autocmd in lsp/config.lua
           local map = require("helpers.keys").buffer_map
@@ -60,30 +91,22 @@ return {
 
         default_settings = {
           ["rust-analyzer"] = {
-            checkOnSave = {
-              command = "clippy",
-              extraArgs = {
-                "--all-targets",
-                "--all-features",
-                "--",
-                "-W",
-                "clippy::all",
-              },
-            },
-
             cargo = {
-              allFeatures = true,
-              loadOutDirsFromCheck = true,
-              buildScripts = {
-                enable = true,
-              },
+              features = "all",
+              -- Build into target/rust-analyzer instead of target/, so the
+              -- check on save never waits on (or invalidates the cache of)
+              -- a `cargo build`/`cargo test` running in a terminal.
+              targetDir = true,
             },
 
-            procMacro = {
-              enable = true,
-              attributes = {
-                enable = true,
-              },
+            -- The check on save runs what CI runs:
+            -- `cargo clippy --workspace --all-targets --all-features`
+            -- (features come from cargo.features above). Lint levels come
+            -- from the project's [lints] tables only, so the editor and CI
+            -- agree on what is a warning.
+            check = {
+              command = "clippy",
+              allTargets = true,
             },
 
             inlayHints = {
@@ -119,21 +142,8 @@ return {
               },
             },
 
-            rustfmt = {
-              -- Add "+nightly" to extraArgs if a nightly toolchain is installed
-              rangeFormatting = {
-                enable = true,
-              },
-            },
-
-            completion = {
-              autoimport = {
-                enable = true,
-              },
-              postfix = {
-                enable = true,
-              },
-            },
+            -- No rustfmt.rangeFormatting: it needs a nightly rustfmt, and
+            -- the toolchains here are stable.
 
             lens = {
               enable = true,
@@ -147,19 +157,6 @@ return {
                 enable = true,
               },
             },
-          },
-        },
-      },
-
-      -- Uses codelldb from Mason
-      dap = {
-        adapter = {
-          type = "server",
-          port = "${port}",
-          host = "127.0.0.1",
-          executable = {
-            command = vim.fn.stdpath("data") .. "/mason/packages/codelldb/extension/adapter/codelldb",
-            args = { "--port", "${port}" },
           },
         },
       },

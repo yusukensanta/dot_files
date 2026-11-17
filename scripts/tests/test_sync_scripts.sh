@@ -19,6 +19,11 @@ set -uo pipefail
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 
+# A full sync_to_host.sh run deletes caches under these (clear_stale_caches).
+# Tests give it a throwaway $HOME; unset, these follow that $HOME instead of
+# pointing at the real ~/.cache, ~/.local/share and sheldon's real lock.
+unset XDG_CACHE_HOME XDG_DATA_HOME SHELDON_DATA_DIR
+
 PASS=0
 FAIL=0
 
@@ -1185,6 +1190,9 @@ test_install_libraries_steps() {
     out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1)"
     [[ "$out" == *"sudo apt-get install -y docker-ce"* && "$out" == *"sudo apt-get install -y fish"* \
         && "$out" == *"mise use --global go@latest"* && "$out" == *"mise use --global poetry@latest"* && "$out" == *"exit=0"* ]] || { good=false; echo "    full run: $out"; }
+    # with rust: coursier for Metals, pins from rust-toolchain.toml, the toolchain's rust-analyzer
+    [[ "$out" == *"mise use --global coursier@latest"* && "$out" == *"mise settings add idiomatic_version_file_enable_tools rust"* \
+        && "$out" == *"mise exec -- rustup component add rust-analyzer rust-src"* ]] || { good=false; echo "    rust/scala tooling: $out"; }
     # skipped from the environment
     out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1 LIBRARIES_SKIP="docker fish")"
     [[ "$out" != *"docker"* && "$out" != *"fish"* && "$out" == *"pip install pynvim"* && "$out" == *"exit=0"* ]] || { good=false; echo "    env skip: $out"; }
@@ -1193,7 +1201,7 @@ test_install_libraries_steps() {
     printf 'LIBRARIES_SKIP="docker"\nLIBRARIES_MISE_RUNTIMES="node python"\n' > "$cfg/dot_files/install.local.sh"
     out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1 XDG_CONFIG_HOME="$cfg")"
     [[ "$out" != *"docker"* && "$out" == *"mise use --global node@latest"* && "$out" == *"mise use --global python@latest"* \
-        && "$out" != *"go@latest"* && "$out" == *"exit=0"* ]] || { good=false; echo "    file skip/runtimes: $out"; }
+        && "$out" != *"go@latest"* && "$out" != *"rustup"* && "$out" != *"mise settings"* && "$out" == *"exit=0"* ]] || { good=false; echo "    file skip/runtimes: $out"; }
     # the environment wins over the file; an empty runtime list installs none
     out="$(run_install_script_stubbed "$script" "$stubs" ONLY_STUBS=1 XDG_CONFIG_HOME="$cfg" LIBRARIES_SKIP= LIBRARIES_MISE_RUNTIMES=)"
     [[ "$out" == *"docker-ce"* && "$out" != *"mise use"* ]] || { good=false; echo "    env over file: $out"; }
@@ -1267,6 +1275,76 @@ test_sync_skip() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
+test_sync_clears_stale_caches() {
+    local desc="sync_to_host clears the caches built from what it replaced (zsh init caches, completion dump, sheldon lock, nvim bytecode), only for units whose content changed (not skipped ones, not mtime-only), nothing in --dry-run; restores nvim plugins on an nvim change and reports a failed restore"
+    local work good=true out rc h; work="$(mktemp -d)"
+    _sync_fake_linux "$work"
+    h="$work/home"
+    local -a stale=(
+        "$h/.cache/zsh/sheldon-source.zsh" "$h/.cache/zsh/starship-init.zsh"
+        "$h/.cache/zsh/zoxide-init.zsh" "$h/.cache/zsh/fzf-init.zsh"
+        "$h/.config/zsh/.zcompdump" "$h/.config/zsh/.zcompdump.zwc"
+        "$h/.local/share/sheldon/plugins.lock" "$h/.cache/nvim/luac/x.luac"
+    )
+    seed() {
+        local f
+        for f in "${stale[@]}" "$h/.cache/zsh/python_modules"; do mkdir -p "$(dirname "$f")"; echo old > "$f"; done
+    }
+    left() {   # prints the stale paths still present
+        local f
+        for f in "${stale[@]}"; do [[ -e "$f" ]] && echo "$f"; done
+    }
+    run() { env PATH="$work/bin:$PATH" HOME="$h" XDG_CONFIG_HOME="$work/cfg" "$@" bash "$SCRIPTS_DIR/sync_to_host.sh" --yes 2>&1; }
+
+    seed
+    out="$(env PATH="$work/bin:$PATH" HOME="$h" XDG_CONFIG_HOME="$work/cfg" SYNC_SKIP=claude bash "$SCRIPTS_DIR/sync_to_host.sh" --dry-run --yes 2>&1)"
+    [[ "$(left | wc -l)" == "${#stale[@]}" && "$out" == *"Would clear the zsh startup cache"* ]] || { good=false; echo "    dry run removed something or said nothing: $(left | wc -l) left"; }
+
+    # Also the first real sync into this $HOME: nothing to back up, and
+    # that must still exit 0 (main() used to end on a false `[[ ]] && echo`).
+    out="$(run SYNC_SKIP="zsh zshrc zshenv sheldon nvim claude")"; rc=$?
+    [[ "$(left | wc -l)" == "${#stale[@]}" ]] || { good=false; echo "    skipped units' caches were cleared"; }
+    [[ "$rc" == 0 ]] || { good=false; echo "    successful sync with no backups exited $rc"; }
+
+    out="$(run SYNC_SKIP=claude)"; rc=$?
+    [[ -z "$(left)" && "$rc" == 0 ]] || { good=false; echo "    left after sync (rc=$rc): $(left)"; }
+    [[ -f "$h/.cache/zsh/python_modules" ]] || { good=false; echo "    an unrelated cache was removed"; }
+
+    # Nothing differs from the repo now: a re-run keeps every cache, even
+    # with a file whose mtime alone differs.
+    seed
+    touch -d '2001-01-01' "$h/.zshrc"
+    out="$(run SYNC_SKIP=claude)"
+    [[ "$(left | wc -l)" == "${#stale[@]}" && "$out" != *"🧹"* ]] || { good=false; echo "    unchanged sync cleared: $(left | wc -l) left"; }
+    # Only sheldon's config differs: its lock and source cache go, the other zsh caches stay.
+    echo '# host edit' >> "$h/.config/sheldon/plugins.toml"
+    run SYNC_SKIP=claude >/dev/null
+    [[ ! -e "$h/.local/share/sheldon/plugins.lock" && ! -e "$h/.cache/zsh/sheldon-source.zsh" \
+        && -e "$h/.cache/zsh/starship-init.zsh" && -e "$h/.config/zsh/.zcompdump" ]] || { good=false; echo "    sheldon-only change left: $(left)"; }
+
+    # Neovim plugins: restored when the nvim config changed and lazy.nvim is
+    # installed; a failed restore is counted.
+    mkdir -p "$h/.local/share/nvim/lazy/lazy.nvim"
+    printf '#!/bin/sh\necho "$@" >> "%s/nvim.args"\nexit "${FAKE_NVIM_RC:-0}"\n' "$work" > "$work/bin/nvim"
+    chmod +x "$work/bin/nvim"
+    run SYNC_SKIP=claude >/dev/null
+    [[ ! -e "$work/nvim.args" ]] || { good=false; echo "    restore ran with no nvim change"; }
+    echo stale > "$h/.config/nvim/stale.lua"
+    out="$(run SYNC_SKIP=claude)"; rc=$?
+    grep -q 'Lazy! restore.*Lazy! clean' "$work/nvim.args" 2>/dev/null && [[ "$rc" == 0 && "$out" == *"Plugins match lazy-lock.json"* ]] \
+        || { good=false; echo "    restore not run (rc=$rc): $(cat "$work/nvim.args" 2>/dev/null)"; }
+    echo stale > "$h/.config/nvim/stale.lua"
+    out="$(run SYNC_SKIP=claude FAKE_NVIM_RC=1)"; rc=$?
+    [[ "$rc" == 1 && "$out" == *"Plugin restore failed"* ]] || { good=false; echo "    failed restore not reported (rc=$rc)"; }
+    rm -f "$work/nvim.args"
+    echo stale > "$h/.config/nvim/stale.lua"
+    run SYNC_SKIP="claude nvim" >/dev/null
+    [[ ! -e "$work/nvim.args" ]] || { good=false; echo "    restore ran with nvim skipped"; }
+
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
 test_wsl_alacritty_fragment_has_no_user() {
     local desc="alacritty-wsl.toml names no user: sync_to_host writes the syncing user into the Windows config, and sync_here strips exactly that fragment back off"
     local root="$SCRIPTS_DIR/.." work good=true out; work="$(mktemp -d)"
@@ -1332,6 +1410,7 @@ test_install_libraries_steps
 test_install_zsh_tools_installs_delta
 test_local_settings_lib
 test_sync_skip
+test_sync_clears_stale_caches
 test_wsl_alacritty_fragment_has_no_user
 test_starship_session_format_lib
 test_shellcheck_clean

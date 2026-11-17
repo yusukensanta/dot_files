@@ -27,7 +27,9 @@ source "$SCRIPT_DIR/lib/local_settings.sh"
 have() { command -v "$1" &>/dev/null; }
 
 LIBRARIES_STEPS="packages fish mise tpm docker cargo neovim"
-DEFAULT_MISE_RUNTIMES="go java node python ruby rust terraform sbt poetry"
+# coursier: nvim-metals installs and updates Metals (the Scala language
+# server) with it.
+DEFAULT_MISE_RUNTIMES="go java node python ruby rust terraform sbt coursier poetry"
 
 # === SYSTEM PACKAGES ===
 
@@ -160,10 +162,20 @@ install_mise_and_runtimes() {
     || echo 'mise activate fish | source' >> ~/.config/fish/config.fish
 
   # Unset: the default list. Set but empty: no runtimes at all.
-  local runtime
-  for runtime in ${LIBRARIES_MISE_RUNTIMES-$DEFAULT_MISE_RUNTIMES}; do
+  local runtime runtimes="${LIBRARIES_MISE_RUNTIMES-$DEFAULT_MISE_RUNTIMES}"
+  for runtime in $runtimes; do
     mise use --global "${runtime}@latest"
   done
+
+  if in_list rust "$runtimes"; then
+    # mise sets RUSTUP_TOOLCHAIN, which rustup ranks above a project's
+    # rust-toolchain.toml; reading that file makes the project's pin win.
+    mise settings add idiomatic_version_file_enable_tools rust
+    # Editors run the toolchain's own rust-analyzer (see nvim's
+    # rustacean.lua); rust-src lets it resolve std. A project pinned to
+    # another toolchain needs the same command run once inside it.
+    mise exec -- rustup component add rust-analyzer rust-src
+  fi
 }
 
 # Each step runs in a subshell (see run_step), so PATH changes made inside

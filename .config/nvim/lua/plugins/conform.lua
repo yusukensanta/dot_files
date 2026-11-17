@@ -37,7 +37,10 @@ return {
         json = { "biome" },
         jsonc = { "biome" },
 
-        rust = { "rustfmt" }, -- rust-analyzer's own LSP formatting is preferred when attached
+        -- The toolchain's rustfmt (rustup proxy), with the edition read from
+        -- Cargo.toml (workspace-inherited editions included) — the same
+        -- result as `cargo fmt`.
+        rust = { "rustfmt" },
 
         lua = { "stylua" },
         sh = { "shfmt" },

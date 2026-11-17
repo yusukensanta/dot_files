@@ -41,6 +41,9 @@ return {
     },
     config = function()
       require("mason-lspconfig").setup({
+        -- Rust and Scala are absent on purpose: rustaceanvim and nvim-metals
+        -- start their own servers (rust-analyzer from the project's rustup
+        -- toolchain, Metals via coursier).
         ensure_installed = {
           "lua_ls",                   -- Lua LSP
           "basedpyright",             -- Python type checking
@@ -49,8 +52,12 @@ return {
           "golangci_lint_ls",         -- Go linting (golangci-lint)
           "clangd",                   -- C/C++ LSP
           "ts_ls",                    -- TypeScript/JavaScript type checking
-          "rust_analyzer",            -- Rust LSP (fallback if not installed via rustup)
-        }
+        },
+        -- config.lua's setup_servers() enables exactly the servers above.
+        -- Left on, mason-lspconfig would also enable any other server
+        -- Mason has installed, e.g. a rust_analyzer or metals next to the
+        -- one rustaceanvim/nvim-metals already run (two servers per buffer).
+        automatic_enable = false,
       })
 
       local lsp_config = require("plugins.lsp.config")

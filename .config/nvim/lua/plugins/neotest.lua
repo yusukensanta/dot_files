@@ -1,3 +1,6 @@
+-- Scala has no adapter here: metals.lua maps <leader>nr/<leader>nf in Scala
+-- buffers to Metals' Test Explorer, which runs the tests through the build
+-- server Metals already has warm (no second sbt/bloop process to start).
 return {
   {
     "nvim-neotest/neotest",
@@ -5,16 +8,16 @@ return {
       "nvim-neotest/nvim-nio",
       "nvim-lua/plenary.nvim",
       "nvim-treesitter/nvim-treesitter",
-      "stevanmilic/neotest-scala",
+      "mrcjkb/rustaceanvim",
       "nvim-neotest/neotest-python",
       "nvim-neotest/neotest-go",
     },
     config = function()
       require("neotest").setup({
         adapters = {
-          require("neotest-scala")({
-            -- Uses metals BSP to run tests; no extra config needed for standard sbt projects
-          }),
+          -- rustaceanvim's adapter runs tests the way rust-analyzer's
+          -- runnables do (cargo test, or cargo-nextest when installed).
+          require("rustaceanvim.neotest"),
           require("neotest-python")({
             dap = { justMyCode = false },
             runner = "pytest",

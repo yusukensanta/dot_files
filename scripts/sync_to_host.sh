@@ -19,6 +19,10 @@
 # - Anything it would delete or overwrite is moved into a timestamped
 #   backup dir first (see BACKUP_ROOT below), never destroyed outright
 # - Preserves permissions, timestamps, and symbolic links otherwise
+# - Afterwards, for the parts whose content changed, deletes the caches
+#   built from the replaced files (zsh init caches, sheldon's lock, Neovim's
+#   Lua bytecode) and restores Neovim's plugins to the synced lazy-lock.json
+#   — see clear_stale_caches
 # - A missing/failed individual sync is reported and skipped rather than
 #   aborting the whole run; the script still exits non-zero overall if
 #   anything failed (see FAILURES below)
@@ -207,6 +211,107 @@ sync_windows_alacritty() {
     rm -f "$rendered_frag"
 }
 
+# === CACHES BUILT FROM WHAT WAS REPLACED ===
+# rsync -a keeps the repo's mtimes, so a replaced file can be *older* than a
+# cache that was built from the file it replaced, and the mtime checks that
+# guard these caches then keep serving the old content: sheldon relocks only
+# when plugins.toml is newer than plugins.lock, and _dotfiles_cached_source
+# (.config/zsh/00-env.zsh) rebuilds only when its gate is newer than the
+# cache. Everything removed here is derived data that the next shell or
+# Neovim start rebuilds, so it is deleted rather than backed up. Only units
+# whose content actually changes count (note_if_changed), so a sync that
+# replaces nothing costs no cache rebuild.
+
+CHANGED_UNITS=""
+
+# note_if_changed UNIT SRC DEST [RSYNC_OPT...] — run before syncing UNIT:
+# records it in CHANGED_UNITS when DEST's content differs from SRC (a file
+# rsync would send, create or delete; compared by checksum, so a file that
+# only has a different mtime doesn't count). An rsync that can't answer
+# (e.g. openrsync without --itemize-changes) counts as a change.
+note_if_changed() {
+    local unit="$1" src="$2" dest="$3" out
+    shift 3
+    [[ -d "$src" ]] && src="${src%/}/"
+    if out="$(rsync -a --delete --checksum --dry-run --itemize-changes \
+            "${COMMON_EXCLUDES[@]}" ${@+"$@"} "$src" "$dest" 2>/dev/null)" \
+        && ! grep -qE '^(>|c|\*deleting)' <<< "$out"; then
+        return 0
+    fi
+    in_list "$unit" "$CHANGED_UNITS" || CHANGED_UNITS="$CHANGED_UNITS $unit"
+}
+
+unit_changed() { in_list "$1" "$CHANGED_UNITS"; }
+
+# remove_caches DESCRIPTION PATH... — deletes whichever PATHs exist.
+remove_caches() {
+    local what="$1" path found=false
+    shift
+    for path in "$@"; do
+        [[ -e "$path" || -L "$path" ]] || continue
+        if ! $found; then
+            found=true
+            echo ""
+            if $DRY_RUN; then echo "🧹 Would clear the $what cache:"; else echo "🧹 Clearing the $what cache:"; fi
+        fi
+        echo "   $path"
+        if ! $DRY_RUN && ! rm -rf -- "$path"; then
+            echo "   ✗ Could not remove $path"
+            FAILURES=$((FAILURES + 1))
+        fi
+    done
+}
+
+# Brings the installed plugins in line with the lazy-lock.json just synced:
+# restore checks out each plugin's locked commit (a version-range change in
+# a spec only takes effect this way or via :Lazy update), clean removes
+# plugins the spec no longer lists. Runs only where lazy.nvim is already
+# installed; a first Neovim start bootstraps everything from the lockfile
+# anyway.
+restore_nvim_plugins() {
+    local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    command -v nvim >/dev/null 2>&1 || return 0
+    [[ -d "$data_home/nvim/lazy/lazy.nvim" ]] || return 0
+    echo ""
+    if $DRY_RUN; then
+        echo "🔌 Would restore Neovim plugins to lazy-lock.json and remove unused ones"
+        return 0
+    fi
+    echo "🔌 Restoring Neovim plugins to lazy-lock.json and removing unused ones"
+    if nvim --headless "+Lazy! restore" "+Lazy! clean" \
+            "+lua if require('lazy.manage.checker').has_errors() then vim.cmd('cquit 1') end" \
+            +qa >/dev/null 2>&1; then
+        echo "   ✓ Plugins match lazy-lock.json"
+    else
+        echo "   ✗ Plugin restore failed — run :Lazy in Neovim to see which plugin"
+        FAILURES=$((FAILURES + 1))
+    fi
+}
+
+clear_stale_caches() {
+    local cache_home="${XDG_CACHE_HOME:-$HOME/.cache}"
+    local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    # The cached init scripts are keyed on a binary or lock, not on the zsh
+    # files that call them, and the completion dump (in ZDOTDIR, which
+    # .zshrc sets to the zsh dir synced above; rsync leaves it alone via
+    # COMMON_EXCLUDES) only refreshes daily.
+    if unit_changed zsh || unit_changed zshrc; then
+        remove_caches "zsh startup" \
+            "$cache_home"/zsh/{sheldon-source,zoxide-init,starship-init,fzf-init}.zsh \
+            "$HOME"/.config/zsh/.zcompdump*
+    fi
+    if unit_changed sheldon; then
+        remove_caches "sheldon" \
+            "${SHELDON_DATA_DIR:-$data_home/sheldon}/plugins.lock" \
+            "$cache_home/zsh/sheldon-source.zsh"
+    fi
+    if unit_changed nvim; then
+        # vim.loader's byte-compiled copies of the config's Lua modules.
+        remove_caches "Neovim Lua bytecode" "$cache_home/nvim/luac"
+        restore_nvim_plugins
+    fi
+}
+
 # Everything below actually performs the sync, wrapped in main() so this
 # file can also be sourced (e.g. by scripts/tests/) to reuse the functions
 # above — backup_opts_for, manual_backup_if_openrsync, sync_directory,
@@ -228,6 +333,7 @@ confirm_sync "under \$HOME" "in the repo"
 for dir in "${TARGET_DIRS[@]}"; do
     sync_skipped "$dir" && continue
     exclude="$(target_dir_exclude "$dir")"
+    note_if_changed "$dir" "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ${exclude:+"$exclude"}
     sync_directory "$REPO_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir" ${exclude:+"$exclude"}
 done
 
@@ -235,7 +341,10 @@ done
 # already lives inside .config/nvim, which the loop above just synced
 # wholesale; a second pass was pure redundant work (and a second,
 # pointless backup-dir entry).
-sync_skipped zshrc || sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
+if ! sync_skipped zshrc; then
+    note_if_changed zshrc "$REPO_DIR/.zshrc" "$HOME/.zshrc"
+    sync_file "$REPO_DIR/.zshrc" "$HOME/.zshrc" ".zshrc"
+fi
 # ~/.zshenv is shared with whatever else the host keeps there (rustup,
 # employer setup), so only a marked block is merged in — never a whole-file
 # replace. One-way: the repo's .zshenv is the source of truth for the block.
@@ -281,13 +390,17 @@ else
     sync_skipped alacritty || sync_file "$REPO_DIR/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml" "alacritty.toml"
 fi
 
+clear_stale_caches
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if $DRY_RUN; then
     echo "✅ Dry run complete. Run without --dry-run to apply changes."
 elif [[ "$FAILURES" -eq 0 ]]; then
     echo "✅ Sync complete!"
-    [[ -d "$BACKUP_ROOT" ]] && echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
+    # An `if`, not `[[ ]] && echo`: as main()'s last command, a false test
+    # would make a fully successful run (nothing to back up) exit 1.
+    if [[ -d "$BACKUP_ROOT" ]]; then echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"; fi
 else
     echo "⚠️  Sync finished with $FAILURES failed/skipped step(s) — see warnings above."
     [[ -d "$BACKUP_ROOT" ]] && echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"

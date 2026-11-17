@@ -253,7 +253,9 @@ if $DRY_RUN; then
     echo "✅ Dry run complete. Run without --dry-run to apply changes."
 elif [[ "$FAILURES" -eq 0 ]]; then
     echo "✅ Sync complete!"
-    [[ -d "$BACKUP_ROOT" ]] && echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
+    # An `if`, not `[[ ]] && echo`: as main()'s last command, a false test
+    # would make a fully successful run (nothing to back up) exit 1.
+    if [[ -d "$BACKUP_ROOT" ]]; then echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"; fi
 else
     echo "⚠️  Sync finished with $FAILURES failed/skipped step(s) — see warnings above."
     [[ -d "$BACKUP_ROOT" ]] && echo "   Anything deleted/overwritten was backed up to: $BACKUP_ROOT"
