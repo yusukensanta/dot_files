@@ -142,7 +142,7 @@ test_backup_opts_skips_combo_under_openrsync() {
 }
 
 test_backup_opts_still_set_under_gnu_rsync() {
-    local desc="backup_opts_for still sets --backup/--backup-dir on real GNU rsync"
+    local desc="backup_opts_for still sets --backup/--backup-dir on real GNU rsync, with --delete-after (backing up deletions and overwrites at once races on the backup dirs)"
     local work; work="$(mktemp -d)"
 
     local result
@@ -154,13 +154,13 @@ test_backup_opts_still_set_under_gnu_rsync() {
         # shellcheck disable=SC2034  # read by backup_opts_for, sourced above
         BACKUP_ROOT="$work/backup"
         backup_opts_for "x"
-        echo "${#BACKUP_OPTS[@]}"
+        echo "${BACKUP_OPTS[*]}"
     )"
 
-    if [[ "$result" == "2" ]]; then
+    if [[ "$result" == "--backup --backup-dir=$work/backup/x --delete-after" ]]; then
         ok "$desc"
     else
-        fail "$desc (BACKUP_OPTS had $result elements, expected 2)"
+        fail "$desc (BACKUP_OPTS: $result)"
     fi
     rm -rf "$work"
 }

@@ -122,7 +122,13 @@ backup_opts_for() {
     # instead, so --delete keeps working.
     $RSYNC_IS_OPENRSYNC && return
     local safe="${1//[^A-Za-z0-9._\/-]/_}"
-    BACKUP_OPTS=(--backup "--backup-dir=$BACKUP_ROOT/$safe")
+    # --delete-after: with plain --delete, rsync's generator backs up the
+    # files it deletes while its receiver backs up the files it overwrites,
+    # and both create the same backup subdirectories at once; the loser gets
+    # "make_backup(...) failed: File exists", that file is neither deleted
+    # nor backed up, and rsync exits 23. Deleting after the transfer runs
+    # the two one after the other.
+    BACKUP_OPTS=(--backup "--backup-dir=$BACKUP_ROOT/$safe" --delete-after)
 }
 
 # Stands in for rsync's own --backup on openrsync, where that combo breaks
