@@ -40,4 +40,7 @@ lazy.setup(spec, {
   rocks = { enabled = false },
 })
 
-require("helpers.keys").map("n", "<leader>l", lazy.show, "Show lazy.nvim menu")
+-- <leader>L, not <leader>l: <leader>l is the prefix of <leader>lr/<leader>li
+-- (lsp.lua), and a key that is both a mapping and a prefix only fires after
+-- 'timeoutlen'.
+require("helpers.keys").map("n", "<leader>L", lazy.show, "Show lazy.nvim menu")

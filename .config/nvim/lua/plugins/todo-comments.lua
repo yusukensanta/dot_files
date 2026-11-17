@@ -27,9 +27,9 @@ return {
         },
       },
     },
+    -- No ]T/[T jumps: those are Neovim's :tlast/:tfirst. Browse TODOs
+    -- through the lists below instead.
     keys = {
-      { "]T", function() require("todo-comments").jump_next() end, desc = "Todo: next comment" },
-      { "[T", function() require("todo-comments").jump_prev() end, desc = "Todo: prev comment" },
       { "<leader>xt", "<cmd>Trouble todo toggle<cr>", desc = "Trouble: TODO list" },
       { "<leader>tt", "<cmd>TodoFzfLua<cr>", desc = "Fzf: search TODOs" },
     },

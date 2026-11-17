@@ -1,28 +1,15 @@
--- General autocmds, the same for every filetype: trailing whitespace,
--- yank highlight, auto-mkdir, cursor restore (CodingExperience) and
--- autoread (AutoRead). Per-language buffer settings (indent, spell, ...)
--- live in after/ftplugin/<filetype>.lua; formatting is conform's
+-- General autocmds, the same for every filetype: yank highlight,
+-- auto-mkdir, cursor restore (CodingExperience) and autoread (AutoRead).
+-- Per-language buffer settings (indent, spell, ...) live in
+-- after/ftplugin/<filetype>.lua; formatting is conform's
 -- (lua/plugins/conform.lua).
+--
+-- Trailing whitespace is left to the formatters and to Neovim's built-in
+-- EditorConfig support (trim_trailing_whitespace in a project's
+-- .editorconfig), so saving a file never rewrites lines that weren't
+-- touched.
 
 local coding_group = vim.api.nvim_create_augroup("CodingExperience", { clear = true })
-
--- Auto remove trailing whitespace, except in buffers that set
--- vim.b.keep_trailing_whitespace (after/ftplugin/): trailing spaces mean
--- something there, e.g. a hard line break in Markdown or a blank context
--- line in a diff.
-vim.api.nvim_create_autocmd("BufWritePre", {
-  group = coding_group,
-  pattern = "*",
-  callback = function()
-    if not vim.bo.modifiable or vim.b.keep_trailing_whitespace then
-      return
-    end
-
-    local save_cursor = vim.fn.getpos(".")
-    vim.api.nvim_command([[keeppatterns %s/\s\+$//e]])
-    vim.fn.setpos(".", save_cursor)
-  end
-})
 
 vim.api.nvim_create_autocmd("TextYankPost", {
   group = coding_group,
@@ -51,11 +38,25 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   end,
 })
 
+-- Files git reuses for every commit/rebase/merge/tag message: the same path
+-- each time, so the remembered position belongs to an older, unrelated
+-- message.
+local no_restore = {
+  COMMIT_EDITMSG = true,
+  MERGE_MSG = true,
+  TAG_EDITMSG = true,
+  ["git-rebase-todo"] = true,
+}
+
 vim.api.nvim_create_autocmd("BufReadPost", {
   group = coding_group,
   pattern = "*",
-  callback = function()
-    if vim.fn.line("'\"") > 1 and vim.fn.line("'\"") <= vim.fn.line("$") then
+  callback = function(args)
+    if no_restore[vim.fn.fnamemodify(args.file, ":t")] then
+      return
+    end
+    local mark = vim.api.nvim_buf_get_mark(args.buf, '"')
+    if mark[1] > 1 and mark[1] <= vim.api.nvim_buf_line_count(args.buf) then
       vim.cmd('normal! g`"')
     end
   end,

@@ -3,7 +3,8 @@
 -- dependency and its adapter to `opts.adapters` (adapter module name ->
 -- options; `{}` uses the adapter as is). Loaded on the first test keymap.
 -- Scala has no adapter: lang/scala.lua maps the same keys to Metals' Test
--- Explorer in Scala buffers.
+-- Explorer in Scala buffers. Failed-test jumps are ]n/[n, leaving ]t/[t to
+-- Neovim's tag navigation.
 local function neotest(fn)
   return function()
     fn(require("neotest"))
@@ -78,14 +79,14 @@ return {
         desc = "Test - Debug nearest",
       },
       {
-        "[t",
+        "[n",
         neotest(function(n)
           n.jump.prev({ status = "failed" })
         end),
         desc = "Test - Jump prev failed",
       },
       {
-        "]t",
+        "]n",
         neotest(function(n)
           n.jump.next({ status = "failed" })
         end),

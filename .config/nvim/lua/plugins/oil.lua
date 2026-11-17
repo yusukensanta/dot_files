@@ -2,10 +2,8 @@ return {
   {
     "stevearc/oil.nvim",
     dependencies = { "nvim-tree/nvim-web-devicons" },
-    -- On-demand: only its own <space>o keymap opens it. Mirrors the real
-    -- binding config() registers below (lazy.nvim's standard pattern:
-    -- this copy is just the load trigger, replaced by the real one the
-    -- moment config() runs).
+    -- On-demand: only its own <space>o keymap opens it (lazy.nvim sets the
+    -- mapping and loads the plugin on first use).
     keys = {
       { "<space>o", "<cmd>Oil<CR>", desc = "Oil - Open file manager" },
     },
@@ -26,7 +24,7 @@ return {
           ["<C-p>"] = "actions.preview",
           ["<C-c>"] = "actions.close",
           -- Deliberately shadows the global <C-l> "move focus to right
-          -- window" (options.lua) inside Oil buffers only: a listing is
+          -- window" (config/keymaps.lua) inside Oil buffers only: a listing is
           -- normally the sole focus of its window, so refresh is more
           -- useful here than window nav. <space>wl still works as the
           -- fallback window-nav binding if you do need it from Oil.
@@ -50,9 +48,6 @@ return {
           end,
         },
       })
-
-      local map = require("helpers.keys").map
-      map("n", "<space>o", ":Oil<CR>", "Oil - Open file manager")
     end,
   }
 }

@@ -1,17 +1,14 @@
+-- Only settings that differ from Neovim's defaults (`:help nvim-defaults`):
+-- autoread, hlsearch, incsearch, autoindent, inccommand=nosplit,
+-- spelllang=en, ... are already on.
 local options = {
-  autoread = true,
   modeline = false,
   -- Backup and file handling
-  backup = false,                              -- Don't create backup files
-  backupskip = { "/tmp/*" },                   -- Skip backup for these paths
   swapfile = false,                            -- Don't create swap files
   undofile = true,                             -- Enable persistent undo
   writebackup = false,                         -- Don't create backup before overwriting
 
   -- Visual appearance
-  background = "dark", -- Set background theme
-  cmdheight = 1,       -- More room for messages
-  conceallevel = 0,    -- Don't hide characters (markdown, etc.)
   cursorcolumn = true, -- Highlight current column
   cursorline = true,   -- Highlight current line
   list = true,         -- Show invisible characters
@@ -25,7 +22,6 @@ local options = {
     nbsp = '␣'
   },
   number = true, -- Show line numbers
-  numberwidth = 4, -- Width of line number column
   pumborder = "rounded", -- Popup menu border (0.12+)
   pumblend = 5, -- Popup menu transparency
   pumheight = 10, -- Maximum popup menu height
@@ -37,21 +33,15 @@ local options = {
   signcolumn = "yes:1", -- Always show 1-column sign area (stable width for gitsigns + marks.nvim)
   termguicolors = true, -- Enable 24-bit colors
   title = true, -- Set terminal title
-  winblend = 0, -- Window transparency
   wrap = false, -- No wrapping for code
 
   -- Search and completion
   completeopt = { "menu", "menuone", "noselect" }, -- Enhanced completion
-  hlsearch = true,                                            -- Highlight search results
   ignorecase = true,                                          -- Case insensitive search
-  incsearch = true,                                           -- Show search matches as you type
   smartcase = true,                                           -- Smart case sensitivity
-  wildmenu = true,                                            -- Enhanced command line completion
   wildmode = "longest:full,full",                             -- Command completion behavior
-  wildoptions = "pum",                                        -- Use popup for wildmenu
 
   -- Indentation and formatting
-  autoindent = true,  -- Copy indent from current line
   expandtab = true,   -- Use spaces instead of tabs
   shiftround = true,  -- Round indent to multiple of shiftwidth
   shiftwidth = 2,     -- Number of spaces for indentation
@@ -66,8 +56,7 @@ local options = {
 
   updatetime = 250,   -- Faster CursorHold/diagnostics response than the 4000ms default
 
-  -- Encoding and shell
-  fileencoding = "utf-8", -- File encoding
+  -- Shell
   shell = "zsh",          -- Set shell
 
   -- Clipboard
@@ -78,19 +67,15 @@ local options = {
   breakindent = true,  -- Wrapped lines maintain indent level
   --colorcolumn = "120",                    -- Show ruler at 80 and 120 characters
   confirm = true,      -- Confirm before closing unsaved files
-  foldenable = true,   -- Enable folding
   foldlevel = 99,      -- Start with all folds open
   foldlevelstart = 99, -- Start with all folds open
   -- foldmethod / foldexpr / foldtext intentionally omitted:
   -- nvim-ufo (ufo.lua) owns fold management and resets foldmethod to "manual" internally.
   -- Setting foldmethod = "expr" here conflicts with ufo and corrupts the fold column.
-  grepformat = "%f:%l:%c:%m", -- Format for grep output
-  grepprg = "rg --vimgrep", -- Use ripgrep for better search
-  inccommand = "nosplit", -- Show live preview of substitutions
+  grepprg = "rg --vimgrep", -- The default adds -uu (also searches .gitignore'd files)
   laststatus = 3, -- Global statusline
   linebreak = true, -- Wrap at word boundaries
   showbreak = "↪ ", -- Character to show at wrapped lines
-  spelllang = { "en" }, -- Spell checking language
   spelloptions = "camel", -- Better spell checking for code
   virtualedit = "block", -- Allow cursor beyond end of line in visual block
 }

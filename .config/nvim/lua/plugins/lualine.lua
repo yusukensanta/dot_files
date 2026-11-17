@@ -73,11 +73,17 @@ return {
       -- toggle, vim's built-in <C-^>/<C-6> under a more reachable key):
       -- <C-b> is the prefix key for tmux and other terminal multiplexers,
       -- so it never reaches Neovim when running inside one — it would
-      -- silently do nothing. <leader>bn/<leader>bp below don't touch
-      -- Ctrl+anything and work identically everywhere.
+      -- silently do nothing.
+      -- Next/previous buffer stay on Neovim's default ]b/[b, redirected to
+      -- barbar so they follow the order the tabline shows (barbar inserts
+      -- new buffers after the current one; :bnext goes by buffer number).
       local map = require("helpers.keys").map
-      map("n", "<leader>bn", "<cmd>BufferNext<cr>", "Next Buffer")
-      map("n", "<leader>bp", "<cmd>BufferPrevious<cr>", "Previous Buffer")
+      map("n", "]b", function()
+        vim.cmd.BufferNext({ count = vim.v.count1 })
+      end, "Next Buffer")
+      map("n", "[b", function()
+        vim.cmd.BufferPrevious({ count = vim.v.count1 })
+      end, "Previous Buffer")
       map("n", "<leader>bb", "<cmd>BufferPick<cr>", "Pick Buffer")
       map("n", "<leader>bc", "<cmd>BufferClose<cr>", "Close Buffer")
       map("n", "<leader>bl", "<cmd>BufferLast<cr>", "Last Buffer")

@@ -24,10 +24,10 @@ return {
         },
         large_file_cutoff = 5000,
       })
-
-      local map = require("helpers.keys").map
-      map("n", "]]", function() require("illuminate").goto_next_reference(false) end, "Illuminate: next reference")
-      map("n", "[[", function() require("illuminate").goto_prev_reference(false) end, "Illuminate: prev reference")
+      -- Navigation uses the plugin's default keymaps: <M-n>/<M-p> next/prev
+      -- reference, <M-i> reference text object. Not ]]/[[: the ftplugins of
+      -- Python, Go, Rust, Java and Markdown map those buffer-locally, which
+      -- wins over a global map.
     end,
   },
 }

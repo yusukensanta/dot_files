@@ -56,16 +56,13 @@ return {
           end,
 
           on_attach = function(client, bufnr)
-            -- Common LSP keymaps come from the shared LspAttach handler (helpers/lsp.lua)
+            -- Common LSP keymaps come from the shared LspAttach handler
+            -- (helpers/lsp.lua); code actions stay on its <space>ca / gra.
             local map = require("helpers.keys").buffer_map
 
             map("n", "K", function()
               vim.cmd.RustLsp({ "hover", "actions" })
             end, "Rust hover actions", bufnr)
-
-            map("n", "<leader>ca", function()
-              vim.cmd.RustLsp("codeAction")
-            end, "Rust code actions", bufnr)
 
             map("n", "<leader>rr", function()
               vim.cmd.RustLsp("runnables")

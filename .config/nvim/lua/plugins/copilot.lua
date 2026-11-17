@@ -75,7 +75,7 @@ return {
           return require("CopilotChat").toggle()
         end,
         desc = "CopilotChat - Toggle",
-        mode = { "n", "v" },
+        mode = { "n", "x" },
       },
       {
         "<leader>cx",
@@ -83,7 +83,7 @@ return {
           return require("CopilotChat").reset()
         end,
         desc = "CopilotChat - Reset",
-        mode = { "n", "v" },
+        mode = { "n", "x" },
       },
       {
         "<leader>cq",
@@ -97,7 +97,7 @@ return {
           end)
         end,
         desc = "CopilotChat - Quick Chat",
-        mode = { "n", "v" },
+        mode = { "n", "x" },
       },
       {
         "<leader>cp",
@@ -105,7 +105,7 @@ return {
           require("CopilotChat").select_prompt()
         end,
         desc = "CopilotChat - Select Prompt",
-        mode = { "n", "v" },
+        mode = { "n", "x" },
       },
       {
         "<leader>cm",
@@ -113,7 +113,7 @@ return {
           require("CopilotChat").select_model()
         end,
         desc = "CopilotChat - Select Model",
-        mode = { "n", "v" },
+        mode = { "n", "x" },
       }
     },
     config = function(_, opts)

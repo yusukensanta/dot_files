@@ -34,20 +34,11 @@ return {
         ["<C-space>"] = { 'show', 'fallback' },
         ['<C-e>'] = { 'hide', 'fallback' },
       },
-      appearance = {
-        use_nvim_cmp_as_default = true,
-        nerd_font_variant = "mono"
-      },
       sources = {
         default = sources,
         providers = providers,
       },
       completion = {
-        accept = {
-          auto_brackets = {
-            enabled = true,
-          },
-        },
         menu = {
           draw = {
             treesitter = { "lsp" }
@@ -61,10 +52,9 @@ return {
           enabled = true,
         },
       },
-      cmdline = {
-        keymap = { preset = 'inherit' },
-        completion = { menu = { auto_show = true } },
-      }
+      -- cmdline: blink's own defaults (its "cmdline" keymap preset, menu on
+      -- <Tab>). Inheriting the keymap above would put "accept" on <CR>, so
+      -- Enter could accept a menu item instead of running the command.
     }
   },
 }

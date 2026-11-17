@@ -15,6 +15,8 @@ end
 
 vim.cmd.edit(os.getenv("PROBE_FILE"))
 local buf = vim.api.nvim_get_current_buf()
+-- Where the cursor landed on open (after the cursor-restore autocmd).
+out.cursor_line = vim.api.nvim_win_get_cursor(0)[1]
 
 local function client_names()
   local names = {}
@@ -48,7 +50,6 @@ out.expandtab = vim.bo[buf].expandtab
 out.colorcolumn = vim.wo.colorcolumn
 out.spell = vim.wo.spell
 out.format_timeout_ms = vim.b[buf].format_timeout_ms or vim.NIL
-out.keep_trailing_whitespace = vim.b[buf].keep_trailing_whitespace or false
 out.treesitter = vim.treesitter.highlighter.active[buf] ~= nil
 
 local ok, conform = pcall(require, "conform")
@@ -91,6 +92,33 @@ if os.getenv("PROBE_NEOTEST") == "1" then
   table.sort(out.neotest_adapters)
 end
 
+-- With PROBE_KEYMAPS: what each key in the list below is mapped to in this
+-- buffer, after the VeryLazy plugins load ("" when it is not mapped).
+-- Neovim's own default mappings report their own rhs/desc.
+if os.getenv("PROBE_KEYMAPS") == "1" then
+  vim.api.nvim_exec_autocmds("User", { pattern = "VeryLazy" })
+  vim.wait(1000, function()
+    return false
+  end, 100)
+  local keys = {
+    { "s", "<" }, { "s", ">" }, { "s", "," },
+    { "x", "<" }, { "x", "," },
+    { "n", "<Esc>" }, { "n", "<C-T>" }, { "n", "<C-N>" }, { "n", "<C-P>" }, { "n", "L" },
+    { "i", "<M-l>" },
+    { "n", "]t" }, { "n", "[t" }, { "n", "]T" }, { "n", "[T" },
+    { "n", "]n" }, { "n", "[n" }, { "n", "]b" }, { "n", "[b" },
+    { "n", "]]" }, { "n", "[[" }, { "n", "<M-n>" },
+    { "n", ",l" }, { "n", ",L" }, { "n", ",lf" }, { "n", ",ds" }, { "n", ",dd" }, { "n", ",ux" },
+    { "n", ",ca" }, { "n", ",gx" }, { "n", ",gxl" }, { "n", ",hu" },
+    { "x", ",hs" }, { "x", ",cf" }, { "x", "<Space>ca" },
+  }
+  out.maps = {}
+  for _, k in ipairs(keys) do
+    local m = vim.fn.maparg(k[2], k[1], false, true)
+    out.maps[k[1] .. " " .. k[2]] = (m.desc or m.rhs or (m.callback and "<callback>") or "")
+  end
+end
+
 out.loaded = {}
 for name, plugin in pairs(require("lazy.core.config").plugins) do
   if plugin._.loaded then
@@ -98,6 +126,14 @@ for name, plugin in pairs(require("lazy.core.config").plugins) do
   end
 end
 table.sort(out.loaded)
+
+-- With PROBE_CURSOR_TO: leave the buffer with the cursor on that line, so
+-- the ShaDa file written on exit remembers it as the buffer's '" mark.
+local cursor_to = tonumber(os.getenv("PROBE_CURSOR_TO") or "")
+if cursor_to then
+  vim.api.nvim_win_set_cursor(0, { cursor_to, 0 })
+  vim.cmd("silent! enew!")
+end
 
 local f = assert(io.open(os.getenv("PROBE_OUT"), "w"))
 f:write(vim.json.encode(out))

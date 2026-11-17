@@ -75,14 +75,18 @@ expect_file() {
 lang_plugins_is() { echo "[.loaded[] | select(IN(${LANG_PLUGINS}[]))] == ($1 | sort)"; }
 
 s="$WORK/samples"
-mkdir -p "$s"/{txt,py,go,rs/src,ts,tsproj,json,sh,md,yaml,toml,docker,tf,c,scala,diff}
+mkdir -p "$s"/{txt,txtec,py,go,rs/src,ts,tsproj,json,sh,md,yaml,toml,docker,tf,c,scala,diff}
 
 echo "== plain text: nothing language-specific =="
 printf 'hello   \n' > "$s/txt/notes.txt"
 out="$(probe "$s/txt" notes.txt "")"
 expect "no language server attaches" "$out" '.clients == []'
 expect "no language plugin loads" "$out" "$(lang_plugins_is '[]')"
-expect_file "trailing whitespace is stripped" "$s/txt/notes.txt" "hello"
+expect_file "trailing whitespace is kept (no formatter, no .editorconfig)" "$s/txt/notes.txt" "hello   "
+printf 'root = true\n[*]\ntrim_trailing_whitespace = true\n' > "$s/txtec/.editorconfig"
+printf 'hello   \n' > "$s/txtec/notes.txt"
+probe "$s/txtec" notes.txt "" >/dev/null
+expect_file "trailing whitespace is stripped when the project's .editorconfig asks" "$s/txtec/notes.txt" "hello"
 
 echo "== Python =="
 printf 'import sys\nimport os\nimport json\n\ndef f( a,b ):\n    return os.path.join(a,b)\nprint(f(sys.argv[0],"x"))\n' > "$s/py/main.py"
@@ -160,7 +164,7 @@ echo "== Markdown =="
 printf '# Title\n\n* item one\n* item two\n\nhard  \nbreak\n' > "$s/md/t.md"
 out="$(probe "$s/md" t.md "")"
 expect "conform: prettier" "$out" '.formatters == ["prettier"]'
-expect "indent 2, spell on, trailing whitespace kept" "$out" '.shiftwidth == 2 and .spell and .keep_trailing_whitespace'
+expect "indent 2, spell on" "$out" '.shiftwidth == 2 and .spell'
 expect "render-markdown loads, no other language plugin" "$out" "$(lang_plugins_is '["render-markdown.nvim","nvim-ts-autotag"]')"
 expect_file "saved file: formatted, hard line break kept" "$s/md/t.md" "$(printf '# Title\n\n- item one\n- item two\n\nhard  \nbreak')"
 
@@ -204,10 +208,50 @@ printf 'def test_a():\n    assert True\n' > "$s/py/test_a.py"
 out="$(PROBE_NEOTEST=1 probe "$s/py" test_a.py "")"
 expect "Python, Go and Rust adapters" "$out" '.neotest_adapters == (["neotest-python","neotest-go","rustaceanvim"] | sort)'
 
-echo "== diff: trailing whitespace kept =="
+echo "== diff: trailing whitespace kept (no formatter) =="
 printf -- '--- a/x\n+++ b/x\n@@ -1,3 +1,3 @@\n a\n \n-b\n+c\n' > "$s/diff/t.diff"
 out="$(probe "$s/diff" t.diff "")"
 expect_file "a blank context line keeps its space" "$s/diff/t.diff" "$(printf -- '--- a/x\n+++ b/x\n@@ -1,3 +1,3 @@\n a\n \n-b\n+c')"
+
+echo "== keymaps (Python buffer, LSP attached, VeryLazy plugins loaded) =="
+out="$(PROBE_KEYMAPS=1 probe "$s/py" main.py "basedpyright,ruff")"
+expect "Select mode: < > , are typed as text (snippet placeholders)" "$out" \
+    '[.maps["s <"], .maps["s >"], .maps["s ,"]] == ["", "", ""]'
+expect "Visual mode: < reselects, , is the leader" "$out" \
+    '.maps["x <"] == "Indent left and reselect" and (.maps["x ,"] | ascii_downcase) == "<nop>"'
+expect "<Esc> clears the search highlight" "$out" '.maps["n <Esc>"] == "Keymaps - Clear search highlight"'
+expect "<C-t> <C-n> <C-p> L <M-l> are Neovim's own again" "$out" \
+    '[.maps["n <C-T>"], .maps["n <C-N>"], .maps["n <C-P>"], .maps["n L"], .maps["i <M-l>"]] == ["", "", "", "", ""]'
+expect "]t [t ]T [T are Neovim's tag navigation" "$out" \
+    '[.maps["n ]t"], .maps["n [t"], .maps["n ]T"], .maps["n [T"]] | all(test("tnext|tprevious|tlast|trewind"))'
+expect "]n/[n jump between failed tests" "$out" '.maps["n ]n"] == "Test - Jump next failed" and .maps["n [n"] == "Test - Jump prev failed"'
+expect "]b/[b follow barbar's order" "$out" '.maps["n ]b"] == "Next Buffer" and .maps["n [b"] == "Previous Buffer"'
+expect "]]/[[ are the Python ftplugin's; illuminate keeps <M-n>" "$out" \
+    '(.maps["n ]]"] | test("Python_jump")) and (.maps["n [["] | test("Python_jump")) and .maps["n <M-n>"] != ""'
+expect "no key is both a mapping and a prefix (,l ,gx)" "$out" \
+    '.maps["n ,l"] == "" and .maps["n ,gx"] == "" and .maps["n ,L"] == "Show lazy.nvim menu" and .maps["n ,gxl"] == "Git Conflict - List conflicts"'
+expect "removed duplicates: ,lf ,ds ,dd ,ca ,hu" "$out" \
+    '[.maps["n ,lf"], .maps["n ,ds"], .maps["n ,dd"], .maps["n ,ca"], .maps["n ,hu"]] == ["", "", "", "", ""]'
+expect "diagnostics toggle is ,ux" "$out" '.maps["n ,ux"] == "LSP - Toggle Diagnostics"'
+expect "Visual-mode maps: ,hs ,cf <Space>ca" "$out" \
+    '.maps["x ,hs"] != "" and .maps["x ,cf"] == "Format buffer" and .maps["x <Space>ca"] == "LSP - Code Action"'
+
+echo "== cursor restore =="
+# A state dir of its own, so the remembered positions (ShaDa) are neither
+# read from nor written to the user's. The files live outside /tmp: the
+# default 'shada' (r/tmp/) never remembers positions in files there.
+export XDG_STATE_HOME="$WORK/state"
+CURSOR_DIR="$(mktemp -d "${XDG_CACHE_HOME:-$HOME/.cache}/nvim-cursor-test.XXXXXX")"
+trap 'rm -rf "$WORK" "$CURSOR_DIR"' EXIT
+seq 1 10 > "$CURSOR_DIR/notes.txt"
+seq 1 10 > "$CURSOR_DIR/COMMIT_EDITMSG"
+for f in notes.txt COMMIT_EDITMSG; do
+    PROBE_CURSOR_TO=5 probe "$CURSOR_DIR" "$f" "" >/dev/null
+done
+out="$(probe "$CURSOR_DIR" notes.txt "")"
+expect "a file reopens where it was left" "$out" '.cursor_line == 5'
+out="$(probe "$CURSOR_DIR" COMMIT_EDITMSG "")"
+expect "a commit message always opens on line 1" "$out" '.cursor_line == 1'
 
 echo ""
 echo "$PASS passed, $FAIL failed"

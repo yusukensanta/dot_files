@@ -20,7 +20,8 @@ end
 M.set_leader = function(key, localkey)
   vim.g.mapleader = key
   vim.g.maplocalleader = localkey or key
-  M.map({ "n", "v" }, key, "<nop>")
+  -- "x", not "v": Select mode (snippet placeholders) must take the key as text.
+  M.map({ "n", "x" }, key, "<nop>")
 end
 
 return M

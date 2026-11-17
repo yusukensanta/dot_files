@@ -9,29 +9,11 @@ vim.api.nvim_create_autocmd("User", {
   end,
 })
 
-local refresh_timer = nil
-vim.api.nvim_create_autocmd({ "BufWritePost", "BufEnter", "FocusGained", "ShellCmdPost" }, {
-  group = git_augroup,
-  pattern = "*",
-  callback = function()
-    if refresh_timer then
-      vim.fn.timer_stop(refresh_timer)
-    end
-    refresh_timer = vim.fn.timer_start(50, function()
-      if vim.fn.exists(":Gitsigns") > 0 then
-        vim.cmd("Gitsigns refresh")
-      end
-      refresh_timer = nil
-    end)
-  end,
-})
+-- No forced `Gitsigns refresh` on BufEnter/FocusGained: gitsigns watches the
+-- git dir itself and updates its signs on write.
 
 -- Next/prev hunk navigation with diff-mode fallback lives on `]c`/`[c` in the
--- gitsigns plugin spec below (its `keys` table sets expr = true, which this
--- module's plain helpers.keys.map can't do) — removed a duplicate, broken
--- <leader>gj/gk pair that used to live here: without expr = true, returning
--- "]c"/"[c" from the callback was silently discarded, so those bindings did
--- nothing while vim.wo.diff was true.
+-- gitsigns plugin spec below (its `keys` table sets expr = true).
 
 return {
   {
@@ -71,16 +53,18 @@ return {
       },
     },
     keys = {
-      { "<leader>hs", ":Gitsigns stage_hunk<CR>",                       desc = "Gitsigns - Stage hunk" },
-      { "<leader>hr", ":Gitsigns reset_hunk<CR>",                       desc = "Gitsigns - Reset hunk" },
+      -- n and x: in Visual mode the command gets the selected lines as its
+      -- range, staging/resetting only those. stage_hunk on a staged hunk
+      -- unstages it (replaces the deprecated undo_stage_hunk).
+      { "<leader>hs", ":Gitsigns stage_hunk<CR>", mode = { "n", "x" }, desc = "Gitsigns - Stage/unstage hunk" },
+      { "<leader>hr", ":Gitsigns reset_hunk<CR>", mode = { "n", "x" }, desc = "Gitsigns - Reset hunk" },
       { "<leader>hS", ":Gitsigns stage_buffer<CR>",                     desc = "Gitsigns - Stage buffer" },
-      { "<leader>hu", ":Gitsigns undo_stage_hunk<CR>",                  desc = "Gitsigns - Undo stage hunk" },
       { "<leader>hR", ":Gitsigns reset_buffer<CR>",                     desc = "Gitsigns - Reset buffer" },
       { "<leader>hp", ":Gitsigns preview_hunk<CR>",                     desc = "Gitsigns - Preview hunk" },
       { "<leader>hb", ":Gitsigns blame_line<CR>",                       desc = "Gitsigns - Blame line" },
       { "<leader>ht", ":Gitsigns diffthis<CR>",                         desc = "Gitsigns - Diff this" },
       { "<leader>hD", function() require("gitsigns").diffthis("~") end, desc = "Gitsigns - Diff this ~" },
-      { "<leader>hd", ":Gitsigns toggle_deleted<CR>",                   desc = "Gitsigns - Toggle deleted" },
+      { "<leader>hd", ":Gitsigns preview_hunk_inline<CR>",              desc = "Gitsigns - Preview hunk inline" },
       {
         "]c",
         function()
@@ -148,14 +132,10 @@ return {
     event = "BufReadPre",
     config = function()
       require("git-conflict").setup({
-        default_mappings = {
-          ours = "co",
-          theirs = "ct",
-          none = "cn",
-          both = "cb",
-          next = "]x",
-          prev = "[x",
-        },
+        -- Off: the plugin's buffer-local co/ct/cb/c0 shadow the c operator
+        -- (ct{char}, cb, ...) in conflicted buffers. The <leader>gx* and
+        -- ]x/[x keys below cover the same actions.
+        default_mappings = false,
         default_commands = true,
         disable_diagnostics = false,
         list_opener = "copen",
@@ -167,7 +147,7 @@ return {
       })
     end,
     keys = {
-      { "<leader>gx",  "<cmd>GitConflictListQf<cr>",         desc = "Git Conflict - List conflicts" },
+      { "<leader>gxl", "<cmd>GitConflictListQf<cr>",         desc = "Git Conflict - List conflicts" },
       { "<leader>gxo", "<Plug>(git-conflict-ours)",          desc = "Git Conflict - Choose ours" },
       { "<leader>gxt", "<Plug>(git-conflict-theirs)",        desc = "Git Conflict - Choose theirs" },
       { "<leader>gxb", "<Plug>(git-conflict-both)",          desc = "Git Conflict - Choose both" },
@@ -181,8 +161,8 @@ return {
     cmd = "GitLink",
     opts = {},
     keys = {
-      { "<leader>gy", "<cmd>GitLink<cr>",  mode = { "n", "v" }, desc = "GitLinker - Yank git link" },
-      { "<leader>gY", "<cmd>GitLink!<cr>", mode = { "n", "v" }, desc = "GitLinker - Open git link" },
+      { "<leader>gy", "<cmd>GitLink<cr>",  mode = { "n", "x" }, desc = "GitLinker - Yank git link" },
+      { "<leader>gY", "<cmd>GitLink!<cr>", mode = { "n", "x" }, desc = "GitLinker - Open git link" },
     },
   },
 }

@@ -2,16 +2,19 @@
 
 **Leader key**: `,` (comma)
 **Local leader**: `\` (backslash) — buffer/filetype-scoped mappings only (e.g. octo.nvim's PR/issue/review buffers)
-**Neovim version**: 0.12.3
+**Neovim version**: 0.12.6
 
 **Design notes** (why these bindings, not defaults):
-- Leader is `,` not `\` — one-key reach vs pinky-stretch to the corner key. `<space>` is a separate, deliberate namespace (window nav, code actions, diagnostics), not merged with leader. Trade-off: this also nops vim's built-in `,` (repeat last `f`/`F`/`t`/`T`, reversed — the counterpart to `;`) in Normal and Visual mode, with nothing bound in its place. Accepted as worth it for the one-key leader reach; `;` alone (repeat forward) still works.
+- Leader is `,` not `\` — one-key reach vs pinky-stretch to the corner key. `<space>` is a separate, deliberate namespace (window nav, code actions, diagnostics), not merged with leader. Trade-off: this also nops vim's built-in `,` (repeat last `f`/`F`/`t`/`T`, reversed — the counterpart to `;`) in Normal and Visual mode (`x`, not `v`: Select mode, used by snippet placeholders, still types `,`), with nothing bound in its place. Accepted as worth it for the one-key leader reach; `;` alone (repeat forward) still works.
 - Local leader is `\` (the freed-up old leader key) — kept distinct from leader specifically because octo.nvim ships ~80 `<localleader>` mappings scoped to its own buffers, several of which reuse the same 2-char suffix as unrelated global leader bindings (e.g. `ca`, `rr`, `rc`, `nr`, `nd`, `dc`) with completely different meaning. Same prefix for both would make those collide in muscle memory even though they never collide at runtime.
 - No number-row keys used in any shortcut — slower to reach than letter/symbol keys. Git-conflict's "none" action uses `cn`/`,gxn`, not the plugin's default digit-based `c0`.
 - `<C-h/j/k/l>` do direct window-focus switching (1 chord) as the primary bind; `<space>w{h,j,k,l}` kept as a fallback alias.
 - blink.cmp completion nav uses `<C-p>`/`<C-n>` (vim's own native insert-completion convention: p=prev, n=next) — not `<C-l>`/`<C-k>`, which had directions backwards relative to vim's j/k up/down sense.
-- Git conflict-resolution keys live under `,gx*` (alongside the existing `,gx` conflict list), separate from `,gc*` which is commit-only — avoids one prefix meaning two unrelated things.
-- `<C-b>` is never bound to anything (e.g. an alternate-buffer toggle) — it's the prefix key for tmux and other terminal multiplexers, so it never reaches Neovim when running inside one. Buffer next/prev use `,bn`/`,bp` instead (see Buffer Management below), which don't touch Ctrl+anything and work identically everywhere.
+- Git conflict-resolution keys live under `,gx*` (the conflict list is `,gxl`), separate from `,gc*` which is commit-only — avoids one prefix meaning two unrelated things.
+- `<C-b>` is never bound to anything (e.g. an alternate-buffer toggle) — it's the prefix key for tmux and other terminal multiplexers, so it never reaches Neovim when running inside one. Buffer next/prev use Neovim's default `]b`/`[b` instead (see Buffer Management below).
+- Prefer Neovim's defaults to a custom key for the same job: tab pages are `gt`/`gT`/`:tabnew`, tags `<C-]>`/`<C-t>` and `]t`/`[t`/`]T`/`[T`, buffers `]b`/`[b`, signature help `<C-s>` (insert) — none of those keys is rebound to something else. The deliberate exception is `<C-l>` (window nav, above); its default job, clearing the search highlight, moved to `<Esc>`.
+- No key is both a mapping and a prefix of longer mappings (e.g. lazy.nvim is `,L`, not `,l`, because `,lr`/`,li` exist): such a key only fires after `timeoutlen`.
+- Visual-mode mappings use mode `x`, never `v`: `v` also covers Select mode, where a snippet placeholder must take typed characters as text.
 
 ---
 
@@ -32,6 +35,11 @@ These keymaps are provided by Neovim — no config needed.
 | `<C-s>` | i | Signature help (LSP) |
 | `[d` | n | Previous diagnostic |
 | `]d` | n | Next diagnostic |
+| `<C-w>d` | n | Diagnostic float |
+| `<C-]>` / `<C-t>` | n | Go to definition (LSP tagfunc) / back |
+| `]t` / `[t` / `]T` / `[T` | n | Next / prev / last / first tag |
+| `]b` / `[b` | n | Next / prev buffer (redirected to barbar's order, see Buffer Management) |
+| `gt` / `gT` | n | Next / prev tab page |
 | `gcc` | n | Toggle comment line |
 | `gc` | v | Toggle comment selection |
 
@@ -41,9 +49,6 @@ These keymaps are provided by Neovim — no config needed.
 
 | Key | Mode | Action | Source |
 |-----|------|--------|--------|
-| `<C-p>` | n | Tab previous | keymaps.lua |
-| `<C-n>` | n | Tab next | keymaps.lua |
-| `<C-t>` | n | Tab new | keymaps.lua |
 | `<C-Up>` | n | Increase window height | keymaps.lua |
 | `<C-Down>` | n | Decrease window height | keymaps.lua |
 | `<C-Left>` | n | Decrease window width | keymaps.lua |
@@ -52,6 +57,7 @@ These keymaps are provided by Neovim — no config needed.
 | `<C-l>` | n | Move focus to right window (primary) | keymaps.lua |
 | `<C-j>` | n | Move focus to lower window (primary) | keymaps.lua |
 | `<C-k>` | n | Move focus to upper window (primary) | keymaps.lua |
+| `<Esc>` | n | Clear search highlight (the default `<C-l>`'s job) | keymaps.lua |
 | `<space>wh` | n | Move focus to left window (fallback) | keymaps.lua |
 | `<space>wl` | n | Move focus to right window (fallback) | keymaps.lua |
 | `<space>wj` | n | Move focus to lower window (fallback) | keymaps.lua |
@@ -59,9 +65,9 @@ These keymaps are provided by Neovim — no config needed.
 | `<space>e` | n | Show diagnostic float | keymaps.lua |
 | `jj` | i | Exit insert mode | keymaps.lua |
 | `<C-\>` | t | Exit terminal mode | keymaps.lua |
-| `<` | v | Indent left and reselect | keymaps.lua |
-| `>` | v | Indent right and reselect | keymaps.lua |
-| `,l` | n | Show lazy.nvim menu | lazy.lua |
+| `<` | x | Indent left and reselect | keymaps.lua |
+| `>` | x | Indent right and reselect | keymaps.lua |
+| `,L` | n | Show lazy.nvim menu | lazy.lua |
 
 > All of the above are in `lua/config/keymaps.lua`, loaded *after* `config.lazy` sets `mapleader` — this ordering matters: a `<leader>uu`-style mapping registered before `mapleader` is set silently binds to `\uu` instead (Vim expands `<leader>` at registration time, not at keypress time). This bit the config for real before the keymaps.lua split — see `,uu`/`,ud` below.
 
@@ -84,18 +90,14 @@ Custom keymaps that supplement built-in defaults above.
 |-----|------|--------|
 | `gd` | n | Go to definition |
 | `gD` | n | Go to declaration |
-| `L` | n | Signature help |
-| `<M-l>` | i | Signature help (insert) |
-| `<space>ca` | n, v | Code action |
+| `<space>ca` | n, x | Code action |
 | `,rn` | n | Rename symbol |
 | `,wa` | n | Add workspace folder |
 | `,wr` | n | Remove workspace folder |
 | `,wl` | n | List workspace folders |
-| `,ds` | n | Document symbols |
 | `,ws` | n | Workspace symbols |
-| `,lf` | n, v | Format document / selection (LSP) |
 | `,q` | n | Open diagnostic list |
-| `,dd` | n | Toggle diagnostics |
+| `,ux` | n | Toggle diagnostics |
 | `,uh` | n | Toggle inlay hints (on by default where the server provides them) |
 
 ### LSP / Mason
@@ -133,8 +135,8 @@ Custom keymaps that supplement built-in defaults above.
 | `,ns` | n | Toggle test summary panel |
 | `,no` | n | Open test output |
 | `,nd` | n | Debug nearest test (via DAP) |
-| `[t` | n | Jump to prev failed test |
-| `]t` | n | Jump to next failed test |
+| `[n` | n | Jump to prev failed test |
+| `]n` | n | Jump to next failed test |
 
 ---
 
@@ -156,7 +158,6 @@ Custom keymaps that supplement built-in defaults above.
 |-----|------|--------|
 | `K` | n | Hover actions (overrides LSP K) |
 | `J` | n | Join lines (overrides default J) |
-| `,ca` | n | Rust code action |
 | `,rr` | n | Runnables |
 | `,rd` | n | Debuggables |
 | `,re` | n | Expand macro |
@@ -185,7 +186,7 @@ Custom keymaps that supplement built-in defaults above.
 | `,tB` | n | Git branches |
 | `,tr` | n | Resume last search |
 | `,tW` | n | Grep current WORD |
-| `,tv` | v | Grep visual selection |
+| `,tv` | x | Grep visual selection |
 | `,tt` | n | Search TODOs (todo-comments) |
 
 > Inside fzf-lua window: `jj` = close, `<C-c>` = abort
@@ -209,17 +210,16 @@ Custom keymaps that supplement built-in defaults above.
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `,hs` | n | Stage hunk |
-| `,hr` | n | Reset hunk |
+| `,hs` | n, x | Stage hunk, or unstage a staged one (x: selected lines only) |
+| `,hr` | n, x | Reset hunk (x: selected lines only) |
 | `,hS` | n | Stage buffer |
-| `,hu` | n | Undo stage hunk |
 | `,hR` | n | Reset buffer |
 | `,hp` | n | Preview hunk |
 | `,hb` | n | Blame line (current line, virtual text) |
 | `,gbt` | n | Full buffer blame (split) |
 | `,ht` | n | Diff this |
 | `,hD` | n | Diff this `~` |
-| `,hd` | n | Toggle deleted |
+| `,hd` | n | Preview hunk inline |
 | `]c` | n | Next hunk (falls back to native diff `]c` while `vim.wo.diff` is true) |
 | `[c` | n | Prev hunk (falls back to native diff `[c` while `vim.wo.diff` is true) |
 
@@ -236,7 +236,7 @@ Custom keymaps that supplement built-in defaults above.
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `,gx` | n | List all conflicts |
+| `,gxl` | n | List all conflicts |
 | `,gxo` | n | Choose ours |
 | `,gxt` | n | Choose theirs |
 | `,gxb` | n | Choose both |
@@ -244,15 +244,15 @@ Custom keymaps that supplement built-in defaults above.
 | `]x` | n | Next conflict |
 | `[x` | n | Prev conflict |
 
-> Default mappings also active: `co` ours, `ct` theirs, `cn` none, `cb` both
-> (all single-letter keys chosen to avoid the number row — see Design Notes)
+> The plugin's default buffer-local mappings (`co`/`ct`/`cb`/`c0`) are off:
+> they shadow the `c` operator (`ct{char}`, `cb`, ...) in conflicted buffers.
 
 ### GitLinker
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `,gy` | n, v | Yank git permalink |
-| `,gY` | n, v | Open git permalink in browser |
+| `,gy` | n, x | Yank git permalink |
+| `,gY` | n, x | Open git permalink in browser |
 
 ### Octo (GitHub PRs)
 
@@ -273,7 +273,7 @@ Requires `gh` CLI authenticated. Uses fzf-lua as picker.
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `,cf` | n, v | Format buffer (conform) |
+| `,cf` | n, x | Format buffer (conform) |
 
 ---
 
@@ -281,11 +281,11 @@ Requires `gh` CLI authenticated. Uses fzf-lua as picker.
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `,cc` | n, v | CopilotChat toggle |
-| `,cx` | n, v | CopilotChat reset |
-| `,cq` | n, v | Quick chat prompt |
-| `,cp` | n, v | Select prompt template |
-| `,cm` | n, v | Select model |
+| `,cc` | n, x | CopilotChat toggle |
+| `,cx` | n, x | CopilotChat reset |
+| `,cq` | n, x | Quick chat prompt |
+| `,cp` | n, x | Select prompt template |
+| `,cm` | n, x | Select model |
 
 > Inside CopilotChat: `<CR>` submit (n), `<C-s>` submit (i), `q` close (n), `<C-c>` close (i), `<S-Tab>` complete
 
@@ -330,19 +330,23 @@ Requires `gh` CLI authenticated. Uses fzf-lua as picker.
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `]T` | n | Next TODO comment |
-| `[T` | n | Prev TODO comment |
 | `,xt` | n | Trouble: TODO list |
 | `,tt` | n | Fzf: search TODOs |
 
+> No `]T`/`[T` jumps: those keys are Neovim's tag navigation.
+
 ---
 
-## Illuminate (symbol highlighting)
+## Illuminate (symbol highlighting — plugin default bindings)
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `]]` | n | Next reference |
-| `[[` | n | Prev reference |
+| `<M-n>` | n | Next reference |
+| `<M-p>` | n | Prev reference |
+| `<M-i>` | o, x | Reference under cursor (text object) |
+
+> Not `]]`/`[[`: the Python, Go, Rust, Java and Markdown ftplugins map those
+> buffer-locally, which would win over a global mapping.
 
 ---
 
@@ -374,6 +378,8 @@ Requires `gh` CLI authenticated. Uses fzf-lua as picker.
 | `<C-p>` | i | Select previous item |
 | `<C-n>` | i | Select next item |
 | `<CR>` | i | Accept |
+
+> Command line: blink.cmp's own defaults (`<Tab>` shows/inserts, `<C-y>` accepts; `<CR>` always runs the command).
 | `<Tab>` | i | Snippet forward |
 | `<S-Tab>` | i | Snippet backward |
 | `<C-space>` | i | Show completion menu |
@@ -415,8 +421,8 @@ Requires `gh` CLI authenticated. Uses fzf-lua as picker.
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `,bn` | n | Next buffer |
-| `,bp` | n | Previous buffer |
+| `]b` | n | Next buffer (tabline order; takes a count) |
+| `[b` | n | Previous buffer (tabline order; takes a count) |
 | `,bb` | n | Pick buffer |
 | `,bc` | n | Close buffer |
 | `,bl` | n | Last buffer |
@@ -497,7 +503,7 @@ Requires `gh` CLI authenticated. Uses fzf-lua as picker.
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `v + an` | v | Select around node |
-| `v + in` | v | Select inner node |
-| `]n` | n | Jump to next node |
-| `[n` | n | Jump to prev node |
+| `an` | x, o | Select parent (outer) node |
+| `in` | x, o | Select child (inner) node |
+| `]n` | x | Select next node (Normal-mode `]n` is neotest's) |
+| `[n` | x | Select prev node (Normal-mode `[n` is neotest's) |

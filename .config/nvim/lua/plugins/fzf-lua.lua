@@ -12,9 +12,8 @@ return {
     -- that falls back to the plain built-in picker until some fzf-lua
     -- keymap happens to fire first.
     event = "VeryLazy",
-    -- These mirror the real bindings config() registers below (lazy.nvim's
-    -- standard pattern: this copy is just a load trigger, replaced by the
-    -- real one the moment config() runs).
+    -- The bindings themselves: lazy.nvim sets these mappings (with their
+    -- rhs) and loads the plugin on first use if VeryLazy hasn't yet.
     keys = {
       { "<leader>to", function() require("fzf-lua").oldfiles() end, desc = "Fzf - Recently opened" },
       { "<leader>tb", function() require("fzf-lua").buffers() end, desc = "Fzf - Open buffers" },
@@ -32,7 +31,7 @@ return {
       { "<leader>tB", function() require("fzf-lua").git_branches() end, desc = "Fzf - Git branches" },
       { "<leader>tr", function() require("fzf-lua").resume() end, desc = "Fzf - Resume last search" },
       { "<leader>tW", function() require("fzf-lua").grep_cWORD() end, desc = "Fzf - Current WORD" },
-      { "<leader>tv", function() require("fzf-lua").grep_visual() end, mode = "v", desc = "Fzf - Grep visual selection" },
+      { "<leader>tv", function() require("fzf-lua").grep_visual() end, mode = "x", desc = "Fzf - Grep visual selection" },
     },
     config = function()
       local fzf = require("fzf-lua")
@@ -76,29 +75,6 @@ return {
       })
 
       fzf.register_ui_select()
-
-      local map = require("helpers.keys").map
-
-      map("n", "<leader>to", fzf.oldfiles, "Fzf - Recently opened")
-      map("n", "<leader>tb", fzf.buffers, "Fzf - Open buffers")
-      map("n", "<leader>/", fzf.blines, "Fzf - Search in current buffer")
-      map("n", "<leader>tf", fzf.files, "Fzf - Files")
-      map("n", "<leader>th", fzf.help_tags, "Fzf - Help")
-      map("n", "<leader>tw", fzf.grep_cword, "Fzf - Current word")
-      map("n", "<leader>tg", fzf.live_grep, "Fzf - Grep")
-      map("n", "<leader>td", fzf.diagnostics_workspace, "Fzf - Diagnostics")
-      map("n", "<leader>tk", fzf.keymaps, "Fzf - Search keymaps")
-      map("n", "<leader>ts", function()
-        fzf.files({ cwd = vim.fn.expand("%:p:h") })
-      end, "Fzf - Files in buffer directory")
-      map("n", "<leader>tF", fzf.git_files, "Fzf - Git files")
-      map("n", "<leader>tC", fzf.git_commits, "Fzf - Git commits")
-      map("n", "<leader>tS", fzf.git_status, "Fzf - Git status")
-      map("n", "<leader>tB", fzf.git_branches, "Fzf - Git branches")
-
-      map("n", "<leader>tr", fzf.resume, "Fzf - Resume last search")
-      map("n", "<leader>tW", fzf.grep_cWORD, "Fzf - Current WORD")
-      map("v", "<leader>tv", fzf.grep_visual, "Fzf - Grep visual selection")
     end,
   },
 }

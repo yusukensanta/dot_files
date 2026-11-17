@@ -10,17 +10,16 @@ local function set_keymaps(bufnr)
     require("helpers.keys").lsp_map(mode, lhs, rhs, desc, bufnr)
   end
 
-  -- Navigation (gd/gD are custom; gi/gr/go/K/[d/]d removed — 0.12 built-in defaults)
-  -- Built-in defaults: K=hover, grn=rename, grr=references, gra=code_action,
-  --   gri=implementation, grt=type_definition, gO=document_symbol, [d/]d=diagnostics
+  -- Neovim 0.12 built-in defaults cover the rest: K=hover, grn=rename,
+  -- grr=references, gra=code_action, gri=implementation,
+  -- grt=type_definition, gO=document_symbol, [d/]d=diagnostics,
+  -- <C-s> (insert)=signature help, <C-]>/<C-t>=definition via tagfunc.
   map("n", "gd", vim.lsp.buf.definition, "Go to Definition")
   map("n", "gD", vim.lsp.buf.declaration, "Go to Declaration")
 
-  map("n", "L", vim.lsp.buf.signature_help, "Show Signature Help")
-  map("i", "<M-l>", vim.lsp.buf.signature_help, "Show Signature Help (Insert)")
-
-  -- Code actions and refactoring (supplements built-in gra/grn)
-  map({ "n", "v" }, "<space>ca", vim.lsp.buf.code_action, "Code Action")
+  -- Code actions and refactoring (supplements built-in gra/grn).
+  -- Formatting is conform's <leader>cf (lua/plugins/conform.lua).
+  map({ "n", "x" }, "<space>ca", vim.lsp.buf.code_action, "Code Action")
   map("n", "<leader>rn", vim.lsp.buf.rename, "Rename Symbol")
 
   map("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")
@@ -28,17 +27,11 @@ local function set_keymaps(bufnr)
   map("n", "<leader>wl", function()
     print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
   end, "List Workspace Folders")
-
-  -- Document symbols and formatting (supplements built-in gO)
-  map("n", "<leader>ds", vim.lsp.buf.document_symbol, "Document Symbols")
   map("n", "<leader>ws", vim.lsp.buf.workspace_symbol, "Workspace Symbols")
-  map({ "n", "v" }, "<leader>lf", function()
-    vim.lsp.buf.format({ async = true })
-  end, "Format Document/Selection (LSP)")
 
-  -- Diagnostics (supplements built-in [d/]d)
+  -- Diagnostics (supplements built-in [d/]d and <C-w>d)
   map("n", "<leader>q", vim.diagnostic.setloclist, "Open Diagnostic List")
-  map("n", "<leader>dd", function()
+  map("n", "<leader>ux", function()
     vim.diagnostic.enable(not vim.diagnostic.is_enabled())
   end, "Toggle Diagnostics")
 
