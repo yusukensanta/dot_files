@@ -96,6 +96,7 @@ Custom keymaps that supplement built-in defaults above.
 | `,lf` | n, v | Format document / selection (LSP) |
 | `,q` | n | Open diagnostic list |
 | `,dd` | n | Toggle diagnostics |
+| `,uh` | n | Toggle inlay hints (on by default where the server provides them) |
 
 ### LSP / Mason
 
@@ -144,6 +145,8 @@ Custom keymaps that supplement built-in defaults above.
 | `,mc` | n | Metals compile cascade |
 | `,mt` | n | Metals commands palette |
 | `,mi` | n | Toggle implicit arguments |
+| `,nr` | n | Pick a test case and run it (Metals Test Explorer; replaces neotest's key here) |
+| `,nf` | n | Pick a test suite and run it (Metals Test Explorer) |
 
 ---
 

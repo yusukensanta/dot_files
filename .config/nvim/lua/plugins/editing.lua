@@ -46,6 +46,8 @@ return {
   },
   {
     "windwp/nvim-ts-autotag",
+    -- Only filetypes with tags to close/rename.
+    ft = { "html", "xml", "javascriptreact", "typescriptreact", "vue", "svelte", "markdown" },
     config = function()
       require('nvim-ts-autotag').setup()
     end,

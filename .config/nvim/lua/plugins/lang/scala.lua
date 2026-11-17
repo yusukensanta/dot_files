@@ -1,4 +1,7 @@
--- nvim-metals - Scala via Metals
+-- Scala (and Java in sbt/Mill projects): nvim-metals. Metals reports the
+-- compiler's diagnostics, formats with the project's scalafmt (through
+-- conform's LSP fallback), debugs and runs tests. Buffer options:
+-- after/ftplugin/scala.lua.
 --
 -- Metals itself is installed by :MetalsInstall / :MetalsUpdate (latest
 -- stable, bootstrapped with coursier, which install_libraries.sh installs).
@@ -95,6 +98,10 @@ return {
         end,
         group = nvim_metals_group,
       })
-    end
-  }
+    end,
+  },
+  {
+    "nvim-treesitter/nvim-treesitter",
+    opts = { ensure_installed = { "scala", "java" } },
+  },
 }

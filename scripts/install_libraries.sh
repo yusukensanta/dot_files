@@ -172,7 +172,7 @@ install_mise_and_runtimes() {
     # rust-toolchain.toml; reading that file makes the project's pin win.
     mise settings add idiomatic_version_file_enable_tools rust
     # Editors run the toolchain's own rust-analyzer (see nvim's
-    # rustacean.lua); rust-src lets it resolve std. A project pinned to
+    # lua/plugins/lang/rust.lua); rust-src lets it resolve std. A project pinned to
     # another toolchain needs the same command run once inside it.
     mise exec -- rustup component add rust-analyzer rust-src
   fi

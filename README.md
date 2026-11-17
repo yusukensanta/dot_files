@@ -58,7 +58,7 @@ A step that fails (no sudo rights, a blocked download, a package this distro doe
 
 Per-machine choices for the install and sync scripts go in one untracked file, `~/.config/dot_files/install.local.sh` (see [Using this on a work machine](#using-this-on-a-work-machine)).
 
-`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing the rest in steps: `packages` (tmux, neovim, ...), `fish` (+ fisher), `mise` (with several language runtimes; with Rust it also makes mise follow a project's `rust-toolchain.toml` and adds rust-analyzer + rust-src to the toolchain, see [Neovim: Scala and Rust](#neovim-scala-and-rust)), `tpm`, `docker`, `cargo` (a few Rust tools) and `neovim` (its plugins). A step that fails does not stop the others; the failed steps are listed at the end and the exit status is non-zero.
+`install_libraries.sh` supports Ubuntu/Debian (apt) and macOS (Homebrew), installing the rest in steps: `packages` (tmux, neovim, ...), `fish` (+ fisher), `mise` (with several language runtimes; with Rust it also makes mise follow a project's `rust-toolchain.toml` and adds rust-analyzer + rust-src to the toolchain, see [Neovim: languages](#neovim-languages)), `tpm`, `docker`, `cargo` (a few Rust tools) and `neovim` (its plugins). A step that fails does not stop the others; the failed steps are listed at the end and the exit status is non-zero.
 
 ## zsh startup time
 
@@ -210,12 +210,50 @@ only ever reads the `statusLine` key out of `settings.json`. Requires `jq`.
 This repo is public: keep anything private (tokens, internal hostnames,
 employer details) out of `claude/CLAUDE.md`.
 
-## Neovim: Scala and Rust
+## Neovim: languages
+
+The config separates the shared editor from the languages:
+
+- **Shared core:** `lua/plugins/{lsp,conform,treesitter,dap,neotest}.lua`.
+  These plugins do the work, but name no language.
+- **One file per language:** `lua/plugins/lang/<language>.lua` adds that
+  language's servers, formatters, parsers, Mason packages, debugger and test
+  adapter to the core through lazy.nvim `opts`. A plugin that serves only one
+  language (rustaceanvim, nvim-metals, nvim-dap-python, ...) loads only for
+  that language's filetype.
+- **Buffer settings:** `after/ftplugin/<filetype>.lua` holds indent, spell,
+  the formatter timeout and similar settings. Neovim runs these files only
+  for that filetype, which it detects from the file's extension.
+
+So a file starts only the servers and plugins of its own language. A plain
+text file starts none.
+
+| Language | Server(s) | Formats on save | Lint |
+|---|---|---|---|
+| Python | basedpyright, ruff | Ruff: organize imports, format | Ruff |
+| Go | gopls, golangci-lint-langserver | goimports, gofumpt | golangci-lint |
+| Rust | rust-analyzer (rustaceanvim) | rustfmt | clippy |
+| Scala, Java | Metals (nvim-metals) | scalafmt via Metals | compiler |
+| Lua | lua_ls (+ lazydev) | stylua | lua_ls |
+| JS/TS, JSON | ts_ls | Biome | — |
+| C/C++ | clangd | clang-format via clangd | clang-tidy |
+| Shell | bash-language-server | shfmt | ShellCheck |
+| Markdown | — | Prettier | — |
+| YAML | yaml-language-server | Prettier | schema validation |
+| TOML | Taplo | Taplo | Taplo |
+| Dockerfile | dockerfile-language-server | — | the server |
+| Terraform | terraform-ls | `terraform fmt` | terraform-ls |
+
+Formatters follow the project's own config when it has one (`pyproject.toml`
+/ `ruff.toml`, `biome.json`, `.editorconfig` for shfmt, `.prettierrc`,
+`stylua.toml`, `.scalafmt.conf`, `.clang-format`). Without one, they use this
+config's defaults. `scripts/tests/test_nvim_config.sh` checks all of the above
+in headless Neovim on a machine with the plugins installed.
 
 Each language server comes from the same toolchain the project builds with,
 so the editor and `sbt`/`cargo` agree on compiler and library versions.
 
-**Rust** (`lua/plugins/rustacean.lua`, rustaceanvim). rust-analyzer is the one
+**Rust** (`lua/plugins/lang/rust.lua`, rustaceanvim). rust-analyzer is the one
 in the project's rustup toolchain, never Mason's. That keeps the server, its
 proc-macro server and the std sources (`rust-src`) on the same version as the
 compiler the project pins in `rust-toolchain.toml`. Two settings make that hold,
@@ -234,7 +272,7 @@ CI running the same command agree. It builds into `target/rust-analyzer/`, so it
 never waits on, or invalidates, a `cargo build` running in a terminal.
 `<leader>n…` runs tests through neotest (`cargo nextest` when installed).
 
-**Scala** (`lua/plugins/metals.lua`, nvim-metals). Metals is installed by
+**Scala** (`lua/plugins/lang/scala.lua`, nvim-metals). Metals is installed by
 `:MetalsInstall` with coursier (a mise runtime here) and runs on the project's
 `JAVA_HOME`.
 

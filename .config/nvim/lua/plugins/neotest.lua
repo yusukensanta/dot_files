@@ -1,6 +1,15 @@
--- Scala has no adapter here: metals.lua maps <leader>nr/<leader>nf in Scala
--- buffers to Metals' Test Explorer, which runs the tests through the build
--- server Metals already has warm (no second sbt/bloop process to start).
+-- Test-running core, shared by every language. It names no language
+-- itself: each lua/plugins/lang/<language>.lua adds its adapter plugin as a
+-- dependency and its adapter to `opts.adapters` (adapter module name ->
+-- options; `{}` uses the adapter as is). Loaded on the first test keymap.
+-- Scala has no adapter: lang/scala.lua maps the same keys to Metals' Test
+-- Explorer in Scala buffers.
+local function neotest(fn)
+  return function()
+    fn(require("neotest"))
+  end
+end
+
 return {
   {
     "nvim-neotest/neotest",
@@ -8,36 +17,80 @@ return {
       "nvim-neotest/nvim-nio",
       "nvim-lua/plenary.nvim",
       "nvim-treesitter/nvim-treesitter",
-      "mrcjkb/rustaceanvim",
-      "nvim-neotest/neotest-python",
-      "nvim-neotest/neotest-go",
     },
-    config = function()
-      require("neotest").setup({
-        adapters = {
-          -- rustaceanvim's adapter runs tests the way rust-analyzer's
-          -- runnables do (cargo test, or cargo-nextest when installed).
-          require("rustaceanvim.neotest"),
-          require("neotest-python")({
-            dap = { justMyCode = false },
-            runner = "pytest",
-          }),
-          require("neotest-go")({
-            experimental = { test_table = true },
-          }),
-        },
-        output = { open_on_run = true },
-        summary = { animated = true },
-      })
-
-      local map = require("helpers.keys").map
-      map("n", "<leader>nr", function() require("neotest").run.run() end, "Test - Run nearest")
-      map("n", "<leader>nf", function() require("neotest").run.run(vim.fn.expand("%")) end, "Test - Run file")
-      map("n", "<leader>ns", function() require("neotest").summary.toggle() end, "Test - Toggle summary")
-      map("n", "<leader>no", function() require("neotest").output.open({ enter = true }) end, "Test - Open output")
-      map("n", "<leader>nd", function() require("neotest").run.run({ strategy = "dap" }) end, "Test - Debug nearest")
-      map("n", "[t", function() require("neotest").jump.prev({ status = "failed" }) end, "Test - Jump prev failed")
-      map("n", "]t", function() require("neotest").jump.next({ status = "failed" }) end, "Test - Jump next failed")
+    opts = {
+      ---@type table<string, table|false>
+      adapters = {},
+      output = { open_on_run = true },
+      summary = { animated = true },
+    },
+    config = function(_, opts)
+      local adapters = {}
+      for name, adapter_opts in pairs(opts.adapters) do
+        if adapter_opts then
+          local adapter = require(name)
+          -- Adapters such as neotest-python are factories taking options;
+          -- others (rustaceanvim.neotest) are the adapter itself.
+          local mt = getmetatable(adapter)
+          if next(adapter_opts) or (mt and mt.__call and not adapter.name) then
+            adapter = adapter(adapter_opts)
+          end
+          adapters[#adapters + 1] = adapter
+        end
+      end
+      opts.adapters = adapters
+      require("neotest").setup(opts)
     end,
+    keys = {
+      {
+        "<leader>nr",
+        neotest(function(n)
+          n.run.run()
+        end),
+        desc = "Test - Run nearest",
+      },
+      {
+        "<leader>nf",
+        neotest(function(n)
+          n.run.run(vim.fn.expand("%"))
+        end),
+        desc = "Test - Run file",
+      },
+      {
+        "<leader>ns",
+        neotest(function(n)
+          n.summary.toggle()
+        end),
+        desc = "Test - Toggle summary",
+      },
+      {
+        "<leader>no",
+        neotest(function(n)
+          n.output.open({ enter = true })
+        end),
+        desc = "Test - Open output",
+      },
+      {
+        "<leader>nd",
+        neotest(function(n)
+          n.run.run({ strategy = "dap" })
+        end),
+        desc = "Test - Debug nearest",
+      },
+      {
+        "[t",
+        neotest(function(n)
+          n.jump.prev({ status = "failed" })
+        end),
+        desc = "Test - Jump prev failed",
+      },
+      {
+        "]t",
+        neotest(function(n)
+          n.jump.next({ status = "failed" })
+        end),
+        desc = "Test - Jump next failed",
+      },
+    },
   },
 }

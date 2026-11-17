@@ -129,31 +129,19 @@ end
 
 
 
--- Global diagnostic display config.
--- Python's ty/ruff/basedpyright source tagging is folded in here (scoped by
--- diagnostic.bufnr's filetype) instead of a separate FileType python
--- vim.diagnostic.config() call, since diagnostic.config() has no buffer
--- scoping and would otherwise deep-merge into (and permanently mutate) this
--- global config for every filetype once any Python file was opened.
+-- Global diagnostic display config. vim.diagnostic.config() has no buffer
+-- scope, so per-language labels come from a buffer variable instead:
+-- an after/ftplugin/ file sets vim.b.diagnostic_source_tags = { [source] =
+-- "[TAG] " } (see after/ftplugin/python.lua) and the message is prefixed
+-- with the tag of its source.
 vim.diagnostic.config({
   virtual_text = {
     prefix = "●",
     source = "if_many",
     format = function(diagnostic)
-      local bufnr = diagnostic.bufnr
-      if bufnr and vim.bo[bufnr].filetype == "python" then
-        local source = diagnostic.source or "[N/A]"
-        local tag = ""
-        if source == "ty" then
-          tag = "[TYPE] "
-        elseif source == "ruff" then
-          tag = "[LINT] "
-        elseif source == "basedpyright" then
-          tag = "[COMP] "
-        end
-        return tag .. diagnostic.message
-      end
-      return diagnostic.message
+      local tags = diagnostic.bufnr and vim.b[diagnostic.bufnr].diagnostic_source_tags
+      local tag = tags and diagnostic.source and tags[diagnostic.source] or ""
+      return tag .. diagnostic.message
     end,
   },
   signs = {
@@ -169,11 +157,7 @@ vim.diagnostic.config({
   update_in_insert = false,
 })
 
--- Filetype detection for types Neovim doesn't know by default
-vim.filetype.add({
-  extension = { gotmpl = "gotmpl" },
-  pattern = { [".*%.tmpl"] = "gotmpl" },
-})
+-- Filetypes Neovim doesn't know by default are added in ftdetect/.
 
 -- General keymaps and autocmds intentionally live elsewhere, not here:
 -- see config/keymaps.lua and config/autocmds.lua respectively.

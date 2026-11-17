@@ -28,7 +28,10 @@ end
 -- plugins on one machine. lazy merges specs by plugin name. Imported only
 -- when the directory exists: lazy raises "No specs found" for an empty or
 -- missing module, which is the normal state on a fresh machine.
-local spec = { { import = "plugins" } }
+-- plugins/ holds the shared plugins (LSP, formatting, treesitter, DAP,
+-- tests, editing, UI); plugins/lang/ one file per language, which adds that
+-- language's servers, formatters, parsers and tools to the shared plugins.
+local spec = { { import = "plugins" }, { import = "plugins.lang" } }
 if vim.uv.fs_stat(vim.fn.stdpath("config") .. "/lua/local/plugins") then
   table.insert(spec, { import = "local.plugins" })
 end

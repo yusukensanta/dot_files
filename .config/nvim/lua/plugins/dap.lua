@@ -1,23 +1,25 @@
+-- Debugging core, shared by every language: nvim-dap, its UI and keymaps.
+-- It names no language itself — each lua/plugins/lang/<language>.lua brings
+-- its own adapter (nvim-dap-python, nvim-dap-go, rustaceanvim, nvim-metals)
+-- and loads it only for that language's files; their debug adapters are
+-- installed through mason-tool-installer (see lsp.lua).
+local function dap(fn, ...)
+  local args = { ... }
+  return function()
+    require("dap")[fn](unpack(args))
+  end
+end
+
 return {
   {
     "mfussenegger/nvim-dap",
     dependencies = {
       "rcarriga/nvim-dap-ui",
-      "mfussenegger/nvim-dap-python",
-      "leoluz/nvim-dap-go",
       "theHamsta/nvim-dap-virtual-text",
       "nvim-neotest/nvim-nio",
-      "jay-babu/mason-nvim-dap.nvim",
     },
     config = function()
-      local dap = require("dap")
       local dapui = require("dapui")
-
-      require("mason-nvim-dap").setup({
-        ensure_installed = { "debugpy", "delve", "codelldb" },
-        automatic_installation = true,
-      })
-
       dapui.setup()
 
       require("nvim-dap-virtual-text").setup({
@@ -31,40 +33,48 @@ return {
         all_references = false,
         clear_on_continue = false,
         display_callback = function(variable, buf, stackframe, node, options)
-          if options.virt_text_pos == 'inline' then
-            return ' = ' .. variable.value
+          if options.virt_text_pos == "inline" then
+            return " = " .. variable.value
           else
-            return variable.name .. ' = ' .. variable.value
+            return variable.name .. " = " .. variable.value
           end
         end,
-        virt_text_pos = 'inline',
+        virt_text_pos = "inline",
       })
 
-      require("dap-python").setup(vim.fn.stdpath("data") .. "/mason/packages/debugpy/venv/bin/python")
-      require("dap-go").setup()
-
-      dap.listeners.after.event_initialized["dapui_config"] = function()
-        dapui.open()
-      end
-      dap.listeners.before.event_terminated["dapui_config"] = function()
-        dapui.close()
-      end
-      dap.listeners.before.event_exited["dapui_config"] = function()
-        dapui.close()
-      end
-
-      local map = require("helpers.keys").map
-      map("n", "<leader>db", dap.toggle_breakpoint, "DAP - Toggle Breakpoint")
-      map("n", "<leader>dc", dap.continue, "DAP - Continue")
-      map("n", "<leader>dv", dap.step_over, "DAP - Step Over")
-      map("n", "<leader>di", dap.step_into, "DAP - Step Into")
-      map("n", "<leader>do", dap.step_out, "DAP - Step Out")
-      map("n", "<leader>dr", dap.repl.open, "DAP - Open REPL")
-      map("n", "<leader>du", dapui.toggle, "DAP - Toggle UI")
-      map("n", "<leader>dt", dap.terminate, "DAP - Terminate")
-      map("n", "<leader>dB", function()
-        dap.set_breakpoint(vim.fn.input('Breakpoint condition: '))
-      end, "DAP - Conditional Breakpoint")
+      local listeners = require("dap").listeners
+      listeners.after.event_initialized["dapui_config"] = dapui.open
+      listeners.before.event_terminated["dapui_config"] = dapui.close
+      listeners.before.event_exited["dapui_config"] = dapui.close
     end,
-  }
+    keys = {
+      { "<leader>db", dap("toggle_breakpoint"), desc = "DAP - Toggle Breakpoint" },
+      { "<leader>dc", dap("continue"), desc = "DAP - Continue" },
+      { "<leader>dv", dap("step_over"), desc = "DAP - Step Over" },
+      { "<leader>di", dap("step_into"), desc = "DAP - Step Into" },
+      { "<leader>do", dap("step_out"), desc = "DAP - Step Out" },
+      {
+        "<leader>dr",
+        function()
+          require("dap").repl.open()
+        end,
+        desc = "DAP - Open REPL",
+      },
+      {
+        "<leader>du",
+        function()
+          require("dapui").toggle()
+        end,
+        desc = "DAP - Toggle UI",
+      },
+      { "<leader>dt", dap("terminate"), desc = "DAP - Terminate" },
+      {
+        "<leader>dB",
+        function()
+          require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: "))
+        end,
+        desc = "DAP - Conditional Breakpoint",
+      },
+    },
+  },
 }

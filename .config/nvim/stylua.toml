@@ -1,0 +1,5 @@
+# Formats this Neovim config (conform runs stylua on save; it finds this
+# file by searching up from the edited file). Matches the existing style.
+indent_type = "Spaces"
+indent_width = 2
+column_width = 120

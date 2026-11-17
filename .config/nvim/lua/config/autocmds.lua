@@ -1,162 +1,20 @@
--- General autocmds, grouped by concern: per-filetype indent settings
--- (LanguageOptions), biome format-on-save (BiomeFormat), trailing
--- whitespace/yank-highlight/auto-mkdir/cursor-restore (CodingExperience),
--- and autoread (AutoRead).
-local language_group = vim.api.nvim_create_augroup("LanguageOptions", { clear = true })
-
--- Resolve biome binary: project-local > global > pinned npx fallback.
--- See helpers/biome.lua for the shared logic (also used by conform.lua) and
--- the missing-guard note about executing a project-local binary unprompted.
-local biome_helper = require("helpers.biome")
-local function resolve_biome_cmd()
-  local cmd = { biome_helper.resolve_command() }
-  if not biome_helper.has_local() then
-    vim.list_extend(cmd, biome_helper.npx_bootstrap_args())
-  end
-  return cmd
-end
-
-local biome_group = vim.api.nvim_create_augroup("BiomeFormat", { clear = true })
-vim.api.nvim_create_autocmd("BufWritePre", {
-  group = biome_group,
-  pattern = { "*.js", "*.jsx", "*.ts", "*.tsx", "*.json", "*.jsonc" },
-  callback = function()
-    local bufnr = vim.api.nvim_get_current_buf()
-    if not vim.bo[bufnr].modifiable then
-      return
-    end
-
-    local view = vim.fn.winsaveview()
-
-    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    local content = table.concat(lines, "\n")
-
-    local filename = vim.fn.expand("%:p")
-    local config_path = vim.fn.expand("~/.config/nvim")
-    local cmd = resolve_biome_cmd()
-    vim.list_extend(cmd, { "format", "--stdin-file-path", filename, "--config-path", config_path })
-
-    local result = vim.system(cmd, {
-      stdin = content,
-      text = true,
-      timeout = 5000,
-    }):wait()
-
-    if result.code == 0 and result.stdout and result.stdout ~= "" then
-      local formatted_lines = vim.split(result.stdout, "\n")
-
-      if formatted_lines[#formatted_lines] == "" and lines[#lines] ~= "" then
-        table.remove(formatted_lines)
-      end
-
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, formatted_lines)
-      vim.fn.winrestview(view)
-    elseif result.code ~= 0 then
-      -- Notify on any failure, not just ones whose stderr happens to
-      -- contain the literal substring "error" — a timeout (5000ms above)
-      -- or an npx download failure, for instance, wouldn't necessarily
-      -- match that and would otherwise save the buffer unformatted with
-      -- no indication why.
-      local msg = (result.stderr and result.stderr ~= "") and result.stderr
-        or ("biome exited with code " .. tostring(result.code))
-      vim.notify("Biome formatting failed:\n" .. msg, vim.log.levels.ERROR)
-    end
-  end,
-})
-vim.api.nvim_create_autocmd("FileType", {
-  group = language_group,
-  pattern = {
-    "javascript",
-    "typescript",
-    "typescriptreact",
-    "typescript.tsx",
-    "html",
-    "css",
-    "scss",
-    "less",
-    "json",
-    "yaml",
-    "markdown",
-    "lua",
-    "vim",
-    "xml",
-    "ruby",
-    "c",
-    "cpp",
-  },
-  callback = function()
-    vim.opt_local.shiftwidth = 2
-    vim.opt_local.tabstop = 2
-    vim.opt_local.expandtab = true
-  end,
-})
-
-vim.api.nvim_create_autocmd("FileType", {
-  group = language_group,
-  pattern = {
-    "python",
-    "java",
-    "bash",
-    "sh",
-    "zsh",
-    "rust",
-  },
-  callback = function()
-    vim.opt_local.shiftwidth = 4
-    vim.opt_local.tabstop = 4
-    vim.opt_local.expandtab = true
-  end,
-})
-
-vim.api.nvim_create_autocmd("FileType", {
-  group = language_group,
-  pattern = {
-    "go",
-    "gomod",
-    "gosum",
-  },
-  callback = function()
-    vim.opt_local.shiftwidth = 4
-    vim.opt_local.tabstop = 4
-    vim.opt_local.expandtab = false
-  end,
-})
-
-vim.api.nvim_create_autocmd("FileType", {
-  group = language_group,
-  pattern = "python",
-  callback = function()
-    vim.opt_local.colorcolumn = "79" -- PEP 8 line length
-  end,
-})
-
--- Python source tagging (ty/ruff/basedpyright) lives in the global
--- vim.diagnostic.config() call in options.lua — see comment there for why.
-
-vim.api.nvim_create_autocmd("FileType", {
-  group = language_group,
-  pattern = { "markdown", "text", "gitcommit" },
-  callback = function()
-    vim.opt_local.spell = true
-    vim.opt_local.wrap = true
-    vim.opt_local.linebreak = true
-  end,
-})
+-- General autocmds, the same for every filetype: trailing whitespace,
+-- yank highlight, auto-mkdir, cursor restore (CodingExperience) and
+-- autoread (AutoRead). Per-language buffer settings (indent, spell, ...)
+-- live in after/ftplugin/<filetype>.lua; formatting is conform's
+-- (lua/plugins/conform.lua).
 
 local coding_group = vim.api.nvim_create_augroup("CodingExperience", { clear = true })
 
--- Auto remove trailing whitespace. Markdown excluded: a line ending in two
--- or more trailing spaces is a hard line break there, not incidental
--- whitespace, and this would silently destroy it on every save.
+-- Auto remove trailing whitespace, except in buffers that set
+-- vim.b.keep_trailing_whitespace (after/ftplugin/): trailing spaces mean
+-- something there, e.g. a hard line break in Markdown or a blank context
+-- line in a diff.
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = coding_group,
   pattern = "*",
   callback = function()
-    if not vim.bo.modifiable then
-      return
-    end
-
-    if vim.bo.filetype == "markdown" then
+    if not vim.bo.modifiable or vim.b.keep_trailing_whitespace then
       return
     end
 
