@@ -1178,6 +1178,10 @@ test_managed_block_merge() {
     printf 'KEEP=1\n' > "$dest"; before="$(cksum < "$dest")"
     m "DRY_RUN=true;" >/dev/null
     [[ "$(cksum < "$dest")" == "$before" ]] || { good=false; echo "    dry-run modified the file"; }
+    # Each m is a new shell, so each run's BACKUP_ROOT is stamped to the
+    # second: once the steps above cross a second, their backups sit in other
+    # directories, and the find below could pick one of those. Start clean.
+    rm -rf "$work/home/.dotfiles-sync-backup"
     m >/dev/null
     local bk; bk="$(find "$work/home/.dotfiles-sync-backup" -path '*managed_block*' -name .zshenv 2>/dev/null | head -1)"
     [[ -n "$bk" && "$(<"$bk")" == "KEEP=1" ]] || { good=false; echo "    backup missing/wrong"; }

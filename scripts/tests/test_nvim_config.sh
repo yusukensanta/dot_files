@@ -38,10 +38,16 @@ rm -rf "$WORK/config/nvim/lua/local"
 # Plugins that belong to one language and must load only for it.
 LANG_PLUGINS='["rustaceanvim","nvim-metals","nvim-dap-python","nvim-dap-go","lazydev.nvim","render-markdown.nvim","nvim-ts-autotag","neotest","nvim-dap"]'
 
+# The probe points XDG_CONFIG_HOME at the copy above, which would also hide
+# mise's global config: a tool reached through a mise shim (goimports runs
+# `go`) then fails with "No version is set for shim". Keep mise on the real one.
+MISE_DIR="${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/mise}"
+
 # probe DIR FILE CLIENTS — opens DIR/FILE, saves it, prints the probe JSON.
 probe() {
     rm -f "$WORK/out.json"
-    (cd "$1" && XDG_CONFIG_HOME="$WORK/config" PROBE_FILE="$2" PROBE_CLIENTS="$3" PROBE_SAVE=1 \
+    (cd "$1" && XDG_CONFIG_HOME="$WORK/config" MISE_CONFIG_DIR="$MISE_DIR" \
+        PROBE_FILE="$2" PROBE_CLIENTS="$3" PROBE_SAVE=1 \
         PROBE_OUT="$WORK/out.json" timeout 180 nvim --headless -c "luafile $TESTS_DIR/nvim_probe.lua" \
         >/dev/null 2>&1)
     cat "$WORK/out.json" 2>/dev/null || echo '{}'
