@@ -1068,6 +1068,46 @@ test_claude_statusline_shows_effort() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
+test_claude_statusline_cache_hint() {
+    local desc="statusline-command.sh: suggests /compact while the cache is warm and the context is large (\"now\" under 5 min left), /clear? once cold and large, nothing otherwise"
+    local script="$SCRIPTS_DIR/../claude/statusline-command.sh" good=true work now
+    work="$(mktemp -d)"
+    now="$(date +%s)"
+    render() { HOME="$work" XDG_CACHE_HOME="$work/cache" bash "$script" <<< "$1" | tail -1 | sed $'s/\033\\[[0-9;]*m//g'; }
+    # input JSON with the given prompt_cache object and total_input_tokens value
+    json() {
+        printf '{"model":{"display_name":"M"},"workspace":{"current_dir":"%s"},"context_window":{"total_input_tokens":%s}%s}' \
+            "$work" "$2" "${1:+,\"prompt_cache\":$1}"
+    }
+    # expect DESC PROMPT_CACHE TOKENS WANT: WANT is the hint expected on line 2, "" for none
+    expect() {
+        local plain; plain="$(render "$(json "$2" "$3")")"
+        if [[ -z "$4" ]]; then
+            [[ "$plain" != *"→"* ]] || { good=false; echo "    $1: unexpected hint: $plain"; }
+        else
+            [[ "$plain" == *" $4" || "$plain" == *" $4 │"* ]] || { good=false; echo "    $1: want '$4': $plain"; }
+        fi
+    }
+    local warm30='{"warm":true,"expires_at":'$((now + 1800))'}'
+    local warm2='{"warm":true,"expires_at":'$((now + 120))'}'
+    local cold='{"warm":false,"expires_at":null}'
+    expect "warm, small context"         "$warm30" 100000 ""
+    expect "warm, just under threshold"  "$warm30" 149999 ""
+    expect "warm, at threshold"          "$warm30" 150000 "→/compact"
+    expect "warm, large context"         "$warm30" 400000 "→/compact"
+    expect "warm, expiring, large"       "$warm2"  400000 "→/compact now"
+    expect "warm, expiring, small"       "$warm2"  100000 ""
+    expect "warm, no expires_at"         '{"warm":true}' 400000 "→/compact"
+    expect "cold, small context"         "$cold" 49999 ""
+    expect "cold, at threshold"          "$cold" 50000 "→/clear?"
+    expect "cold, large context"         "$cold" 400000 "→/clear?"
+    expect "no prompt_cache yet"         ""      400000 ""
+    expect "tokens not a number"         "$warm30" '"lots"' ""
+    expect "tokens null (after compact)" "$cold" null ""
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
 test_claude_repo_files_publishable() {
     local desc="claude/ files exist, are not gitignored, contain no obvious secrets, and the fragment holds only statusLine"
     local root="$SCRIPTS_DIR/.." good=true f
@@ -1423,6 +1463,7 @@ test_claude_statusline_merge
 test_claude_statusline_extract
 test_claude_sync_round_trip
 test_claude_statusline_shows_effort
+test_claude_statusline_cache_hint
 test_claude_repo_files_publishable
 test_portfolio_opt_out
 test_managed_block_merge

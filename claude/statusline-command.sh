@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code statusLine command
 # Line 1: hostname | directory | git branch / PR | time
-# Line 2: model (max context) effort | context % | cost / lines changed | session time / AI share | prompt cache | rate limits
+# Line 2: model (max context) effort | context % | cost / lines changed | session time / AI share | prompt cache + clear/compact hint | rate limits
 
 input=$(cat)
 
@@ -195,8 +195,13 @@ five_hour_left=$(format_remaining "$five_hour_reset")
 seven_day_left=$(format_remaining "$seven_day_reset")
 
 # Prompt cache: warm/cold and time until it expires (hidden when not reported)
+CACHE_SOON_SECS=300        # warm with less than this left: about to go cold
 cache_warm=$(echo "$input" | jq -r '.prompt_cache.warm | if . == null then empty else tostring end' 2>/dev/null)  # not "// empty": that drops false
 cache_expires=$(echo "$input" | jq -r '.prompt_cache.expires_at // empty')
+cache_soon=false
+case "$cache_expires" in ''|*[!0-9]*) ;; *)
+    [ $((cache_expires - $(date +%s))) -lt "$CACHE_SOON_SECS" ] && cache_soon=true
+;; esac
 cache_str=""
 cache_color=""
 case "$cache_warm" in
@@ -204,15 +209,45 @@ case "$cache_warm" in
         cache_left=$(format_remaining "$cache_expires")
         cache_str="⚡${cache_left}"
         cache_color='\033[32m'  # green
-        case "$cache_expires" in ''|*[!0-9]*) ;; *)
-            [ $((cache_expires - $(date +%s))) -lt 300 ] && cache_color='\033[33m'  # yellow: under 5 min left
-        ;; esac
+        $cache_soon && cache_color='\033[33m'  # yellow: about to go cold
         ;;
     false)
         cache_str="🧊"
         cache_color='\033[31m'  # red
         ;;
 esac
+
+# Clear/compact hint. What a large context costs depends on the cache:
+#   warm: /compact reads the history from cache, so summarizing now is cheap.
+#   cold: carrying on or /compact both reprocess the whole history uncached;
+#         /clear drops it (worth it when the next task is a new one).
+# Thresholds are in tokens, not percent, because the cost scales with tokens.
+HINT_WARM_TOKENS=150000    # warm: suggest /compact at or above this
+HINT_COLD_TOKENS=50000     # cold: suggest /clear at or above this
+ctx_tokens=$(echo "$input" | jq -r '.context_window.total_input_tokens | numbers | floor' 2>/dev/null)
+cache_hint=""
+hint_color=""
+case "$ctx_tokens" in ''|*[!0-9]*) ;; *)
+    case "$cache_warm" in
+        true)
+            if [ "$ctx_tokens" -ge "$HINT_WARM_TOKENS" ]; then
+                if $cache_soon; then
+                    cache_hint="→/compact now"
+                    hint_color='\033[1;33m'  # bold yellow
+                else
+                    cache_hint="→/compact"
+                    hint_color='\033[33m'  # yellow
+                fi
+            fi
+            ;;
+        false)
+            if [ "$ctx_tokens" -ge "$HINT_COLD_TOKENS" ]; then
+                cache_hint="→/clear?"
+                hint_color='\033[1;31m'  # bold red
+            fi
+            ;;
+    esac
+;; esac
 
 
 # ── Palette (real escape characters, so lines can be joined as plain strings)
@@ -291,7 +326,10 @@ g_sess=""
 [ -n "$ai_pct" ] && g_sess="${g_sess:+$g_sess }🤖${val}${ai_pct}%${rst}"
 add2 "$g_sess"
 
-[ -n "$cache_str" ] && add2 "$(printf '%b' "$cache_color")${cache_str}${rst}"
+g_cache=""
+[ -n "$cache_str" ] && g_cache="$(printf '%b' "$cache_color")${cache_str}${rst}"
+[ -n "$cache_hint" ] && g_cache="${g_cache:+$g_cache }$(printf '%b' "$hint_color")${cache_hint}${rst}"
+add2 "$g_cache"
 
 g_limits=""
 if [ -n "$five_hour_pct" ]; then
