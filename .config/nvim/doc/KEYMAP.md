@@ -337,16 +337,21 @@ Requires `gh` CLI authenticated. Uses fzf-lua as picker.
 
 ---
 
-## Illuminate (symbol highlighting — plugin default bindings)
+## Illuminate (symbol highlighting)
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `<M-n>` | n | Next reference |
-| `<M-p>` | n | Prev reference |
-| `<M-i>` | o, x | Reference under cursor (text object) |
+| `]u` | n | Next reference in this buffer (u = usage) |
+| `[u` | n | Prev reference in this buffer |
+| `<M-n>` | n | Next reference (plugin default) |
+| `<M-p>` | n | Prev reference (plugin default) |
+| `<M-i>` | o, x | Reference under cursor (text object, plugin default) |
 
 > Not `]]`/`[[`: the Python, Go, Rust, Java and Markdown ftplugins map those
-> buffer-locally, which would win over a global mapping.
+> buffer-locally, which would win over a global mapping. Not `]r`/`[r`: those
+> are Neovim's spelling motion (next/prev rare word).
+> `<M-…>` is Alt on Linux/Windows; on macOS, Option only reaches Neovim when
+> the terminal sends it as Alt (Alacritty: `option_as_alt`).
 
 ---
 

@@ -107,7 +107,7 @@ if os.getenv("PROBE_KEYMAPS") == "1" then
     { "i", "<M-l>" },
     { "n", "]t" }, { "n", "[t" }, { "n", "]T" }, { "n", "[T" },
     { "n", "]n" }, { "n", "[n" }, { "n", "]b" }, { "n", "[b" },
-    { "n", "]]" }, { "n", "[[" }, { "n", "<M-n>" },
+    { "n", "]]" }, { "n", "[[" }, { "n", "<M-n>" }, { "n", "]u" }, { "n", "[u" },
     { "n", ",l" }, { "n", ",L" }, { "n", ",lf" }, { "n", ",ds" }, { "n", ",dd" }, { "n", ",ux" },
     { "n", ",ca" }, { "n", ",gx" }, { "n", ",gxl" }, { "n", ",hu" },
     { "x", ",hs" }, { "x", ",cf" }, { "x", "<Space>ca" },
@@ -117,6 +117,29 @@ if os.getenv("PROBE_KEYMAPS") == "1" then
     local m = vim.fn.maparg(k[2], k[1], false, true)
     out.maps[k[1] .. " " .. k[2]] = (m.desc or m.rhs or (m.callback and "<callback>") or "")
   end
+end
+
+-- With PROBE_REFJUMP="line,col": put the cursor there, let vim-illuminate
+-- collect the references to the symbol under it, then press ]u and [u and
+-- record the line each one lands on.
+local refjump = os.getenv("PROBE_REFJUMP")
+if refjump then
+  local line, col = refjump:match("^(%d+),(%d+)$")
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_cursor(win, { tonumber(line), tonumber(col) })
+  local ref = require("illuminate.reference")
+  -- Headless, there is no main loop to fire CursorMoved, so ask directly,
+  -- once: each call clears the references and restarts the plugin's delay
+  -- timer, so calling it again while waiting would never let it finish.
+  require("illuminate.engine").refresh_references(buf, win)
+  vim.wait(5000, function()
+    return #ref.buf_get_references(buf) > 1
+  end, 100)
+  out.ref_count = #ref.buf_get_references(buf)
+  vim.api.nvim_feedkeys(vim.keycode("]u"), "x", false)
+  out.after_next = vim.api.nvim_win_get_cursor(win)[1]
+  vim.api.nvim_feedkeys(vim.keycode("[u"), "x", false)
+  out.after_prev = vim.api.nvim_win_get_cursor(win)[1]
 end
 
 out.loaded = {}

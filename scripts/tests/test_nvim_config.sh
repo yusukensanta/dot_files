@@ -228,6 +228,8 @@ expect "]n/[n jump between failed tests" "$out" '.maps["n ]n"] == "Test - Jump n
 expect "]b/[b follow barbar's order" "$out" '.maps["n ]b"] == "Next Buffer" and .maps["n [b"] == "Previous Buffer"'
 expect "]]/[[ are the Python ftplugin's; illuminate keeps <M-n>" "$out" \
     '(.maps["n ]]"] | test("Python_jump")) and (.maps["n [["] | test("Python_jump")) and .maps["n <M-n>"] != ""'
+expect "]u/[u jump to the next/prev reference (illuminate)" "$out" \
+    '.maps["n ]u"] == "Next reference" and .maps["n [u"] == "Prev reference"'
 expect "no key is both a mapping and a prefix (,l ,gx)" "$out" \
     '.maps["n ,l"] == "" and .maps["n ,gx"] == "" and .maps["n ,L"] == "Show lazy.nvim menu" and .maps["n ,gxl"] == "Git Conflict - List conflicts"'
 expect "removed duplicates: ,lf ,ds ,dd ,ca ,hu" "$out" \
@@ -235,6 +237,10 @@ expect "removed duplicates: ,lf ,ds ,dd ,ca ,hu" "$out" \
 expect "diagnostics toggle is ,ux" "$out" '.maps["n ,ux"] == "LSP - Toggle Diagnostics"'
 expect "Visual-mode maps: ,hs ,cf <Space>ca" "$out" \
     '.maps["x ,hs"] != "" and .maps["x ,cf"] == "Format buffer" and .maps["x <Space>ca"] == "LSP - Code Action"'
+printf 'import os\n\nprint(os.sep)\nprint(os.name)\n' > "$s/py/refs.py"
+out="$(PROBE_REFJUMP=1,7 probe "$s/py" refs.py "basedpyright,ruff")"
+expect "]u from os on line 1 lands on line 3, [u comes back to line 1" "$out" \
+    '.ref_count == 3 and .after_next == 3 and .after_prev == 1'
 
 echo "== cursor restore =="
 # A state dir of its own, so the remembered positions (ShaDa) are neither

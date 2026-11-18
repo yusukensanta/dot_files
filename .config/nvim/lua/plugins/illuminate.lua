@@ -24,10 +24,15 @@ return {
         },
         large_file_cutoff = 5000,
       })
-      -- Navigation uses the plugin's default keymaps: <M-n>/<M-p> next/prev
-      -- reference, <M-i> reference text object. Not ]]/[[: the ftplugins of
-      -- Python, Go, Rust, Java and Markdown map those buffer-locally, which
-      -- wins over a global map.
+      -- ]u/[u (u for "usage") jump to the next/prev reference, the same
+      -- ]x/[x shape as ]d, ]c and ]n. Not ]]/[[: the ftplugins of Python,
+      -- Go, Rust, Java and Markdown map those buffer-locally, which wins over
+      -- a global map. Not ]r/[r: Neovim's own spelling motion (rare words).
+      -- The plugin's defaults stay too: <M-n>/<M-p>, and <M-i> as a
+      -- reference text object.
+      local illuminate = require("illuminate")
+      vim.keymap.set("n", "]u", illuminate.goto_next_reference, { desc = "Next reference" })
+      vim.keymap.set("n", "[u", illuminate.goto_prev_reference, { desc = "Prev reference" })
     end,
   },
 }
