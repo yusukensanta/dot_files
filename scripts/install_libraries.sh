@@ -252,12 +252,19 @@ install_docker() {
 # Ubuntu/Debian's own repos (would need yet another third-party apt
 # repo), and this keeps both on one portable, distro-version-independent
 # path instead of two.
+#
+# cargo-nextest is the test runner neotest/rustaceanvim pick up for Rust
+# (see .config/nvim/lua/plugins/lang/rust.lua). Its binary is cargo-nextest
+# and upstream asks for --locked, so it is the one crate installed with a
+# flag; the third array holds each crate's extra `cargo install` flags.
 install_cargo_tools() {
-  local tool_crates=(fselect git-delta eza zoxide)
-  local tool_bins=(fselect delta eza zoxide)
+  local tool_crates=(fselect git-delta eza zoxide cargo-nextest)
+  local tool_bins=(fselect delta eza zoxide cargo-nextest)
+  local tool_flags=("" "" "" "" "--locked")
   local i
   for i in "${!tool_crates[@]}"; do
-    have "${tool_bins[$i]}" || cargo install "${tool_crates[$i]}"
+    # shellcheck disable=SC2086 # flags are intentionally word-split (empty = none)
+    have "${tool_bins[$i]}" || cargo install ${tool_flags[$i]} "${tool_crates[$i]}"
   done
 }
 
