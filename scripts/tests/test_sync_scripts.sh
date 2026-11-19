@@ -949,7 +949,7 @@ test_claude_statusline_merge() {
     chmod 600 "$s"
     local out
     out="$(HOME="$work/home" bash -c 'source "$1"; merge_claude_statusline "$2" "$3"' _ "$lib" "$frag" "$s" 2>&1)" || { good=false; echo "    merge failed: $out"; }
-    jq -e '.statusLine.command == "bash ~/.claude/statusline-command.sh" and .permissions.allow[0] == "Bash(ls:*)" and .model == "x" and .enabledPlugins.a == true' "$s" >/dev/null 2>&1 || { good=false; echo "    merged content wrong"; }
+    jq -e '.statusLine.command == "bash ~/.claude/statusline-command.sh" and .statusLine.refreshInterval == 60 and .permissions.allow[0] == "Bash(ls:*)" and .model == "x" and .enabledPlugins.a == true' "$s" >/dev/null 2>&1 || { good=false; echo "    merged content wrong"; }
     [[ "$(fmode "$s")" == "600" ]] || { good=false; echo "    mode changed to $(fmode "$s")"; }
     local bk; bk="$(find "$work/home/.dotfiles-sync-backup" -name settings.json 2>/dev/null | head -1)"
     [[ -n "$bk" && "$(jq -r .statusLine.command "$bk")" == "old" ]] || { good=false; echo "    backup missing/wrong"; }
