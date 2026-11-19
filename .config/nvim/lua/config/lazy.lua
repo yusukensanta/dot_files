@@ -15,7 +15,8 @@ end
 
 vim.opt.rtp:prepend(lazypath)
 
-require("helpers.keys").set_leader(",", "\\")
+-- A literal space, not "<space>": that notation is not expanded in Lua strings.
+require("helpers.keys").set_leader(" ", "\\")
 
 local ok, lazy = pcall(require, "lazy")
 if not ok then

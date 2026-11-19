@@ -32,8 +32,6 @@ return {
         { "<leader>x",  group = "Trouble" },
         { "<leader>a",  group = "Aerial" },
         { "<leader>s",  group = "Snacks / Dropbar" },
-        { "<space>c",   group = "Code Action" },
-        { "<space>w",   group = "Windows" },
       })
     end,
   }

@@ -101,16 +101,16 @@ if os.getenv("PROBE_KEYMAPS") == "1" then
     return false
   end, 100)
   local keys = {
-    { "s", "<" }, { "s", ">" }, { "s", "," },
-    { "x", "<" }, { "x", "," },
+    { "s", "<" }, { "s", ">" }, { "s", "<Space>" },
+    { "x", "<" }, { "x", "<Space>" },
     { "n", "<Esc>" }, { "n", "<C-T>" }, { "n", "<C-N>" }, { "n", "<C-P>" }, { "n", "L" },
     { "i", "<M-l>" },
     { "n", "]t" }, { "n", "[t" }, { "n", "]T" }, { "n", "[T" },
     { "n", "]n" }, { "n", "[n" }, { "n", "]b" }, { "n", "[b" },
     { "n", "]]" }, { "n", "[[" }, { "n", "<M-n>" }, { "n", "]u" }, { "n", "[u" },
-    { "n", ",l" }, { "n", ",L" }, { "n", ",lf" }, { "n", ",ds" }, { "n", ",dd" }, { "n", ",ux" },
-    { "n", ",ca" }, { "n", ",gx" }, { "n", ",gxl" }, { "n", ",hu" },
-    { "x", ",hs" }, { "x", ",cf" }, { "x", "<Space>ca" },
+    { "n", "<Space>l" }, { "n", "<Space>L" }, { "n", "<Space>lf" }, { "n", "<Space>ds" }, { "n", "<Space>dd" }, { "n", "<Space>ux" },
+    { "n", "<Space>ca" }, { "n", "<Space>gx" }, { "n", "<Space>gxl" }, { "n", "<Space>hu" },
+    { "x", "<Space>hs" }, { "x", "<Space>cf" }, { "x", "<Space>ca" },
     { "x", "S" }, { "x", "gs" }, { "x", "gS" },
   }
   out.maps = {}

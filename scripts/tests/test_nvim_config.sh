@@ -221,10 +221,10 @@ expect_file "a blank context line keeps its space" "$s/diff/t.diff" "$(printf --
 
 echo "== keymaps (Python buffer, LSP attached, VeryLazy plugins loaded) =="
 out="$(PROBE_KEYMAPS=1 probe "$s/py" main.py "basedpyright,ruff")"
-expect "Select mode: < > , are typed as text (snippet placeholders)" "$out" \
-    '[.maps["s <"], .maps["s >"], .maps["s ,"]] == ["", "", ""]'
-expect "Visual mode: < reselects, , is the leader" "$out" \
-    '.maps["x <"] == "Indent left and reselect" and (.maps["x ,"] | ascii_downcase) == "<nop>"'
+expect "Select mode: < > <Space> are typed as text (snippet placeholders)" "$out" \
+    '[.maps["s <"], .maps["s >"], .maps["s <Space>"]] == ["", "", ""]'
+expect "Visual mode: < reselects, <Space> is the leader" "$out" \
+    '.maps["x <"] == "Indent left and reselect" and (.maps["x <Space>"] | ascii_downcase) == "<nop>"'
 expect "<Esc> clears the search highlight" "$out" '.maps["n <Esc>"] == "Keymaps - Clear search highlight"'
 expect "<C-t> <C-n> <C-p> L <M-l> are Neovim's own again" "$out" \
     '[.maps["n <C-T>"], .maps["n <C-N>"], .maps["n <C-P>"], .maps["n L"], .maps["i <M-l>"]] == ["", "", "", "", ""]'
@@ -236,13 +236,13 @@ expect "]]/[[ are the Python ftplugin's; illuminate keeps <M-n>" "$out" \
     '(.maps["n ]]"] | test("Python_jump")) and (.maps["n [["] | test("Python_jump")) and .maps["n <M-n>"] != ""'
 expect "]u/[u jump to the next/prev reference (illuminate)" "$out" \
     '.maps["n ]u"] == "Next reference" and .maps["n [u"] == "Prev reference"'
-expect "no key is both a mapping and a prefix (,l ,gx)" "$out" \
-    '.maps["n ,l"] == "" and .maps["n ,gx"] == "" and .maps["n ,L"] == "Show lazy.nvim menu" and .maps["n ,gxl"] == "Git Conflict - List conflicts"'
-expect "removed duplicates: ,lf ,ds ,dd ,ca ,hu" "$out" \
-    '[.maps["n ,lf"], .maps["n ,ds"], .maps["n ,dd"], .maps["n ,ca"], .maps["n ,hu"]] == ["", "", "", "", ""]'
-expect "diagnostics toggle is ,ux" "$out" '.maps["n ,ux"] == "LSP - Toggle Diagnostics"'
-expect "Visual-mode maps: ,hs ,cf <Space>ca" "$out" \
-    '.maps["x ,hs"] != "" and .maps["x ,cf"] == "Format buffer" and .maps["x <Space>ca"] == "LSP - Code Action"'
+expect "no key is both a mapping and a prefix (<Space>l <Space>gx)" "$out" \
+    '.maps["n <Space>l"] == "" and .maps["n <Space>gx"] == "" and .maps["n <Space>L"] == "Show lazy.nvim menu" and .maps["n <Space>gxl"] == "Git Conflict - List conflicts"'
+expect "removed duplicates: <Space>lf ds dd hu" "$out" \
+    '[.maps["n <Space>lf"], .maps["n <Space>ds"], .maps["n <Space>dd"], .maps["n <Space>hu"]] == ["", "", "", ""]'
+expect "diagnostics toggle is <Space>ux" "$out" '.maps["n <Space>ux"] == "LSP - Toggle Diagnostics"'
+expect "Visual-mode maps: <Space>hs <Space>cf <Space>ca" "$out" \
+    '.maps["x <Space>hs"] != "" and .maps["x <Space>cf"] == "Format buffer" and .maps["x <Space>ca"] == "LSP - Code Action"'
 expect "Visual mode: S is flash's, nvim-surround is on gs and gS" "$out" \
     '.maps["x S"] == "Flash: treesitter select" and .maps["x gs"] == "Surround selection" and .maps["x gS"] == "Surround selection, on new lines"'
 printf 'import os\n\nprint(os.sep)\nprint(os.name)\n' > "$s/py/refs.py"

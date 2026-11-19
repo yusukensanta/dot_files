@@ -15,7 +15,7 @@ vim.cmd("packadd nvim.undotree")
 vim.cmd("packadd nvim.difftool")
 
 -- Normal mode keymaps
--- Direct single-chord window nav (primary); <space>w* kept as fallback.
+-- Direct single-chord window nav.
 -- <C-l> replaces the default <C-l> (clear search highlight + redraw), so
 -- <Esc> below clears the highlight instead.
 map("n", "<C-h>", "<C-w><C-h>", "Keymaps - Move focus to left window")
@@ -23,11 +23,7 @@ map("n", "<C-l>", "<C-w><C-l>", "Keymaps - Move focus to right window")
 map("n", "<C-j>", "<C-w><C-j>", "Keymaps - Move focus to lower window")
 map("n", "<C-k>", "<C-w><C-k>", "Keymaps - Move focus to upper window")
 map("n", "<Esc>", "<cmd>nohlsearch<CR><Esc>", "Keymaps - Clear search highlight")
-map("n", "<space>wh", "<C-w><C-h>", "Keymaps - Move focus to left window")
-map("n", "<space>wl", "<C-w><C-l>", "Keymaps - Move focus to right window")
-map("n", "<space>wj", "<C-w><C-j>", "Keymaps - Move focus to lower window")
-map("n", "<space>wk", "<C-w><C-k>", "Keymaps - Move focus to upper window")
-map("n", "<space>e", function()
+map("n", "<leader>e", function()
   vim.diagnostic.open_float({ scope = "line" })
 end, "Keymaps - Show diagnostic message")
 map("n", "<C-Up>", "<cmd>resize +2<CR>", "Keymaps - Increase window height")

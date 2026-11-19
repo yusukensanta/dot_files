@@ -57,7 +57,7 @@ return {
 
           on_attach = function(client, bufnr)
             -- Common LSP keymaps come from the shared LspAttach handler
-            -- (helpers/lsp.lua); code actions stay on its <space>ca / gra.
+            -- (helpers/lsp.lua); code actions stay on its <leader>ca / gra.
             local map = require("helpers.keys").buffer_map
 
             map("n", "K", function()

@@ -19,7 +19,7 @@ local function set_keymaps(bufnr)
 
   -- Code actions and refactoring (supplements built-in gra/grn).
   -- Formatting is conform's <leader>cf (lua/plugins/conform.lua).
-  map({ "n", "x" }, "<space>ca", vim.lsp.buf.code_action, "Code Action")
+  map({ "n", "x" }, "<leader>ca", vim.lsp.buf.code_action, "Code Action")
   map("n", "<leader>rn", vim.lsp.buf.rename, "Rename Symbol")
 
   map("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")

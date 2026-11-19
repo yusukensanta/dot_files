@@ -2,10 +2,10 @@ return {
   {
     "stevearc/oil.nvim",
     dependencies = { "nvim-tree/nvim-web-devicons" },
-    -- On-demand: only its own <space>o keymap opens it (lazy.nvim sets the
+    -- On-demand: only its own <leader>o keymap opens it (lazy.nvim sets the
     -- mapping and loads the plugin on first use).
     keys = {
-      { "<space>o", "<cmd>Oil<CR>", desc = "Oil - Open file manager" },
+      { "<leader>o", "<cmd>Oil<CR>", desc = "Oil - Open file manager" },
     },
     config = function()
       require("oil").setup({
@@ -18,16 +18,16 @@ return {
         keymaps = {
           ["g?"] = "actions.show_help",
           ["<CR>"] = "actions.select",
-          ["<space>ov"] = { "actions.select", opts = { vertical = true }, desc = "Open the entry in a vertical split" },
-          ["<space>oh"] = { "actions.select", opts = { horizontal = true }, desc = "Open the entry in a horizontal split" },
-          ["<space>ot"] = { "actions.select", opts = { tab = true }, desc = "Open the entry in new tab" },
+          ["<leader>ov"] = { "actions.select", opts = { vertical = true }, desc = "Open the entry in a vertical split" },
+          ["<leader>oh"] = { "actions.select", opts = { horizontal = true }, desc = "Open the entry in a horizontal split" },
+          ["<leader>ot"] = { "actions.select", opts = { tab = true }, desc = "Open the entry in new tab" },
           ["<C-p>"] = "actions.preview",
           ["<C-c>"] = "actions.close",
           -- Deliberately shadows the global <C-l> "move focus to right
           -- window" (config/keymaps.lua) inside Oil buffers only: a listing is
           -- normally the sole focus of its window, so refresh is more
-          -- useful here than window nav. <space>wl still works as the
-          -- fallback window-nav binding if you do need it from Oil.
+          -- useful here than window nav. <C-w>l still works for
+          -- moving right if you do need it from Oil.
           ["<C-l>"] = "actions.refresh",
           ["-"] = "actions.parent",
           ["_"] = "actions.open_cwd",
