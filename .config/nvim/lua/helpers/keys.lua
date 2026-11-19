@@ -1,7 +1,7 @@
 local M = {}
 
 M.map = function(mode, lhs, rhs, desc)
-  vim.keymap.set(mode, lhs, rhs, { silent = true, desc = desc, noremap = true })
+  vim.keymap.set(mode, lhs, rhs, { silent = true, desc = desc })
 end
 
 -- bufnr optional, defaulting to the current buffer — but LspAttach fires
@@ -10,11 +10,11 @@ end
 -- callers driven by an LspAttach autocmd should always pass args.buf
 -- explicitly rather than rely on the default.
 M.lsp_map = function(mode, lhs, rhs, desc, bufnr)
-  vim.keymap.set(mode, lhs, rhs, { silent = true, buffer = bufnr or true, noremap = true, desc = "LSP - " .. desc })
+  vim.keymap.set(mode, lhs, rhs, { silent = true, buffer = bufnr or true, desc = "LSP - " .. desc })
 end
 
 M.buffer_map = function(mode, lhs, rhs, desc, bufnr)
-  vim.keymap.set(mode, lhs, rhs, { silent = true, buffer = bufnr or true, noremap = true, desc = desc })
+  vim.keymap.set(mode, lhs, rhs, { silent = true, buffer = bufnr or true, desc = desc })
 end
 
 M.set_leader = function(key, localkey)

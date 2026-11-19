@@ -22,8 +22,8 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = coding_group,
   pattern = "*",
-  callback = function()
-    local bufname = vim.fn.expand('<afile>')
+  callback = function(args)
+    local bufname = args.file
 
     -- URL-scheme buffers (oil://, http://, ...) and non-file buftypes
     -- (terminal, quickfix, help, ...) have no real parent dir to create.
@@ -34,7 +34,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
       return
     end
 
-    vim.fn.mkdir(vim.fn.expand('<afile>:p:h'), 'p')
+    vim.fn.mkdir(vim.fs.dirname(vim.fs.abspath(bufname)), 'p')
   end,
 })
 

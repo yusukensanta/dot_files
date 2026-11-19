@@ -32,16 +32,21 @@ return {
   },
   {
     "kylechui/nvim-surround",
-    version = "^3.0.0", -- Use for stability; omit to use `main` branch for the latest features
+    version = "^4.0.0",
     event = "VeryLazy",
+    -- v4 has no `keymaps` option: plugin/nvim-surround.lua sets the default
+    -- keys itself, unless the g: variables below are set first (init runs
+    -- before the plugin loads). The default visual-mode key is "S", which
+    -- collides with flash.nvim's treesitter-select "S" (flash.lua, modes
+    -- x/o) — whichever plugin's vim.keymap.set("x", "S", ...) runs last
+    -- silently wins in Visual mode. So the visual keys are set here instead:
+    -- "gs" (as before) and "gS" (visual-line, the plugin's own default).
+    init = function()
+      vim.g.nvim_surround_no_visual_mappings = true
+    end,
     config = function()
-      -- Default visual-mode surround key is "S", which collides with
-      -- flash.nvim's treesitter-select "S" (flash.lua, modes x/o) — whichever
-      -- plugin's vim.keymap.set("x", "S", ...) runs last silently wins in
-      -- Visual mode. Moved to "gs" to keep both features working.
-      require("nvim-surround").setup({
-        keymaps = { visual = "gs" },
-      })
+      vim.keymap.set("x", "gs", "<Plug>(nvim-surround-visual)", { desc = "Surround selection" })
+      vim.keymap.set("x", "gS", "<Plug>(nvim-surround-visual-line)", { desc = "Surround selection, on new lines" })
     end,
   },
   {

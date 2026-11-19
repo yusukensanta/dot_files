@@ -115,15 +115,7 @@ unset 'DOTFILES_ABBRS[d]'              # remove
 DOTFILES_ABBRS=(gs 'git status -sb')   # or start over with your own
 ```
 
-**Disable personally licensed AI tools (Copilot, CopilotChat, blink-copilot).**
-Create `~/.config/zsh/local.d/work.zsh`:
-
-```zsh
-export DOTFILES_NO_PERSONAL_AI=1
-```
-
-Neovim reads it at startup (`lua/helpers/ai.lua`); restart the shell and nvim.
-To drop any other plugin on one machine, add a spec to
+**Per-machine plugin overrides.** To drop a plugin on one machine, add a spec to
 `~/.config/nvim/lua/local/plugins/work.lua`, e.g.
 `return { { "folke/flash.nvim", enabled = false } }` (merged by plugin name).
 

@@ -129,6 +129,9 @@ return {
     -- change). Revert to "akinsho/git-conflict.nvim" once #126 merges.
     "evanpurkhiser/git-conflict.nvim",
     branch = "evanpurkhiser/fix-deprecated-apis",
+    -- Pinned to the reviewed commit: the branch is a PR head and can move or
+    -- be deleted at any time.
+    commit = "3df003abb53fc684ffe5d38da7370cc451f48462",
     event = "BufReadPre",
     config = function()
       require("git-conflict").setup({

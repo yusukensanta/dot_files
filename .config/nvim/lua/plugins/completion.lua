@@ -2,26 +2,10 @@
 -- than the ecosystem-standard "cmp.lua" so it doesn't imply the wrong
 -- plugin family. nvim-autopairs, nvim-surround, and nvim-ts-autotag —
 -- unrelated to completion — live in editing.lua instead.
-local ai = require("helpers.ai")
-
-local sources = { "lsp", "path", "snippets", "buffer" }
-local providers = {}
-local dependencies = { "rafamadriz/friendly-snippets" }
-if ai.enabled then
-  table.insert(sources, "copilot")
-  table.insert(dependencies, "fang2hou/blink-copilot")
-  providers.copilot = {
-    name = "copilot",
-    module = "blink-copilot",
-    score_offset = 100,
-    async = true,
-  }
-end
-
 return {
   {
     "saghen/blink.cmp",
-    dependencies = dependencies,
+    dependencies = { "rafamadriz/friendly-snippets" },
     version = "*",
     opts = {
       keymap = {
@@ -35,8 +19,7 @@ return {
         ['<C-e>'] = { 'hide', 'fallback' },
       },
       sources = {
-        default = sources,
-        providers = providers,
+        default = { "lsp", "path", "snippets", "buffer" },
       },
       completion = {
         menu = {

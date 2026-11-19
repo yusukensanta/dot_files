@@ -911,26 +911,24 @@ test_tmux_local_include() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
-test_nvim_personal_ai_switch() {
-    local desc="DOTFILES_NO_PERSONAL_AI=1 disables Copilot plugins; local.plugins import is optional and works"
+test_nvim_local_plugins_override() {
+    local desc="local.plugins import is optional and works (merged by plugin name)"
     if ! command -v nvim >/dev/null 2>&1; then ok "$desc (skipped: nvim not installed)"; return; fi
     local work; work="$(mktemp -d)"
     mkdir -p "$work/cfg/nvim"
     rsync -a --exclude=lazy-lock.json "$SCRIPTS_DIR/../.config/nvim/" "$work/cfg/nvim/"
-    local probe='lua local c=require("lazy.core.config"); local o={}; for _,n in ipairs({"copilot.lua","CopilotChat.nvim","blink-copilot"}) do local p=c.plugins[n]; o[#o+1]=tostring(p~=nil and p._.cond~=false and p.enabled~=false) end; io.stdout:write(table.concat(o,","))'
-    local on off good=true
-    on="$(XDG_CONFIG_HOME="$work/cfg" DOTFILES_NO_PERSONAL_AI="" timeout 90 nvim --headless -c "$probe" -c qa 2>&1 | tail -1)"
-    off="$(XDG_CONFIG_HOME="$work/cfg" DOTFILES_NO_PERSONAL_AI=1 timeout 90 nvim --headless -c "$probe" -c qa 2>&1 | tail -1)"
-    [[ "$on" == *"true,true,true" ]] || good=false
-    [[ "$off" == *"false,false,false" ]] || good=false
+    local probe='lua local p=require("lazy.core.config").plugins["flash.nvim"]; io.stdout:write(tostring(p~=nil and p.enabled~=false))'
+    local before after good=true
+    # Absent local/plugins: flash is enabled and startup is clean.
+    before="$(XDG_CONFIG_HOME="$work/cfg" timeout 90 nvim --headless -c "$probe" -c qa 2>&1 | tail -1)"
+    [[ "$before" == *true ]] || good=false
     # local.plugins present -> imported and merged by name.
     mkdir -p "$work/cfg/nvim/lua/local/plugins"
     echo 'return {{ "folke/flash.nvim", enabled = false }}' > "$work/cfg/nvim/lua/local/plugins/w.lua"
-    local flash
-    flash="$(XDG_CONFIG_HOME="$work/cfg" timeout 90 nvim --headless -c 'lua local p=require("lazy.core.config").plugins["flash.nvim"]; io.stdout:write(tostring(p~=nil and p.enabled~=false))' -c qa 2>&1 | tail -1)"
-    [[ "$flash" == *false ]] || good=false
+    after="$(XDG_CONFIG_HOME="$work/cfg" timeout 90 nvim --headless -c "$probe" -c qa 2>&1 | tail -1)"
+    [[ "$after" == *false ]] || good=false
     rm -rf "$work"
-    if $good; then ok "$desc"; else fail "$desc (on=$on off=$off flash=$flash)"; fi
+    if $good; then ok "$desc"; else fail "$desc (before=$before after=$after)"; fi
 }
 
 
@@ -1462,7 +1460,7 @@ test_git_config_is_identity_free
 test_git_config_loses_to_home_gitconfig
 test_git_config_synced_both_ways
 test_tmux_local_include
-test_nvim_personal_ai_switch
+test_nvim_local_plugins_override
 test_claude_statusline_merge
 test_claude_statusline_extract
 test_claude_sync_round_trip

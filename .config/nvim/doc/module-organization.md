@@ -61,7 +61,7 @@ Neovim looks for configuration in these locations (in order):
 │   │   ├── init.lua              # Plugin loader (optional)
 │   │   ├── lsp.lua               # LSP configuration
 │   │   ├── treesitter.lua        # Treesitter config
-│   │   ├── telescope.lua         # Telescope config
+│   │   ├── fzf-lua.lua           # Fuzzy finder config
 │   │   └── ...                   # More plugins
 │   └── helpers/                  # Helper utilities
 │       ├── keys.lua              # Keymap helpers
@@ -317,29 +317,25 @@ return {
 **Structure:**
 ```
 lua/plugins/
-├── lsp/                 # LSP + mason (init.lua entry, config.lua, servers/)
+├── lsp.lua              # LSP core + mason (servers come from lang/)
+├── lang/                # One file per language (servers, formatters, parsers)
 ├── treesitter.lua       # Treesitter
-├── fzf-lua.lua          # Fuzzy finder (replaced telescope)
+├── fzf-lua.lua          # Fuzzy finder
 ├── completion.lua       # blink.cmp
 ├── editing.lua          # autopairs, surround, autotag
 ├── git-ops.lua          # Git plugins
 └── ...
 ```
 
-**File: `lua/plugins/telescope.lua`**
+**File: `lua/plugins/fzf-lua.lua`**
 
 ```lua
 return {
   {
-    "nvim-telescope/telescope.nvim",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    config = function()
-      require("telescope").setup({
-        -- config...
-      })
-    end,
+    "ibhagwan/fzf-lua",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
     keys = {
-      { "<leader>ff", "<cmd>Telescope find_files<cr>", desc = "Find files" },
+      { "<leader>tf", function() require("fzf-lua").files() end, desc = "Fzf - Files" },
     },
   },
 }

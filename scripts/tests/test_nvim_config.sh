@@ -243,6 +243,8 @@ expect "removed duplicates: ,lf ,ds ,dd ,ca ,hu" "$out" \
 expect "diagnostics toggle is ,ux" "$out" '.maps["n ,ux"] == "LSP - Toggle Diagnostics"'
 expect "Visual-mode maps: ,hs ,cf <Space>ca" "$out" \
     '.maps["x ,hs"] != "" and .maps["x ,cf"] == "Format buffer" and .maps["x <Space>ca"] == "LSP - Code Action"'
+expect "Visual mode: S is flash's, nvim-surround is on gs and gS" "$out" \
+    '.maps["x S"] == "Flash: treesitter select" and .maps["x gs"] == "Surround selection" and .maps["x gS"] == "Surround selection, on new lines"'
 printf 'import os\n\nprint(os.sep)\nprint(os.name)\n' > "$s/py/refs.py"
 out="$(PROBE_REFJUMP=1,7 probe "$s/py" refs.py "basedpyright,ruff")"
 expect "]u from os on line 1 lands on line 3, [u comes back to line 1" "$out" \

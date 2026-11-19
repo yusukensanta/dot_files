@@ -111,6 +111,7 @@ if os.getenv("PROBE_KEYMAPS") == "1" then
     { "n", ",l" }, { "n", ",L" }, { "n", ",lf" }, { "n", ",ds" }, { "n", ",dd" }, { "n", ",ux" },
     { "n", ",ca" }, { "n", ",gx" }, { "n", ",gxl" }, { "n", ",hu" },
     { "x", ",hs" }, { "x", ",cf" }, { "x", "<Space>ca" },
+    { "x", "S" }, { "x", "gs" }, { "x", "gS" },
   }
   out.maps = {}
   for _, k in ipairs(keys) do

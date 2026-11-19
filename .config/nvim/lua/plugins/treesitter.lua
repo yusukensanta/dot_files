@@ -32,9 +32,9 @@ return {
       end
 
       -- Indentation is left to each filetype's own indent script (and
-      -- after/ftplugin/) because the nvim-treesitter main branch moved the
-      -- indent module and calling require("nvim-treesitter").indentexpr()
-      -- would silently fail, corrupting auto-indent.
+      -- after/ftplugin/). The main branch does ship
+      -- require("nvim-treesitter").indentexpr() (experimental), but tried on
+      -- Python it left a def body unindented, so it stays off.
       vim.api.nvim_create_autocmd("FileType", {
         group = vim.api.nvim_create_augroup("NvimTreesitter", { clear = true }),
         callback = function(args)

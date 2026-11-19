@@ -277,20 +277,6 @@ Requires `gh` CLI authenticated. Uses fzf-lua as picker.
 
 ---
 
-## Copilot Chat
-
-| Key | Mode | Action |
-|-----|------|--------|
-| `,cc` | n, x | CopilotChat toggle |
-| `,cx` | n, x | CopilotChat reset |
-| `,cq` | n, x | Quick chat prompt |
-| `,cp` | n, x | Select prompt template |
-| `,cm` | n, x | Select model |
-
-> Inside CopilotChat: `<CR>` submit (n), `<C-s>` submit (i), `q` close (n), `<C-c>` close (i), `<S-Tab>` complete
-
----
-
 ## Trouble (diagnostics panel)
 
 | Key | Mode | Action |

@@ -14,7 +14,7 @@ return {
         -- Every group below is a pure prefix: no key here is also a mapping
         -- of its own (that would fire only after 'timeoutlen').
         { "<leader>b",  group = "Buffer" },
-        { "<leader>c",  group = "Copilot / Code" },
+        { "<leader>c",  group = "Code" },
         { "<leader>d",  group = "DAP" },
         { "<leader>g",  group = "Git" },
         { "<leader>gb", group = "Git Branch / Blame" },
