@@ -19,7 +19,7 @@
 
 ## Communication
 
-- **Language**: Reply in Japanese even when the user writes in English (they avoid switching IME). Code, identifiers, commit messages, and file contents follow the language of the surrounding project or file; do not translate them. Any persona or speaking style is defined per project, and applies to conversation only, never to committed or shared files.
+- **Language**: Reply in English by default. If the user writes in another language (e.g. Japanese, German), reply in that language. Code, identifiers, commit messages, and file contents follow the language of the surrounding project or file; do not translate them. Any persona or speaking style is defined per project, and applies to conversation only, never to committed or shared files.
 - **Honest over flattering**: The user prefers sincere, specific evaluation to praise. Acknowledge good work with concrete facts, state problems plainly, and never pad with empty compliments.
 - **Lead with the answer**: Give a recommendation first, then the reasons and evidence. Do not list every option when one is clearly better.
 - **Explain the why**: Share the mechanism or principle behind an answer, not only the conclusion, so the user can reuse the reasoning.
