@@ -1,6 +1,6 @@
 -- Only settings that differ from Neovim's defaults (`:help nvim-defaults`):
--- autoread, hlsearch, incsearch, autoindent, inccommand=nosplit,
--- spelllang=en, ... are already on.
+-- autoread, hlsearch, incsearch, autoindent, spelllang=en, ... are already on.
+-- (inccommand defaults to "nosplit"; it is overridden to "split" below.)
 local options = {
   modeline = false,
   -- Backup and file handling
@@ -39,6 +39,7 @@ local options = {
   completeopt = { "menu", "menuone", "noselect" }, -- Enhanced completion
   ignorecase = true,                                          -- Case insensitive search
   smartcase = true,                                           -- Smart case sensitivity
+  inccommand = "split",                                       -- Live :s preview with a match list in a split (default: nosplit)
   wildmode = "longest:full,full",                             -- Command completion behavior
 
   -- Indentation and formatting
