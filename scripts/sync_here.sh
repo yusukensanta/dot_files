@@ -168,10 +168,14 @@ pull_claude_config() {
     local claude_dir="$HOME/.claude" rc=0
     [[ -f "$claude_dir/CLAUDE.md" ]] && sync_file "$claude_dir/CLAUDE.md" "$REPO_DIR/claude/CLAUDE.md"
     [[ -f "$claude_dir/statusline-command.sh" ]] && sync_file "$claude_dir/statusline-command.sh" "$REPO_DIR/claude/statusline-command.sh"
+    [[ -f "$claude_dir/scripts/usage_report.py" ]] && sync_file "$claude_dir/scripts/usage_report.py" "$REPO_DIR/claude/scripts/usage_report.py"
+    [[ -f "$claude_dir/skills/usage-tuning/SKILL.md" ]] && sync_file "$claude_dir/skills/usage-tuning/SKILL.md" "$REPO_DIR/claude/skills/usage-tuning/SKILL.md"
     # The host copy's mode (often 777/600) must not leak into the repo.
     if ! $DRY_RUN; then
         [[ -f "$REPO_DIR/claude/CLAUDE.md" ]] && chmod 644 "$REPO_DIR/claude/CLAUDE.md"
         [[ -f "$REPO_DIR/claude/statusline-command.sh" ]] && chmod 755 "$REPO_DIR/claude/statusline-command.sh"
+        [[ -f "$REPO_DIR/claude/scripts/usage_report.py" ]] && chmod 755 "$REPO_DIR/claude/scripts/usage_report.py"
+        [[ -f "$REPO_DIR/claude/skills/usage-tuning/SKILL.md" ]] && chmod 644 "$REPO_DIR/claude/skills/usage-tuning/SKILL.md"
     fi
     echo ""
     echo "📄 Syncing: $claude_dir/settings.json statusLine -> claude/statusline.json"

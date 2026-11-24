@@ -43,6 +43,7 @@ __pycache__/
 !.config/nvim/doc/module-organization.md
 !.config/nvim/doc/neovim-lua-api.md
 !.config/nvim/doc/plugin-development.md
+!claude/skills/usage-tuning/SKILL.md
 !.config/nvim/doc/plugin-templates.md
 
 .tmux.conf.local
