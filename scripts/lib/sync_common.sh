@@ -184,8 +184,10 @@ detect_win_userprofile() {
 }
 
 # === CLAUDE CODE (user scope) ===
-# Only three things are synced: ~/.claude/CLAUDE.md, the statusline script,
-# and the "statusLine" key of ~/.claude/settings.json (kept in the repo as
+# Only these are synced: ~/.claude/CLAUDE.md, the statusline script, the
+# usage-tuning script and skill (scripts/usage_report.py,
+# skills/usage-tuning/SKILL.md; the per-machine paths they scan live in
+# ~/.claude/usage-tuning.json, which is not synced), and the "statusLine" key of ~/.claude/settings.json (kept in the repo as
 # claude/statusline.json). The rest of settings.json — permissions, enabled
 # plugins, marketplaces, model — is per-machine and may be sensitive, so it
 # is never copied; the key is merged in/out with jq instead.

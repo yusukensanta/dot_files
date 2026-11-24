@@ -1019,6 +1019,10 @@ test_claude_sync_round_trip() {
     )"
     [[ "$out" == "0" ]] || { good=false; echo "    sync_to_host reported failures: $out"; }
     cmp -s "$repo/claude/CLAUDE.md" "$work/home/.claude/CLAUDE.md" || { good=false; echo "    CLAUDE.md not copied"; }
+    cmp -s "$repo/claude/scripts/usage_report.py" "$work/home/.claude/scripts/usage_report.py" || { good=false; echo "    usage_report.py not copied"; }
+    cmp -s "$repo/claude/skills/usage-tuning/SKILL.md" "$work/home/.claude/skills/usage-tuning/SKILL.md" || { good=false; echo "    usage-tuning SKILL.md not copied"; }
+    [[ "$(fmode "$work/home/.claude/scripts/usage_report.py")" == "755" && "$(fmode "$work/home/.claude/skills/usage-tuning/SKILL.md")" == "644" ]] || { good=false; echo "    usage-tuning host modes not pinned"; }
+    [[ ! -e "$work/home/.claude/usage-tuning.json" ]] || { good=false; echo "    per-machine usage-tuning.json must not be created"; }
     [[ "$(fmode "$work/home/.claude/statusline-command.sh")" == "755" && "$(fmode "$work/home/.claude/CLAUDE.md")" == "644" ]] || { good=false; echo "    host modes not pinned"; }
     jq -e '.permissions.allow[0] == "keep-me" and (.statusLine.command | test("statusline-command.sh"))' "$work/home/.claude/settings.json" >/dev/null 2>&1 || { good=false; echo "    settings.json merge wrong"; }
 
@@ -1037,9 +1041,11 @@ test_claude_sync_round_trip() {
     )"
     [[ "$out" == "0" ]] || { good=false; echo "    sync_here reported failures: $out"; }
     grep -q '# edited on host' "$repo2/claude/CLAUDE.md" || { good=false; echo "    CLAUDE.md not pulled"; }
+    echo '{"sources":{"X":{"claude_dir":"/personal/path"}}}' > "$work/home/.claude/usage-tuning.json"
     [[ "$(fmode "$repo2/claude/CLAUDE.md")" == "644" && "$(fmode "$repo2/claude/statusline-command.sh")" == "755" ]] || { good=false; echo "    repo modes leaked from host"; }
     grep -q -- '--v2' "$repo2/claude/statusline.json" || { good=false; echo "    statusLine not pulled"; }
     ! grep -rq 'supersecret\|keep-me' "$repo2/claude" || { good=false; echo "    settings.json content leaked into repo"; }
+    ! grep -rq '/personal/path' "$repo2/claude" || { good=false; echo "    usage-tuning.json content leaked into repo"; }
     rm -rf "$work"
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
@@ -1109,13 +1115,26 @@ test_claude_statusline_cache_hint() {
 test_claude_repo_files_publishable() {
     local desc="claude/ files exist, are not gitignored, contain no obvious secrets, and the fragment holds only statusLine"
     local root="$SCRIPTS_DIR/.." good=true f
-    for f in CLAUDE.md statusline-command.sh statusline.json; do
+    for f in CLAUDE.md statusline-command.sh statusline.json scripts/usage_report.py skills/usage-tuning/SKILL.md; do
         [[ -s "$root/claude/$f" ]] || { good=false; echo "    missing claude/$f"; continue; }
         if git -C "$root" rev-parse --git-dir >/dev/null 2>&1 && git -C "$root" check-ignore -q "claude/$f"; then good=false; echo "    claude/$f is gitignored"; fi
         ! grep -qE 'sk-ant-|ghp_[A-Za-z0-9]|AKIA[0-9A-Z]{12}|xox[bp]-|BEGIN [A-Z ]*PRIVATE KEY' "$root/claude/$f" || { good=false; echo "    secret-like string in claude/$f"; }
     done
     [[ "$(jq -c 'keys' "$root/claude/statusline.json" 2>/dev/null)" == '["statusLine"]' ]] || { good=false; echo "    statusline.json has keys other than statusLine"; }
     [[ -x "$root/claude/statusline-command.sh" ]] || { good=false; echo "    statusline-command.sh not executable"; }
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_claude_usage_report_runs_without_config() {
+    local desc="claude/scripts/usage_report.py needs no personal paths: with no config and an empty HOME it exits 0 and scans only the local ~/.claude"
+    local root="$SCRIPTS_DIR/.." work out good=true
+    work="$(mktemp -d)"; mkdir -p "$work/.claude/projects"
+    if ! command -v python3 >/dev/null 2>&1; then ok "$desc (skipped: python3 not found)"; rm -rf "$work"; return; fi
+    out="$(HOME="$work" python3 -I "$root/claude/scripts/usage_report.py" --days 1 2>&1)" || { good=false; echo "    script failed: $out"; }
+    grep -q -- '- LOCAL: ' <<<"$out" || { good=false; echo "    expected a single LOCAL source"; }
+    ! grep -rqE '/mnt/c/Users/[A-Za-z0-9_.-]+/|/home/[a-z][a-z0-9_-]+/' "$root/claude/scripts/usage_report.py" "$root/claude/skills/usage-tuning/SKILL.md" \
+        || { good=false; echo "    personal-looking absolute path in usage-tuning files"; }
+    rm -rf "$work"
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
@@ -1467,6 +1486,7 @@ test_claude_sync_round_trip
 test_claude_statusline_shows_effort
 test_claude_statusline_cache_hint
 test_claude_repo_files_publishable
+test_claude_usage_report_runs_without_config
 test_portfolio_opt_out
 test_managed_block_merge
 test_zshenv_block_content
