@@ -55,6 +55,14 @@ User scope holds only cross-project rules. Anything specific to one repo belongs
 
 After editing shell, Lua, TOML, or other config files: re-read the edited hunk in full, check for quoting/word-splitting issues, unbalanced braces, and multi-flag misuse, and run the file's linter or a syntax check (`bash -n`, `nvim --headless '+qa'`, `starship config`, etc.) before saying the task is done.
 
+## Token Economy
+
+Every call re-reads the whole conversation, so context length is the main cost driver (measured: ~80% of tokens were processed at >200k context).
+- When a task is finished and the next one is unrelated, say so and suggest `/clear`. Above ~200k context, suggest `/compact` or `/clear` before continuing.
+- Read large files narrowly: `grep` first, then `Read` with `offset`/`limit`. Do not re-read a file already in context unless it changed. Never read whole logs or generated output.
+- Take screenshots or read images only when the visual itself is needed.
+- Subagents: give a fresh, self-contained prompt; do not fork the full context. Use Sonnet/Haiku for search, summarizing, and routine edits.
+
 ## Multi-Agent Work
 
 When dispatching subagents to write docs or code in parallel, use the `fanout-reconcile` skill (shared contract file first, reconciler pass after).
