@@ -34,17 +34,28 @@ session_cache_is_newer_than() {
   find "$1" -newermt "-$2 second" -print -quit 2>/dev/null | grep -q .
 }
 
+# Where the session modules keep their cache files. Under the user's own
+# cache directory, never a shared $TMPDIR: the file names are predictable and
+# their contents are printed into the prompt, so another local user must not
+# be able to create them first.
+session_cache_dir() {
+  printf '%s' "${XDG_CACHE_HOME:-$HOME/.cache}/starship-session"
+}
+
+# $1=cache_file -> create its directory, private to this user.
+session_cache_make_dir() {
+  ( umask 077 && mkdir -p "$(dirname "$1")" ) 2>/dev/null
+}
+
 # $1=cache_file $2=output -> atomically replace cache_file's contents.
-# Write-then-rename, not a direct `>` truncate: a reader (this library, or
-# a separate script like aws_gcloud_separator.sh reading the cache file
-# directly) must never observe a half-written/truncated file mid-write.
-# umask 077 before creating the temp file (not a post-hoc chmod): the
-# cache directory (typically $TMPDIR) is shared and world-writable, and
-# session data is sensitive — the process's inherited umask would
-# otherwise leave the file group/world-readable.
+# Write-then-rename, not a direct `>` truncate: a concurrent render must
+# never observe a half-written/truncated file mid-write.
+# umask 077 before creating the directory and the temp file (not a post-hoc
+# chmod): session data is sensitive, and the process's inherited umask would
+# otherwise leave it group/world-readable.
 session_cache_write() {
   local cache_file="$1" output="$2"
-  mkdir -p "$(dirname "$cache_file")" 2>/dev/null
+  session_cache_make_dir "$cache_file"
   local tmp_cache="${cache_file}.$$"
   if ( umask 077 && printf '%s' "$output" > "$tmp_cache" ) 2>/dev/null; then
     mv -f "$tmp_cache" "$cache_file" 2>/dev/null
@@ -56,6 +67,9 @@ session_cache_write() {
 session_cache_refresh_in_background() {
   local cache_file="$1" compute_fn="$2"
   local lock_dir="${cache_file}.lock"
+
+  # The lock lives next to the cache file, whose directory may not exist yet.
+  session_cache_make_dir "$cache_file"
 
   # mkdir is atomic across all POSIX filesystems — a cross-process mutex
   # with no extra tooling, so a persistently slow compute() can't pile up

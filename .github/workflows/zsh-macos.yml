@@ -15,6 +15,8 @@ on:
     paths:
       - '.config/zsh/**'
       - '.config/sheldon/**'
+      - '.zshrc'
+      - '.zshenv'
       - 'scripts/install_zsh_tools.sh'
       - 'scripts/lib/**'
       - 'scripts/tests/test_zsh_startup.sh'
@@ -25,6 +27,8 @@ on:
     paths:
       - '.config/zsh/**'
       - '.config/sheldon/**'
+      - '.zshrc'
+      - '.zshenv'
       - 'scripts/install_zsh_tools.sh'
       - 'scripts/lib/**'
       - 'scripts/tests/test_zsh_startup.sh'
@@ -33,11 +37,16 @@ on:
       - '.github/workflows/zsh-macos.yml'
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Reuses this repo's own bootstrap script instead of duplicating its
       # install logic here: zsh, fzf, fd, ripgrep, zoxide, starship and

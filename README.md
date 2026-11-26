@@ -1,6 +1,16 @@
 # dot_files
 
+[![install and sync scripts](https://github.com/yusukensanta/dot_files/actions/workflows/scripts.yml/badge.svg?branch=master)](https://github.com/yusukensanta/dot_files/actions/workflows/scripts.yml)
+[![zsh startup (Linux)](https://github.com/yusukensanta/dot_files/actions/workflows/zsh-linux.yml/badge.svg?branch=master)](https://github.com/yusukensanta/dot_files/actions/workflows/zsh-linux.yml)
+[![zsh startup (macOS)](https://github.com/yusukensanta/dot_files/actions/workflows/zsh-macos.yml/badge.svg?branch=master)](https://github.com/yusukensanta/dot_files/actions/workflows/zsh-macos.yml)
+
 Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared across WSL, native Linux, and macOS dev machines.
+
+- **Fast shell:** zsh startup went from 90ms to 12ms on average (WSL2, Ubuntu 24.04), and a test guards the rules that keep it there.
+- **Tested in CI:** the bootstrap script runs on macOS and on bare Ubuntu 22.04, 24.04 and 26.04 containers; the install and sync scripts have their own test suite and pass shellcheck.
+- **Safe syncing:** both sync directions ask first, support `--dry-run`, and back up whatever they would overwrite or delete.
+- **Work-machine friendly:** shared files carry no identity; per-machine settings live in untracked local files.
+- **Parallel agents:** [`hagent`](claude/scripts/hagent.py) runs Claude Code sessions per git worktree and cleans up the finished ones.
 
 ## Contents
 

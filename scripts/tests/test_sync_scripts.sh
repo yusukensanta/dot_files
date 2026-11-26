@@ -312,15 +312,24 @@ test_zsh_history_permissions_hardened() {
 }
 
 test_starship_cache_files_created_private() {
-    local desc="aws_session.sh and gcloud_session.sh write their \$TMPDIR cache files via session_cache.sh, under umask 077"
-    local dir="$SCRIPTS_DIR/../.config/starship"
-    if grep -q 'umask 077' "$dir/lib/session_cache.sh" \
-        && grep -q 'session_cache_serve' "$dir/aws_session.sh" \
-        && grep -q 'session_cache_serve' "$dir/gcloud_session.sh"; then
-        ok "$desc"
-    else
-        fail "$desc"
-    fi
+    local desc="aws_session.sh and gcloud_session.sh cache under the user's cache dir (not shared \$TMPDIR), files 600 in a 700 directory"
+    local root; root="$(mktemp -d)"
+    local home="$root/home" tmp="$root/tmp" d="$SCRIPTS_DIR/../.config/starship" good=true xdg dir f
+    mkdir -p "$home/.aws" "$home/.config/gcloud" "$tmp"
+    for xdg in "" "$root/xdg"; do
+        dir="${xdg:-$home/.cache}/starship-session"
+        env -i PATH="$PATH" HOME="$home" TMPDIR="$tmp" XDG_CACHE_HOME="$xdg" AWS_PROFILE=dev "$d/aws_session.sh" >/dev/null
+        env -i PATH="$PATH" HOME="$home" TMPDIR="$tmp" XDG_CACHE_HOME="$xdg" "$d/gcloud_session.sh" >/dev/null
+        for f in "$dir/aws-dev.cache" "$dir/gcloud.cache"; do
+            wait_for_file "$f" || { good=false; echo "    never appeared: $f"; continue; }
+            [[ -n "$(find "$f" -perm 600)" ]] || { good=false; echo "    not mode 600: $f"; }
+        done
+        [[ -n "$(find "$dir" -maxdepth 0 -perm 700 2>/dev/null)" ]] || { good=false; echo "    not mode 700: $dir"; }
+    done
+    sleep 0.3  # let any in-flight refresh release its lock before cleanup
+    [[ -z "$(ls -A "$tmp")" ]] || { good=false; echo "    something was written to TMPDIR: $(ls -A "$tmp")"; }
+    rm -rf "$root"
+    if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
 # Runs a starship/*.sh script with an isolated HOME/TMPDIR so the real
@@ -392,8 +401,8 @@ test_starship_first_render_shows_everything() {
     wait
     [[ -s "$root/a" && "$(<"$root/s")" == " │" && -s "$root/g" ]] || { good=false; echo "    cold render had an empty segment"; }
     # Background refresh fills the cache; the next render shows real values.
-    wait_for_file "$tmp/starship-aws-session-$(id -u)-dev.cache" || { good=false; echo "    aws cache never appeared"; }
-    wait_for_file "$tmp/starship-gcloud-session-$(id -u).cache" || { good=false; echo "    gcloud cache never appeared"; }
+    wait_for_file "$home/.cache/starship-session/aws-dev.cache" || { good=false; echo "    aws cache never appeared"; }
+    wait_for_file "$home/.cache/starship-session/gcloud.cache" || { good=false; echo "    gcloud cache never appeared"; }
     "${e[@]}" "$d/aws_session.sh" 2>/dev/null | grep -q 'dev .*H' || { good=false; echo "    aws real value missing after refresh"; }
     "${e[@]}" "$d/gcloud_session.sh" 2>/dev/null | grep -q 'myproj' || { good=false; echo "    gcloud real value missing after refresh"; }
     sleep 0.3  # let any in-flight refresh release its lock before cleanup
@@ -821,6 +830,66 @@ test_install_libraries_command_sequence() {
     [[ "$out" == *"sudo apt-get install -y fish"* && "$out" == *"mise use --global poetry@latest"* && "$out" == *"pip install pynvim"* && "$out" == *"exit=0"* ]] || good=false
     out="$(run_install_script_stubbed "$SCRIPTS_DIR/install_libraries.sh" "$stubs" FAKE_OS=FreeBSD)"
     [[ "$out" == "exit=1" ]] || good=false
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_install_win32yank_verifies_checksum() {
+    local desc="install_libraries.sh: win32yank comes from a pinned release and is installed only when its sha256 matches"
+    local script="$SCRIPTS_DIR/install_libraries.sh" good=true fixture out want
+    fixture="$(mktemp -d)"
+    printf 'archive' > "$fixture/payload"
+    want="$(sha256sum "$fixture/payload" | cut -d' ' -f1)"
+    # Not named `work`: bash scoping is dynamic, so install_win32yank's local
+    # of that name would shadow it inside the stubs.
+    # $1=expected checksum; prints the function's output, then its exit status
+    run_win32yank() (
+        export HOME="$fixture/home"
+        # shellcheck source=/dev/null
+        source "$script"
+        set +e
+        # shellcheck disable=SC2034  # read by install_win32yank
+        IS_WSL=true WIN32YANK_SHA256="$1"
+        have() { return 1; }
+        curl() {
+            local a prev=""
+            for a in "$@"; do
+                [[ "$prev" == -o ]] && cp "$fixture/payload" "$a"
+                prev="$a"; echo "$a" >> "$fixture/args"
+            done
+        }
+        unzip() { printf 'binary'; }
+        install_win32yank 2>&1
+        echo "exit=$?"
+    )
+    local exe="$fixture/home/.local/bin/win32yank.exe"
+    out="$(run_win32yank 0000)"
+    [[ "$out" == *"checksum"*"exit=1"* && ! -e "$exe" ]] || { good=false; echo "    mismatch must not install: $out"; }
+    out="$(run_win32yank "$want")"
+    [[ "$out" == "exit=0" && -x "$exe" && "$(<"$exe")" == binary ]] || { good=false; echo "    match should install: $out"; }
+    ! grep -q '/releases/latest/' "$fixture/args" || { good=false; echo "    URL is not pinned"; }
+    grep -qE '^WIN32YANK_SHA256=[0-9a-f]{64}$' "$script" || { good=false; echo "    no pinned sha256 in the script"; }
+    rm -rf "$fixture"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
+test_workflows_least_privilege_and_pinned() {
+    local desc="workflows: read-only token, actions pinned to a commit SHA and updated by Dependabot, checkout keeps no credentials"
+    local dir="$SCRIPTS_DIR/../.github" good=true f line
+    local pinned='uses: [^@]+@[0-9a-f]{40} # v[0-9]'
+    for f in "$dir"/workflows/*.yml; do
+        grep -A1 '^permissions:$' "$f" | grep -q '^  contents: read$' || { good=false; echo "    no read-only permissions: ${f##*/}"; }
+        while IFS= read -r line; do
+            [[ "$line" =~ $pinned ]] || { good=false; echo "    not pinned in ${f##*/}: $line"; }
+        done < <(grep -E '^[[:space:]]*(- )?uses:' "$f")
+        [[ "$(grep -c 'actions/checkout@' "$f")" == "$(grep -c 'persist-credentials: false' "$f")" ]] || { good=false; echo "    checkout keeps credentials: ${f##*/}"; }
+    done
+    grep -q 'package-ecosystem: github-actions' "$dir/dependabot.yml" 2>/dev/null || { good=false; echo "    no Dependabot config for actions"; }
+    # both zsh workflows must run when any file the shell reads changes
+    for f in "$dir"/workflows/zsh-*.yml; do
+        for line in .zshrc .zshenv; do
+            [[ "$(grep -c -- "- '$line'" "$f")" == 2 ]] || { good=false; echo "    ${f##*/} does not trigger on $line"; }
+        done
+    done
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
@@ -1553,6 +1622,7 @@ test_install_zsh_tools_path_order_matches_zsh
 test_install_zsh_tools_linux_uses_apt_not_brew
 test_install_libraries_command_sequence
 test_install_libraries_steps
+test_install_win32yank_verifies_checksum
 test_install_zsh_tools_installs_delta
 test_local_settings_lib
 test_sync_skip
@@ -1588,6 +1658,7 @@ test_sheldon_plugins_pinned
 test_gitignore_blocks_credential_paths
 test_zsh_history_permissions_hardened
 test_starship_cache_files_created_private
+test_workflows_least_privilege_and_pinned
 test_starship_separator_independent_of_sessions
 test_starship_first_render_shows_everything
 test_session_cache_cold_render_never_blocks
