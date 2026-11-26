@@ -36,3 +36,13 @@ jobs:
 
       - name: Run the script tests
         run: bash scripts/tests/test_sync_scripts.sh
+
+      # claude/scripts/hagent.py: temp git repos, stubbed gh/herdr/claude and a
+      # fake /proc, so nothing outside the temp directories is touched.
+      - name: Run the hagent tests
+        run: |
+          python3 -m venv /tmp/cov
+          /tmp/cov/bin/pip install --quiet coverage==7.10.0
+          /tmp/cov/bin/coverage run --include=claude/scripts/hagent.py \
+            -m unittest discover -s scripts/tests -p test_hagent.py
+          /tmp/cov/bin/coverage report --fail-under=80

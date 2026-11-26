@@ -1050,6 +1050,83 @@ test_claude_sync_round_trip() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
+test_claude_hagent_sync() {
+    local desc="hagent: script, command link, skill, units (Linux only) and herdr's own skill reach \$HOME; dry run writes nothing; a foreign file at the link is kept; sync_here pulls back only repo files"
+    local work; work="$(mktemp -d)"
+    local repo="$work/repo" good=true bin="$work/bin" home clean_path="" d out
+    mkdir -p "$repo" "$bin"
+    cp -R "$SCRIPTS_DIR/../claude" "$repo/claude"
+    printf '#!/bin/sh\n[ "$1" = --skill ] && echo "herdr skill text"\n' > "$bin/herdr"
+    chmod +x "$bin/herdr"
+    local -a dirs; IFS=: read -r -a dirs <<< "$PATH"
+    for d in "${dirs[@]}"; do [[ -x "$d/herdr" ]] || clean_path+="${clean_path:+:}$d"; done
+
+    # push HOME PATH OS [--dry-run]: run sync_claude_config, print FAILURES
+    push() (
+        export HOME="$1" PATH="$2"; local os="$3"; shift 3
+        mkdir -p "$HOME"
+        cd "$SCRIPTS_DIR" || exit 1
+        source ./sync_to_host.sh --yes "$@" >/dev/null
+        # shellcheck disable=SC2034  # read by sync_claude_config
+        REPO_DIR="$repo" OS="$os"
+        sync_claude_config >/dev/null 2>&1
+        echo "$FAILURES"
+    )
+    local units=.config/systemd/user skill=.claude/skills/herdr-agents/SKILL.md
+
+    home="$work/linux"
+    out="$(push "$home" "$bin:$clean_path" Linux)"
+    [[ "$out" == "0" ]] || { good=false; echo "    Linux sync reported failures: $out"; }
+    cmp -s "$repo/claude/scripts/hagent.py" "$home/.claude/scripts/hagent.py" && [[ "$(fmode "$home/.claude/scripts/hagent.py")" == "755" ]] || { good=false; echo "    hagent.py missing or not 755"; }
+    [[ -L "$home/.local/bin/hagent" && "$(readlink "$home/.local/bin/hagent")" == "$home/.claude/scripts/hagent.py" ]] || { good=false; echo "    ~/.local/bin/hagent is not a link to the script"; }
+    cmp -s "$repo/claude/skills/herdr-agents/SKILL.md" "$home/$skill" && [[ "$(fmode "$home/$skill")" == "644" ]] || { good=false; echo "    herdr-agents skill missing or not 644"; }
+    cmp -s "$repo/claude/systemd/hagent-clean.service" "$home/$units/hagent-clean.service" && cmp -s "$repo/claude/systemd/hagent-clean.timer" "$home/$units/hagent-clean.timer" || { good=false; echo "    systemd units missing"; }
+    [[ "$(cat "$home/.claude/skills/herdr/SKILL.md" 2>/dev/null)" == "herdr skill text" && "$(fmode "$home/.claude/skills/herdr/SKILL.md")" == "644" ]] || { good=false; echo "    herdr skill not generated"; }
+    [[ ! -e "$home/.claude/hagent.json" ]] || { good=false; echo "    per-machine hagent.json must not be created"; }
+    out="$(push "$home" "$bin:$clean_path" Linux)"
+    [[ "$out" == "0" ]] || { good=false; echo "    second sync reported failures: $out"; }
+
+    home="$work/mac"
+    out="$(push "$home" "$clean_path" Darwin)"
+    [[ "$out" == "0" ]] || { good=false; echo "    sync without herdr reported failures: $out"; }
+    [[ -L "$home/.local/bin/hagent" && ! -e "$home/$units" && ! -e "$home/.claude/skills/herdr" ]] || { good=false; echo "    non-Linux / no-herdr run wrote units or a herdr skill"; }
+
+    home="$work/dry"
+    # (the failure count is not checked: rsync --dry-run fails on any target
+    # whose parent directory does not exist yet, for every synced file)
+    push "$home" "$bin:$clean_path" Linux --dry-run >/dev/null
+    [[ -z "$(find "$home" -mindepth 1 2>/dev/null)" ]] || { good=false; echo "    dry run wrote: $(find "$home" -mindepth 1 | head -5)"; }
+
+    home="$work/taken"; mkdir -p "$home/.local/bin"; echo mine > "$home/.local/bin/hagent"
+    out="$(push "$home" "$bin:$clean_path" Linux)"
+    [[ "$out" == "1" && ! -L "$home/.local/bin/hagent" && "$(cat "$home/.local/bin/hagent")" == "mine" ]] || { good=false; echo "    existing file at the link path: failures=$out"; }
+
+    home="$work/linux"
+    local repo2="$work/repo2"; cp -R "$repo" "$repo2"
+    for d in .claude/scripts/hagent.py "$skill" "$units/hagent-clean.service" "$units/hagent-clean.timer" .claude/skills/herdr/SKILL.md; do
+        echo "# edited on host" >> "$home/$d"; chmod 600 "$home/$d"
+    done
+    echo '{"roots":["/personal/path"]}' > "$home/.claude/hagent.json"
+    out="$(
+        export HOME="$home"
+        cd "$SCRIPTS_DIR" || exit 1
+        source ./sync_here.sh --yes >/dev/null
+        # shellcheck disable=SC2034  # read by pull_claude_config
+        REPO_DIR="$repo2"
+        pull_claude_config >/dev/null 2>&1
+        echo "$FAILURES"
+    )"
+    [[ "$out" == "0" ]] || { good=false; echo "    sync_here reported failures: $out"; }
+    for d in scripts/hagent.py skills/herdr-agents/SKILL.md systemd/hagent-clean.service systemd/hagent-clean.timer; do
+        grep -q '# edited on host' "$repo2/claude/$d" || { good=false; echo "    claude/$d not pulled"; }
+    done
+    [[ "$(fmode "$repo2/claude/scripts/hagent.py")" == "755" && "$(fmode "$repo2/claude/skills/herdr-agents/SKILL.md")" == "644" && "$(fmode "$repo2/claude/systemd/hagent-clean.timer")" == "644" ]] || { good=false; echo "    repo modes leaked from host"; }
+    [[ ! -e "$repo2/claude/skills/herdr" ]] && ! grep -rq '/personal/path' "$repo2/claude" || { good=false; echo "    herdr skill or hagent.json leaked into repo"; }
+    unset -f push
+    rm -rf "$work"
+    if $good; then ok "$desc"; else fail "$desc"; fi
+}
+
 test_claude_statusline_shows_effort() {
     local desc="statusline-command.sh: shows the session's effort level after the model (line 2), nothing when the input has none, and no escape codes from the input"
     local script="$SCRIPTS_DIR/../claude/statusline-command.sh" good=true work out plain
@@ -1115,13 +1192,21 @@ test_claude_statusline_cache_hint() {
 test_claude_repo_files_publishable() {
     local desc="claude/ files exist, are not gitignored, contain no obvious secrets, and the fragment holds only statusLine"
     local root="$SCRIPTS_DIR/.." good=true f
-    for f in CLAUDE.md statusline-command.sh statusline.json scripts/usage_report.py skills/usage-tuning/SKILL.md; do
+    for f in CLAUDE.md statusline-command.sh statusline.json scripts/usage_report.py skills/usage-tuning/SKILL.md \
+        scripts/hagent.py skills/herdr-agents/SKILL.md systemd/hagent-clean.service systemd/hagent-clean.timer; do
         [[ -s "$root/claude/$f" ]] || { good=false; echo "    missing claude/$f"; continue; }
         if git -C "$root" rev-parse --git-dir >/dev/null 2>&1 && git -C "$root" check-ignore -q "claude/$f"; then good=false; echo "    claude/$f is gitignored"; fi
         ! grep -qE 'sk-ant-|ghp_[A-Za-z0-9]|AKIA[0-9A-Z]{12}|xox[bp]-|BEGIN [A-Z ]*PRIVATE KEY' "$root/claude/$f" || { good=false; echo "    secret-like string in claude/$f"; }
     done
     [[ "$(jq -c 'keys' "$root/claude/statusline.json" 2>/dev/null)" == '["statusLine"]' ]] || { good=false; echo "    statusline.json has keys other than statusLine"; }
     [[ -x "$root/claude/statusline-command.sh" ]] || { good=false; echo "    statusline-command.sh not executable"; }
+    [[ -x "$root/claude/scripts/hagent.py" ]] || { good=false; echo "    hagent.py not executable"; }
+    # the project's own CLAUDE.md must be committable too
+    if git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+        [[ -s "$root/CLAUDE.md" ]] && ! git -C "$root" check-ignore -q CLAUDE.md || { good=false; echo "    project CLAUDE.md missing or gitignored"; }
+    fi
+    ! grep -qE '/mnt/c/Users/[A-Za-z0-9_.-]+/|/home/[a-z][a-z0-9_-]+/' "$root/claude/scripts/hagent.py" "$root/claude/skills/herdr-agents/SKILL.md" \
+        || { good=false; echo "    personal-looking absolute path in hagent files"; }
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
@@ -1483,6 +1568,7 @@ test_nvim_local_plugins_override
 test_claude_statusline_merge
 test_claude_statusline_extract
 test_claude_sync_round_trip
+test_claude_hagent_sync
 test_claude_statusline_shows_effort
 test_claude_statusline_cache_hint
 test_claude_repo_files_publishable

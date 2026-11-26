@@ -187,10 +187,15 @@ detect_win_userprofile() {
 # Only these are synced: ~/.claude/CLAUDE.md, the statusline script, the
 # usage-tuning script and skill (scripts/usage_report.py,
 # skills/usage-tuning/SKILL.md; the per-machine paths they scan live in
-# ~/.claude/usage-tuning.json, which is not synced), and the "statusLine" key of ~/.claude/settings.json (kept in the repo as
-# claude/statusline.json). The rest of settings.json — permissions, enabled
-# plugins, marketplaces, model — is per-machine and may be sensitive, so it
-# is never copied; the key is merged in/out with jq instead.
+# ~/.claude/usage-tuning.json, which is not synced), hagent
+# (scripts/hagent.py, skills/herdr-agents/SKILL.md, and on Linux its units in
+# ~/.config/systemd/user; ~/.claude/hagent.json is not synced), and the
+# "statusLine" key of ~/.claude/settings.json (kept in the repo as
+# claude/statusline.json). sync_to_host.sh also links ~/.local/bin/hagent and
+# writes `herdr --skill` to skills/herdr/SKILL.md. The rest of
+# settings.json — permissions, enabled plugins, marketplaces, model — is
+# per-machine and may be sensitive, so it is never copied; the key is merged
+# in/out with jq instead.
 #
 # Both functions need jq, honour $DRY_RUN, and write atomically (temp file
 # + mv). Return: 0 = done / already up to date, 1 = failed, 2 = nothing to

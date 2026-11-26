@@ -1,5 +1,6 @@
 .cache
 __pycache__/
+.coverage
 *.pyc
 .rustup
 .zsh_history
@@ -28,6 +29,7 @@ __pycache__/
 
 *.md
 !README.md
+!/CLAUDE.md
 
 .config/zsh/.zcompdump*
 .config/zsh/90-local.zsh
@@ -44,6 +46,7 @@ __pycache__/
 !.config/nvim/doc/neovim-lua-api.md
 !.config/nvim/doc/plugin-development.md
 !claude/skills/usage-tuning/SKILL.md
+!claude/skills/herdr-agents/SKILL.md
 !.config/nvim/doc/plugin-templates.md
 
 .tmux.conf.local

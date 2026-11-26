@@ -12,7 +12,7 @@ Personal dotfiles for zsh, Neovim, tmux, Alacritty, and Starship — shared acro
 .config/starship/    Starship prompt config (Tokyo Night preset) + AWS/GCloud session segments
 .config/git/         Shared, identity-free git settings (delta, pull.rebase, ...)
 .tmux.conf           tmux config
-claude/              Claude Code user-scope config: CLAUDE.md, statusline script, statusLine setting
+claude/              Claude Code user-scope config: CLAUDE.md, statusline, skills, hagent
 .zshrc               zsh entrypoint, sources .config/zsh/*
 .zshenv              Block merged into ~/.zshenv (skips Ubuntu's system compinit, stamps the startup timer)
 alacritty/           Alacritty terminal config (synced to the Windows-native path under WSL, ~/.config/alacritty elsewhere)
@@ -201,6 +201,72 @@ only ever reads the `statusLine` key out of `settings.json`. Requires `jq`.
 
 This repo is public: keep anything private (tokens, internal hostnames,
 employer details) out of `claude/CLAUDE.md`.
+
+### Parallel sessions with herdr (`hagent`)
+
+`claude/scripts/hagent.py` runs Claude Code sessions in
+[herdr](https://herdr.dev), one per branch, and removes the git worktrees that
+are no longer needed. `sync_to_host.sh` copies it with its skill, links it as
+`~/.local/bin/hagent`, and writes herdr's own skill from `herdr --skill`.
+Needs Python 3.10+, git and, for pull request state, `gh`.
+
+```bash
+hagent start feat/x --task "..."   # worktree + herdr workspace + Claude agent
+hagent status                      # agents, sessions, last cleanup
+hagent clean                       # dry run: SAFE / ASK / KEEP per worktree
+hagent clean --apply               # remove the SAFE ones
+hagent remove PATH --confirm TOKEN # one ASK item, as printed by `clean`
+```
+
+A worktree is a candidate when its pull request is merged or closed, or it has
+been inactive for a week. It is `SAFE` only when nothing would be lost (no
+uncommitted, untracked or ignored files apart from caches, no commits that only
+the worktree's own reflog or refs hold, not locked, not detached) and nothing is
+using it. Removing a worktree keeps the branch, except for a merged pull request
+whose head equals the branch.
+
+The token for `remove` belongs to one worktree and lapses when its HEAD or a
+listed file changes. A worktree with commits that nothing else leads to is
+refused until a branch holds them; `clean` prints the command. "In use" is read
+from working directories in the Linux process list, so a program that reaches
+into a worktree from elsewhere, or a privileged one started outside it, is not
+seen.
+
+Settings, per machine and optional, in `~/.claude/hagent.json`:
+
+```json
+{
+  "roots": ["~/work"],
+  "stale_days": 7,
+  "cache_names": ["__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules"],
+  "auto_remove": false
+}
+```
+
+Setup that the sync does not do for you:
+
+```bash
+herdr integration install claude   # lets herdr restore Claude sessions (edits settings.json)
+hagent clean                       # check the verdicts first
+systemctl --user daemon-reload
+systemctl --user enable --now hagent-clean.timer   # Linux/WSL, daily
+```
+
+herdr shows no pop-ups by default. For the cleanup notification, add this to
+`~/.config/herdr/config.toml` (it also enables herdr's own agent pop-ups;
+`"terminal"` and `"system"` are the other choices), then run
+`herdr server reload-config`:
+
+```toml
+[ui.toast]
+delivery = "herdr"
+```
+
+The timer only reports until `"auto_remove": true`. It shows a herdr
+notification when something was removed, a new item needs approval, or the run
+failed; `SAFE` items alone do not notify. Runs are logged in
+`~/.local/state/hagent/clean.log`. Removal works on Linux only (it reads
+`/proc` to see what is in use).
 
 ## Neovim: languages
 
