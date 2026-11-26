@@ -1,5 +1,9 @@
 # dot_files
 
+<!-- portfolio-badge -->
+[![Portfolio Docs](https://img.shields.io/badge/docs-yusukensanta.github.io-blue?style=flat-square)](https://yusukensanta.github.io/projects/dot_files/)
+<!-- portfolio-badge -->
+
 [![install and sync scripts](https://github.com/yusukensanta/dot_files/actions/workflows/scripts.yml/badge.svg?branch=master)](https://github.com/yusukensanta/dot_files/actions/workflows/scripts.yml)
 [![zsh startup (Linux)](https://github.com/yusukensanta/dot_files/actions/workflows/zsh-linux.yml/badge.svg?branch=master)](https://github.com/yusukensanta/dot_files/actions/workflows/zsh-linux.yml)
 [![zsh startup (macOS)](https://github.com/yusukensanta/dot_files/actions/workflows/zsh-macos.yml/badge.svg?branch=master)](https://github.com/yusukensanta/dot_files/actions/workflows/zsh-macos.yml)

@@ -1292,13 +1292,17 @@ test_claude_usage_report_runs_without_config() {
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
-test_portfolio_opt_out() {
-    local desc="this repo is not published to the portfolio site: no opt-in .github/portfolio.yml (or enabled: false) and no portfolio badge in README"
-    local root="$SCRIPTS_DIR/.." good=true
-    if [[ -f "$root/.github/portfolio.yml" ]]; then
-        grep -qE '^enabled:[[:space:]]*false[[:space:]]*$' "$root/.github/portfolio.yml" || { good=false; echo "    portfolio.yml is still opted in"; }
-    fi
-    ! grep -qE 'portfolio-badge|yusukensanta\.github\.io' "$root/README.md" || { good=false; echo "    README still links the portfolio site"; }
+test_portfolio_listing() {
+    local desc="published to the portfolio site: .github/portfolio.yml is opted in, and README already has the badge block the site looks for (so its sync never commits to this repo)"
+    local root="$SCRIPTS_DIR/.." good=true f want got
+    f="$root/.github/portfolio.yml"
+    grep -qE '^enabled:[[:space:]]*true[[:space:]]*$' "$f" 2>/dev/null || { good=false; echo "    portfolio.yml missing or not enabled"; }
+    grep -qE '^description:[[:space:]]*"[^"]+"' "$f" 2>/dev/null || { good=false; echo "    portfolio.yml has no description"; }
+    want='<!-- portfolio-badge -->
+[![Portfolio Docs](https://img.shields.io/badge/docs-yusukensanta.github.io-blue?style=flat-square)](https://yusukensanta.github.io/projects/dot_files/)
+<!-- portfolio-badge -->'
+    got="$(sed -n '/<!-- portfolio-badge -->/,+2p' "$root/README.md")"
+    [[ "$got" == "$want" ]] || { good=false; echo "    README badge block differs: $got"; }
     if $good; then ok "$desc"; else fail "$desc"; fi
 }
 
@@ -1643,7 +1647,7 @@ test_claude_statusline_shows_effort
 test_claude_statusline_cache_hint
 test_claude_repo_files_publishable
 test_claude_usage_report_runs_without_config
-test_portfolio_opt_out
+test_portfolio_listing
 test_managed_block_merge
 test_zshenv_block_content
 test_starship_command_timeout
