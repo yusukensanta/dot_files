@@ -147,24 +147,84 @@ sync_file() {
     fi
 }
 
+# link_command TARGET LINK: make LINK a symlink to TARGET. Anything else
+# already at LINK is left alone and reported (return 1).
+link_command() {
+    local target="$1" link="$2"
+    echo ""
+    echo "🔗 Linking: $link -> $target"
+    if [[ -L "$link" && "$(readlink "$link")" == "$target" ]]; then
+        echo "   ✓ Already linked"
+    elif [[ -e "$link" || -L "$link" ]]; then
+        echo "   ✗ $link already exists and is not this link — left alone"
+        return 1
+    elif $DRY_RUN; then
+        echo "   ✓ Dry-run completed"
+    elif mkdir -p "$(dirname "$link")" && ln -s "$target" "$link"; then
+        echo "   ✓ Linked"
+    else
+        echo "   ✗ Link failed"
+        return 1
+    fi
+}
+
+# write_herdr_skill DEST: herdr's own skill comes from the installed binary, so
+# it always matches that version. Does nothing without herdr.
+write_herdr_skill() {
+    local dest="$1" tmp
+    command -v herdr >/dev/null 2>&1 || return 0
+    tmp="$(mktemp)" || return 1
+    if ! herdr --skill > "$tmp" || [[ ! -s "$tmp" ]]; then
+        echo ""
+        echo "📄 Syncing: herdr skill"
+        echo "   ✗ \`herdr --skill\` gave no output — $dest left as it is"
+        rm -f "$tmp"
+        return 1
+    fi
+    chmod 644 "$tmp"
+    if cmp -s "$tmp" "$dest"; then
+        echo ""
+        echo "📄 herdr skill already up to date: $dest"
+    else
+        sync_file "$tmp" "$dest" "herdr skill (generated)"
+    fi
+    rm -f "$tmp"
+}
+
 # Claude Code user-scope config: CLAUDE.md, the statusline script, the
-# usage-tuning script and skill, and the
-# statusLine key of settings.json (merged with jq — see "CLAUDE CODE" in
-# lib/sync_common.sh; the rest of settings.json is never touched).
+# usage-tuning script and skill, hagent (script, command link, skill, Linux
+# units, herdr's own skill), and the statusLine key of settings.json (merged
+# with jq — see "CLAUDE CODE" in lib/sync_common.sh; the rest of settings.json
+# is never touched).
 sync_claude_config() {
-    local claude_dir="$HOME/.claude"
+    local claude_dir="$HOME/.claude" unit_dir="$HOME/.config/systemd/user" unit
     sync_file "$REPO_DIR/claude/CLAUDE.md" "$claude_dir/CLAUDE.md" "claude/CLAUDE.md"
     sync_file "$REPO_DIR/claude/statusline-command.sh" "$claude_dir/statusline-command.sh" "claude/statusline-command.sh"
     # Usage-tuning: report script + skill. Which sessions it scans is set per
     # machine in ~/.claude/usage-tuning.json, which is never synced.
     sync_file "$REPO_DIR/claude/scripts/usage_report.py" "$claude_dir/scripts/usage_report.py" "claude/scripts/usage_report.py"
     sync_file "$REPO_DIR/claude/skills/usage-tuning/SKILL.md" "$claude_dir/skills/usage-tuning/SKILL.md" "claude/skills/usage-tuning/SKILL.md"
+    # hagent: parallel sessions in herdr and worktree cleanup. Its settings are
+    # per machine (~/.claude/hagent.json) and never synced. The timer is copied,
+    # not enabled (see README).
+    sync_file "$REPO_DIR/claude/scripts/hagent.py" "$claude_dir/scripts/hagent.py" "claude/scripts/hagent.py"
+    sync_file "$REPO_DIR/claude/skills/herdr-agents/SKILL.md" "$claude_dir/skills/herdr-agents/SKILL.md" "claude/skills/herdr-agents/SKILL.md"
+    link_command "$claude_dir/scripts/hagent.py" "$HOME/.local/bin/hagent" || FAILURES=$((FAILURES + 1))
+    if [[ "$OS" == "Linux" ]]; then
+        for unit in hagent-clean.service hagent-clean.timer; do
+            sync_file "$REPO_DIR/claude/systemd/$unit" "$unit_dir/$unit" "claude/systemd/$unit"
+            if ! $DRY_RUN && [[ -f "$unit_dir/$unit" ]]; then chmod 644 "$unit_dir/$unit"; fi
+        done
+    fi
+    write_herdr_skill "$claude_dir/skills/herdr/SKILL.md" || FAILURES=$((FAILURES + 1))
     # rsync -a carries the source's mode over; pin the intended ones.
     if ! $DRY_RUN; then
         [[ -f "$claude_dir/CLAUDE.md" ]] && chmod 644 "$claude_dir/CLAUDE.md"
         [[ -f "$claude_dir/statusline-command.sh" ]] && chmod 755 "$claude_dir/statusline-command.sh"
         [[ -f "$claude_dir/scripts/usage_report.py" ]] && chmod 755 "$claude_dir/scripts/usage_report.py"
         [[ -f "$claude_dir/skills/usage-tuning/SKILL.md" ]] && chmod 644 "$claude_dir/skills/usage-tuning/SKILL.md"
+        [[ -f "$claude_dir/scripts/hagent.py" ]] && chmod 755 "$claude_dir/scripts/hagent.py"
+        [[ -f "$claude_dir/skills/herdr-agents/SKILL.md" ]] && chmod 644 "$claude_dir/skills/herdr-agents/SKILL.md"
     fi
     echo ""
     echo "📄 Syncing: statusLine -> $claude_dir/settings.json"
