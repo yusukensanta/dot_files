@@ -23,7 +23,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/session_format.sh"
 gcloud_dir="$HOME/.config/gcloud"
 [[ -d "$gcloud_dir" ]] || exit 0
 
-cache_file="${TMPDIR:-/tmp}/starship-gcloud-session-${UID}.cache"
+# shellcheck source=lib/session_cache.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/session_cache.sh"
+cache_file="$(session_cache_dir)/gcloud.cache"
 
 # See aws_session.sh's CACHE_TTL comment — same reasoning applies here.
 CACHE_TTL=5
@@ -88,6 +90,4 @@ compute() {
   session_print_remaining "$project" "$exp_epoch"
 }
 
-# shellcheck source=lib/session_cache.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib/session_cache.sh"
 session_cache_serve "$cache_file" "$CACHE_TTL" compute

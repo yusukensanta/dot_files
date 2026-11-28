@@ -30,6 +30,10 @@ LIBRARIES_STEPS="packages fish mise tpm docker cargo neovim"
 # coursier: nvim-metals installs and updates Metals (the Scala language
 # server) with it.
 DEFAULT_MISE_RUNTIMES="go java node python ruby rust terraform sbt coursier poetry"
+# win32yank is a Windows executable fetched outside any package manager, so
+# the release is pinned and its archive checked. To bump it, change both.
+WIN32YANK_VERSION=v0.1.1
+WIN32YANK_SHA256=247c9a05b94387a884b49d3db13f806b1677dfc38020f955f719be6902260cd6
 
 # === SYSTEM PACKAGES ===
 
@@ -62,16 +66,25 @@ link_renamed_debian_binaries() {
 # copy-command widget still uses it on non-WSL Linux with X11.
 install_win32yank() {
   $IS_WSL && ! have win32yank.exe || return 0
-  local zip
-  zip="$(mktemp -u).zip"
+  local work zip got status=0
+  work="$(mktemp -d)"
+  zip="$work/win32yank.zip"
   if curl -fsSL -o "$zip" \
-      https://github.com/equalsraf/win32yank/releases/latest/download/win32yank-x64.zip; then
-    unzip -p "$zip" win32yank.exe > "$HOME/.local/bin/win32yank.exe"
-    chmod +x "$HOME/.local/bin/win32yank.exe"
+      "https://github.com/equalsraf/win32yank/releases/download/${WIN32YANK_VERSION}/win32yank-x64.zip"; then
+    got="$(sha256sum "$zip" | cut -d' ' -f1)"
+    if [[ "$got" == "$WIN32YANK_SHA256" ]]; then
+      mkdir -p "$HOME/.local/bin"
+      unzip -p "$zip" win32yank.exe > "$HOME/.local/bin/win32yank.exe"
+      chmod +x "$HOME/.local/bin/win32yank.exe"
+    else
+      echo "error: win32yank checksum mismatch (expected $WIN32YANK_SHA256, got $got); not installed" >&2
+      status=1
+    fi
   else
     echo "warning: could not download win32yank.exe — WSL clipboard integration will not work" >&2
   fi
-  rm -f "$zip"
+  rm -rf "$work"
+  return "$status"
 }
 
 install_packages_linux() {

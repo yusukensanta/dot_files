@@ -41,6 +41,9 @@ on:
       - '.github/workflows/zsh-linux.yml'
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -53,19 +56,22 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       TERM: xterm-256color
       LANG: C.UTF-8
-      # sheldon's installer asks the GitHub API for the latest release;
-      # unauthenticated calls from shared runners get rate-limited.
-      GITHUB_TOKEN: ${{ github.token }}
       # The default 60ms ceiling is tuned for a quiet machine; a shared
       # runner needs slack, while a real regression (the ~70ms system
       # compinit, a synchronous plugin load) still shows.
       ZSH_STARTUP_MAX_MS: '200'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install zsh and its tools with the bootstrap script
         env:
           XDG_CONFIG_HOME: ${{ github.workspace }}/.config
+          # sheldon's installer asks the GitHub API for the latest release;
+          # unauthenticated calls from shared runners get rate-limited. Only
+          # this step gets the token.
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash scripts/install_zsh_tools.sh
 
       # The script installs starship, sheldon and (when apt's is too old)

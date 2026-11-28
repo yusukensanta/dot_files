@@ -35,5 +35,7 @@ Shellcheck alone: `shellcheck -S warning scripts/*.sh scripts/lib/*.sh scripts/t
 - Scripts must run on bash 3.2 (macOS): guard empty arrays as
   `${arr[@]+"${arr[@]}"}`.
 - Tests use a throwaway `$HOME` and stubbed commands.
+- Workflows declare `contents: read` and pin actions to a commit SHA with a
+  `# vX.Y.Z` comment; Dependabot bumps the pins.
 - Per-machine settings (`~/.claude/*.json`, `.config/zsh/local.d/`) are never
   synced or committed.

@@ -28,7 +28,9 @@ if [[ -z "$profile" ]]; then
 fi
 
 safe_profile="${profile//[^A-Za-z0-9_.-]/_}"
-cache_file="${TMPDIR:-/tmp}/starship-aws-session-${UID}-${safe_profile}.cache"
+# shellcheck source=lib/session_cache.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/session_cache.sh"
+cache_file="$(session_cache_dir)/aws-${safe_profile}.cache"
 
 # How fresh the cache needs to be to skip a background refresh. Session
 # expiry is measured in hours, so a few seconds of display staleness is
@@ -124,6 +126,4 @@ compute() {
   session_print_remaining "$role" "$exp_epoch"
 }
 
-# shellcheck source=lib/session_cache.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib/session_cache.sh"
 session_cache_serve "$cache_file" "$CACHE_TTL" compute
